@@ -168,6 +168,25 @@ That's it! Now use one of these commands in Claude Code:
 | `/planning-with-files:status` | Type `/plan:status` | Show planning progress at a glance (v2.15.0+) |
 | `/planning-with-files:start` | Type `/planning` | Original start command |
 
+<details>
+<summary><strong>🇨🇳 Chinese / 中文版</strong></summary>
+
+完整的中文本地化版本。所有规划指令、模板和提示均为中文。
+
+```bash
+npx skills add OthmanAdi/planning-with-files --skill planning-with-files-zh -g
+```
+
+| 命令 | 说明 |
+|------|------|
+| `/planning-with-files:plan-zh` | 启动中文规划会话 |
+
+Uses the same 3-file pattern (`task_plan.md`, `findings.md`, `progress.md`) with Chinese content. Hooks and scripts are shared with the English version.
+
+Inspired by @kevinaimonster's [PR #108](https://github.com/OthmanAdi/planning-with-files/pull/108).
+
+</details>
+
 **Alternative:** If you want `/planning-with-files` (without prefix), copy skills to your local folder:
 
 **macOS/Linux:**
