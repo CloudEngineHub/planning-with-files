@@ -55,6 +55,7 @@ See the full list of everyone who made this project better in [CONTRIBUTORS.md](
 | **v2.17.0** | Mastra Code support + all IDE SKILL.md spec fixes |
 | **v2.16.1** | Copilot garbled characters fix — PS1 UTF-8 encoding + bash ensure_ascii (thanks @Hexiaopi!) |
 | **v2.16.0** | GitHub Copilot hooks support (thanks @lincolnwan!) |
+| **v2.27.0** | Kiro Agent Skill layout (thanks @EListenX!) |
 | **v2.15.1** | Session catchup false-positive fix (thanks @gydx6!) |
 | **v2.15.0** | `/plan:status` command, OpenCode compatibility fix |
 | **v2.14.0** | Pi Agent support, OpenClaw docs update, Codex path fix |
@@ -100,7 +101,7 @@ These IDEs have dedicated hook configurations that automatically re-read your pl
 | GitHub Copilot | [Copilot Setup](docs/copilot.md) | [Hooks](https://docs.github.com/en/copilot/reference/hooks-configuration) (incl. errorOccurred) |
 | Mastra Code | [Mastra Setup](docs/mastra.md) | Skills + [Hooks](https://mastra.ai/docs/mastra-code/configuration) |
 | Gemini CLI | [Gemini Setup](docs/gemini.md) | Skills + [Hooks](https://geminicli.com/docs/hooks/) |
-| Kiro | [Kiro Setup](docs/kiro.md) | [Steering Files](https://kiro.dev/docs/steering/) |
+| Kiro | [Kiro Setup](docs/kiro.md) | [Agent Skills](https://kiro.dev/docs/skills/) |
 | Codex | [Codex Setup](docs/codex.md) | [Skills + Hooks](https://developers.openai.com/codex/skills) |
 | CodeBuddy | [CodeBuddy Setup](docs/codebuddy.md) | [Skills + Hooks](https://www.codebuddy.ai/docs/cli/skills) |
 | FactoryAI Droid | [Factory Setup](docs/factory.md) | [Skills + Hooks](https://docs.factory.ai/cli/configuration/skills) |
@@ -145,7 +146,7 @@ A Claude Code plugin that transforms your workflow to use persistent markdown fi
 [![Kilocode Skills](https://img.shields.io/badge/Kilocode-Skills-orange)](https://kilo.ai/docs/agent-behavior/skills)
 [![Gemini CLI](https://img.shields.io/badge/Gemini%20CLI-Skills-4285F4)](https://geminicli.com/docs/cli/skills/)
 [![OpenClaw](https://img.shields.io/badge/OpenClaw-Skills-FF6B6B)](https://openclaw.ai)
-[![Kiro](https://img.shields.io/badge/Kiro-Steering-00D4AA)](https://kiro.dev/docs/cli/steering/)
+[![Kiro](https://img.shields.io/badge/Kiro-Agent_Skill-00D4AA)](https://kiro.dev/docs/skills/)
 [![AdaL CLI](https://img.shields.io/badge/AdaL%20CLI-Skills-9B59B6)](https://docs.sylph.ai/features/plugins-and-skills)
 [![Pi Agent](https://img.shields.io/badge/Pi%20Agent-Skills-FF4081)](https://pi.dev)
 [![GitHub Copilot](https://img.shields.io/badge/GitHub%20Copilot-Hooks-000000)](https://docs.github.com/en/copilot/reference/hooks-configuration)

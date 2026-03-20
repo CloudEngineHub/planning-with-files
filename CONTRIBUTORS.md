@@ -59,6 +59,13 @@ These amazing people have contributed code, documentation, or significant improv
   - Created `docs/codebuddy.md` installation guide
   - **Impact:** Expands IDE support to CodeBuddy ecosystem
 
+- **[@EListenX](https://github.com/EListenX)** (Yi Chenxi) - [PR #112](https://github.com/OthmanAdi/planning-with-files/pull/112)
+  - Added full Kiro Agent Skill support under `.kiro/skills/planning-with-files/`
+  - Created bootstrap scripts, steering integration with `#[[file:]]` live references
+  - Replaced old `.kiro/scripts/` and `.kiro/steering/` with proper Agent Skill layout
+  - Updated Cursor and Mastra Code hooks, improved docs/kiro.md
+  - **Impact:** Brings Kiro IDE support to production quality with native Agent Skill format
+
 - **[@lincolnwan](https://github.com/lincolnwan)** - [PR #80](https://github.com/OthmanAdi/planning-with-files/pull/80)
   - Added native GitHub Copilot hooks integration using the early 2026 hooks system
   - Created `.github/hooks/planning-with-files.json` with full hook scripts in `.github/hooks/scripts/`
@@ -176,4 +183,4 @@ If you've contributed and don't see your name here, please open an issue! We wan
 
 **Total Contributors:** 25+ and growing!
 
-*Last updated: March 4, 2026*
+*Last updated: March 20, 2026*

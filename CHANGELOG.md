@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.27.0] - 2026-03-20
+
+### Added
+
+- **Kiro Agent Skill support** (PR #112 by @EListenX)
+  - Full `.kiro/skills/planning-with-files/` layout with SKILL.md, bootstrap scripts, templates, references
+  - Bootstrap creates `.kiro/plan/` for planning files and `.kiro/steering/planning-context.md` with `#[[file:]]` live references
+  - Includes session-catchup.py and check-complete scripts adapted for Kiro's `.kiro/plan/` path
+  - Replaces the old `.kiro/scripts/` and `.kiro/steering/` approach with proper Agent Skill format
+
+### Changed
+
+- Updated `scripts/sync-ide-folders.py` to skip `.kiro` (Kiro uses its own skill layout)
+- Rewrote `docs/kiro.md` to reflect new Agent Skill approach
+
+### Thanks
+
+- @EListenX (Yi Chenxi) for the thorough Kiro integration with proper Agent Skill format
+
+---
+
 ## [2.23.0] - 2026-03-16
 
 ### Fixed
