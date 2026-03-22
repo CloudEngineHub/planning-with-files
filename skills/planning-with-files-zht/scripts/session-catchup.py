@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Session Catchup Script for planning-with-files
+planning-with-files 會話恢復腳本
 
-Analyzes the previous session to find unsynced context after the last
-planning file update. Designed to run on SessionStart.
+分析上一個會話，找出最後一次規劃檔案更新後未同步的上下文。
+設計用於 SessionStart 時執行。
 
-Usage: python3 session-catchup.py [project-path]
+用法：python3 session-catchup.py [專案路徑]
 """
 
 import json
@@ -18,7 +18,7 @@ PLANNING_FILES = ['task_plan.md', 'progress.md', 'findings.md']
 
 
 def get_project_dir(project_path: str) -> Tuple[Optional[Path], Optional[str]]:
-    """Resolve session storage path for the current runtime variant."""
+    """解析目前執行環境的會話儲存路徑。"""
     sanitized = project_path.replace('/', '-')
     if not sanitized.startswith('-'):
         sanitized = '-' + sanitized
@@ -26,29 +26,29 @@ def get_project_dir(project_path: str) -> Tuple[Optional[Path], Optional[str]]:
 
     claude_path = Path.home() / '.claude' / 'projects' / sanitized
 
-    # Codex stores sessions in ~/.codex/sessions with a different format.
-    # Avoid silently scanning Claude paths when running from Codex skill folder.
+    # Codex 將會話存放在 ~/.codex/sessions，格式不同。
+    # 從 Codex 技能資料夾執行時，避免靜默掃描 Claude 路徑。
     script_path = Path(__file__).as_posix().lower()
     is_codex_variant = '/.codex/' in script_path
     codex_sessions_dir = Path.home() / '.codex' / 'sessions'
     if is_codex_variant and codex_sessions_dir.exists() and not claude_path.exists():
         return None, (
-            "[planning-with-files] Session catchup skipped: Codex stores sessions "
-            "in ~/.codex/sessions and native Codex parsing is not implemented yet."
+            "[planning-with-files] 會話恢復已跳過：Codex 將會話存放在 "
+            "~/.codex/sessions，原生 Codex 解析尚未實作。"
         )
 
     return claude_path, None
 
 
 def get_sessions_sorted(project_dir: Path) -> List[Path]:
-    """Get all session files sorted by modification time (newest first)."""
+    """取得所有會話檔案，按修改時間排序（最新優先）。"""
     sessions = list(project_dir.glob('*.jsonl'))
     main_sessions = [s for s in sessions if not s.name.startswith('agent-')]
     return sorted(main_sessions, key=lambda p: p.stat().st_mtime, reverse=True)
 
 
 def parse_session_messages(session_file: Path) -> List[Dict]:
-    """Parse all messages from a session file, preserving order."""
+    """解析會話檔案中的所有訊息，保持順序。"""
     messages = []
     with open(session_file, 'r') as f:
         for line_num, line in enumerate(f):
@@ -63,8 +63,8 @@ def parse_session_messages(session_file: Path) -> List[Dict]:
 
 def find_last_planning_update(messages: List[Dict]) -> Tuple[int, Optional[str]]:
     """
-    Find the last time a planning file was written/edited.
-    Returns (line_number, filename) or (-1, None) if not found.
+    找出最後一次寫入/編輯規劃檔案的時間點。
+    回傳 (行號, 檔案名稱) 或 (-1, None)（如果未找到）。
     """
     last_update_line = -1
     last_update_file = None
@@ -91,7 +91,7 @@ def find_last_planning_update(messages: List[Dict]) -> Tuple[int, Optional[str]]
 
 
 def extract_messages_after(messages: List[Dict], after_line: int) -> List[Dict]:
-    """Extract conversation messages after a certain line number."""
+    """擷取特定行號之後的對話訊息。"""
     result = []
     for msg in messages:
         if msg['_line_num'] <= after_line:
@@ -154,12 +154,12 @@ def extract_messages_after(messages: List[Dict], after_line: int) -> List[Dict]:
 def main():
     project_path = sys.argv[1] if len(sys.argv) > 1 else os.getcwd()
 
-    # Check if planning files exist (indicates active task)
+    # 檢查規劃檔案是否存在（表示有進行中的任務）
     has_planning_files = any(
         Path(project_path, f).exists() for f in PLANNING_FILES
     )
     if not has_planning_files:
-        # No planning files in this project; skip catchup to avoid noise.
+        # 此專案中沒有規劃檔案；跳過恢復以避免干擾。
         return
 
     project_dir, skip_reason = get_project_dir(project_path)
@@ -168,14 +168,14 @@ def main():
         return
 
     if not project_dir.exists():
-        # No previous sessions, nothing to catch up on
+        # 沒有先前的會話，無需恢復
         return
 
     sessions = get_sessions_sorted(project_dir)
     if len(sessions) < 1:
         return
 
-    # Find a substantial previous session
+    # 找到一個有實質內容的先前會話
     target_session = None
     for session in sessions:
         if session.stat().st_size > 5000:
@@ -188,38 +188,38 @@ def main():
     messages = parse_session_messages(target_session)
     last_update_line, last_update_file = find_last_planning_update(messages)
 
-    # No planning updates in the target session; skip catchup output.
+    # 目標會話中沒有規劃更新；跳過恢復輸出。
     if last_update_line < 0:
         return
 
-    # Only output if there's unsynced content
+    # 僅在有未同步內容時輸出
     messages_after = extract_messages_after(messages, last_update_line)
 
     if not messages_after:
         return
 
-    # Output catchup report
-    print("\n[planning-with-files] SESSION CATCHUP DETECTED")
-    print(f"Previous session: {target_session.stem}")
+    # 輸出恢復報告
+    print("\n[planning-with-files] 偵測到會話恢復需求")
+    print(f"先前會話：{target_session.stem}")
 
-    print(f"Last planning update: {last_update_file} at message #{last_update_line}")
-    print(f"Unsynced messages: {len(messages_after)}")
+    print(f"最後規劃更新：{last_update_file}（訊息 #{last_update_line}）")
+    print(f"未同步訊息：{len(messages_after)} 則")
 
-    print("\n--- UNSYNCED CONTEXT ---")
-    for msg in messages_after[-15:]:  # Last 15 messages
+    print("\n--- 未同步的上下文 ---")
+    for msg in messages_after[-15:]:  # 最後 15 則訊息
         if msg['role'] == 'user':
-            print(f"USER: {msg['content'][:300]}")
+            print(f"使用者：{msg['content'][:300]}")
         else:
             if msg.get('content'):
-                print(f"CLAUDE: {msg['content'][:300]}")
+                print(f"CLAUDE：{msg['content'][:300]}")
             if msg.get('tools'):
-                print(f"  Tools: {', '.join(msg['tools'][:4])}")
+                print(f"  工具：{', '.join(msg['tools'][:4])}")
 
-    print("\n--- RECOMMENDED ---")
-    print("1. Run: git diff --stat")
-    print("2. Read: task_plan.md, progress.md, findings.md")
-    print("3. Update planning files based on above context")
-    print("4. Continue with task")
+    print("\n--- 建議操作 ---")
+    print("1. 執行：git diff --stat")
+    print("2. 讀取：task_plan.md、progress.md、findings.md")
+    print("3. 根據上述上下文更新規劃檔案")
+    print("4. 繼續任務")
 
 
 if __name__ == '__main__':

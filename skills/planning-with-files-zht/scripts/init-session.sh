@@ -1,120 +1,120 @@
 #!/bin/bash
-# Initialize planning files for a new session
-# Usage: ./init-session.sh [project-name]
+# 初始化新會話的規劃檔案
+# 用法：./init-session.sh [專案名稱]
 
 set -e
 
 PROJECT_NAME="${1:-project}"
 DATE=$(date +%Y-%m-%d)
 
-echo "Initializing planning files for: $PROJECT_NAME"
+echo "正在初始化規劃檔案：$PROJECT_NAME"
 
-# Create task_plan.md if it doesn't exist
+# 如果 task_plan.md 不存在則建立
 if [ ! -f "task_plan.md" ]; then
     cat > task_plan.md << 'EOF'
-# Task Plan: [Brief Description]
+# 任務計畫：[簡要描述]
 
-## Goal
-[One sentence describing the end state]
+## 目標
+[用一句話描述最終狀態]
 
-## Current Phase
-Phase 1
+## 目前階段
+階段 1
 
-## Phases
+## 各階段
 
-### Phase 1: Requirements & Discovery
-- [ ] Understand user intent
-- [ ] Identify constraints
-- [ ] Document in findings.md
-- **Status:** in_progress
+### 階段 1：需求與發現
+- [ ] 理解使用者意圖
+- [ ] 確定約束條件和需求
+- [ ] 將發現記錄到 findings.md
+- **狀態：** in_progress
 
-### Phase 2: Planning & Structure
-- [ ] Define approach
-- [ ] Create project structure
-- **Status:** pending
+### 階段 2：規劃與結構
+- [ ] 確定技術方案
+- [ ] 如有需要建立專案結構
+- **狀態：** pending
 
-### Phase 3: Implementation
-- [ ] Execute the plan
-- [ ] Write to files before executing
-- **Status:** pending
+### 階段 3：實作
+- [ ] 按計畫逐步執行
+- [ ] 先將程式碼寫入檔案再執行
+- **狀態：** pending
 
-### Phase 4: Testing & Verification
-- [ ] Verify requirements met
-- [ ] Document test results
-- **Status:** pending
+### 階段 4：測試與驗證
+- [ ] 驗證所有需求已滿足
+- [ ] 將測試結果記錄到 progress.md
+- **狀態：** pending
 
-### Phase 5: Delivery
-- [ ] Review outputs
-- [ ] Deliver to user
-- **Status:** pending
+### 階段 5：交付
+- [ ] 檢查所有輸出檔案
+- [ ] 交付給使用者
+- **狀態：** pending
 
-## Decisions Made
-| Decision | Rationale |
-|----------|-----------|
+## 已做決策
+| 決策 | 理由 |
+|------|------|
 
-## Errors Encountered
-| Error | Resolution |
-|-------|------------|
+## 遇到的錯誤
+| 錯誤 | 解決方案 |
+|------|---------|
 EOF
-    echo "Created task_plan.md"
+    echo "已建立 task_plan.md"
 else
-    echo "task_plan.md already exists, skipping"
+    echo "task_plan.md 已存在，跳過"
 fi
 
-# Create findings.md if it doesn't exist
+# 如果 findings.md 不存在則建立
 if [ ! -f "findings.md" ]; then
     cat > findings.md << 'EOF'
-# Findings & Decisions
+# 發現與決策
 
-## Requirements
+## 需求
 -
 
-## Research Findings
+## 研究發現
 -
 
-## Technical Decisions
-| Decision | Rationale |
-|----------|-----------|
+## 技術決策
+| 決策 | 理由 |
+|------|------|
 
-## Issues Encountered
-| Issue | Resolution |
-|-------|------------|
+## 遇到的問題
+| 問題 | 解決方案 |
+|------|---------|
 
-## Resources
+## 資源
 -
 EOF
-    echo "Created findings.md"
+    echo "已建立 findings.md"
 else
-    echo "findings.md already exists, skipping"
+    echo "findings.md 已存在，跳過"
 fi
 
-# Create progress.md if it doesn't exist
+# 如果 progress.md 不存在則建立
 if [ ! -f "progress.md" ]; then
     cat > progress.md << EOF
-# Progress Log
+# 進度日誌
 
-## Session: $DATE
+## 會話：$DATE
 
-### Current Status
-- **Phase:** 1 - Requirements & Discovery
-- **Started:** $DATE
+### 目前狀態
+- **階段：** 1 - 需求與發現
+- **開始時間：** $DATE
 
-### Actions Taken
+### 執行的操作
 -
 
-### Test Results
-| Test | Expected | Actual | Status |
-|------|----------|--------|--------|
+### 測試結果
+| 測試 | 預期結果 | 實際結果 | 狀態 |
+|------|---------|---------|------|
 
-### Errors
-| Error | Resolution |
-|-------|------------|
+### 錯誤
+| 錯誤 | 解決方案 |
+|------|---------|
 EOF
-    echo "Created progress.md"
+    echo "已建立 progress.md"
 else
-    echo "progress.md already exists, skipping"
+    echo "progress.md 已存在，跳過"
 fi
 
 echo ""
-echo "Planning files initialized!"
-echo "Files: task_plan.md, findings.md, progress.md"
+echo "規劃檔案初始化完成！"
+echo "檔案：task_plan.md、findings.md、progress.md"
