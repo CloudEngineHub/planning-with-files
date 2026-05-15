@@ -490,12 +490,6 @@ MIT License — feel free to use, modify, and distribute.
 
 **Author:** [Ahmad Othman Ammar Adi](https://github.com/OthmanAdi)
 
-## ClawHub Downloads
-
-<p align="center">
-  <a href="https://skill-history.com/othmanadi/planning-with-files"><img src="https://skill-history.com/badge/othmanadi/planning-with-files.svg" alt="ClawHub Downloads"></a>
-</p>
-
 ## Star History
 
 <a href="https://repostars.dev/?repos=OthmanAdi%2Fplanning-with-files&theme=copper"><img src="https://repostars.dev/api/embed?repo=OthmanAdi%2Fplanning-with-files&theme=copper" width="100%" alt="Star History Chart" /></a>
