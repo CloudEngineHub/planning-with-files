@@ -391,7 +391,11 @@ class HermesAdapterTests(unittest.TestCase):
             result = json.loads(installed_tools.planning_with_files_check_complete(cwd=str(project_dir)))
             self.assertTrue(result["ok"])
             self.assertTrue(result["complete"])
-            self.assertEqual(str(skill_copy), result["skill_root"])
+            # resolve_skill_dir() canonicalizes via Path.resolve(), which on Windows
+            # normalizes 8.3 short-name aliases (e.g. OASRVA~1 -> oasrvadmin). Compare
+            # against the same canonical form so the assertion holds regardless of
+            # whether TEMP happens to be short-name-aliased on the host account.
+            self.assertEqual(str(skill_copy.resolve()), result["skill_root"])
 
 
 if __name__ == "__main__":
