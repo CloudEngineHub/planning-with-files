@@ -2,6 +2,10 @@
 # Report phase completion status for task_plan.md (stdout only, always exit 0).
 # Default plan path: .kiro/plan/task_plan.md (relative to current directory).
 
+# issue #195: per-invocation opt-out (PLANNING_DISABLED=1) for one-shot/CI
+# sessions that share a cwd with a plan but never opted into it.
+[ "${PLANNING_DISABLED:-}" = "1" ] && exit 0
+
 PLAN_FILE="${1:-.kiro/plan/task_plan.md}"
 
 if [ ! -f "$PLAN_FILE" ]; then

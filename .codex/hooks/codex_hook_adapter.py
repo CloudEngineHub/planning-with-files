@@ -45,6 +45,8 @@ def is_session_attached(root: Path, session_id: str | None) -> bool:
     existing single-session users are not broken on upgrade.
     Isolation mode: return True only when the session has an attached sentinel.
     """
+    if os.environ.get("PLANNING_DISABLED", "") == "1":
+        return False  # issue #195: explicit per-invocation opt-out (one-shot exec/CI)
     sessions_dir = root / ".planning" / "sessions"
     if not sessions_dir.exists():
         return True  # legacy — no sessions dir means single-session setup

@@ -109,7 +109,7 @@ This integration includes the Codex lifecycle hooks used by the adapter:
 | **PreToolUse** | Re-reads the first 30 lines of `task_plan.md` before Bash |
 | **PostToolUse** | Reminds the agent to update `progress.md` after Bash activity |
 | **PreCompact** | Reminds the agent to flush `progress.md` and `task_plan.md` before compaction |
-| **Stop** | Blocks once when phases are incomplete, then falls back to a follow-up reminder |
+| **Stop** | Emits an advisory progress-sync reminder when phases are incomplete (non-blocking since v3.1.0) |
 
 ### The Three Files
 
@@ -120,6 +120,31 @@ Once activated, the skill creates and maintains:
 | `task_plan.md` | Phases, progress, decisions | Your project root |
 | `findings.md` | Research, discoveries | Your project root |
 | `progress.md` | Session log, test results | Your project root |
+
+### Opting out for one-shot runs (CI, `codex exec`)
+
+A one-shot session that shares a working directory with an active plan gets the
+plan context injected even though it never opted in: a CI review bot, a
+read-only research agent, or a nested orchestrator can end up "reconciling the
+plan" instead of doing its own job, and may mutate `task_plan.md` and
+`progress.md` that belong to another session (issue #195).
+
+Set `PLANNING_DISABLED=1` to disable all planning-with-files hooks for that
+invocation only:
+
+```bash
+PLANNING_DISABLED=1 codex exec -o review.md '$code-review review this branch'
+PLANNING_DISABLED=1 codex exec -C <repo> -s read-only '<research prompt>'
+```
+
+With the variable set, every hook (SessionStart, UserPromptSubmit, PreToolUse,
+PostToolUse, PreCompact, Stop) exits before reading the plan: no context
+injection, no follow-up messages, no plan-file writes. PreToolUse still emits
+its `allow` decision so tool calls proceed normally. Interactive sessions in
+the same directory are unaffected. The same variable is honored by the
+canonical Claude Code dispatchers (`inject-plan.sh`, `gate-stop.sh`,
+`check-complete.sh`/`.ps1`), so it works for CI automation on any platform
+whose hooks route through those scripts.
 
 ---
 

@@ -1,6 +1,10 @@
 #!/bin/bash
 # planning-with-files: User prompt submit hook for Codex
 
+# issue #195: per-invocation opt-out for one-shot/CI sessions (e.g. codex exec)
+# that share a cwd with a plan but never opted into it.
+[ "${PLANNING_DISABLED:-}" = "1" ] && exit 0
+
 HOOK_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
 PLAN_DIR="$(sh "${HOOK_DIR}/resolve-plan-dir.sh" 2>/dev/null)"
 PLAN_FILE="${PLAN_DIR:+${PLAN_DIR}/}task_plan.md"
