@@ -56,8 +56,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: npm
+          cache-dependency-path: .pi/skills/planning-with-files/extensions/planning-with-files/package-lock.json
       - name: Install dependencies
-        # No lockfile is committed for this package, so npm ci is not usable.
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
       - name: Run vitest
         run: npm test
