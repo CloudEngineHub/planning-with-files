@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -72,13 +73,65 @@ def parse_json(text: str) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
+def _windows_git_bash() -> tuple[str | None, list[str]]:
+    """Locate git-for-windows sh.exe plus the unix-tools dirs the .sh hooks need.
+
+    Returns (sh_path, extra_path_dirs). A default Git-for-Windows install puts
+    only cmd\\git.exe on PATH, not usr\\bin\\sh.exe or the coreutils (grep, head,
+    date, tr) the hook scripts call and re-invoke via nested `sh`. So when `sh`
+    is not directly on PATH we anchor on git.exe (or the standard install roots)
+    and probe for sh.exe and its sibling bin dirs. This is exactly issue #201:
+    the reporter had git bash installed but its usr\\bin was not on PATH.
+    """
+    for exe in ("sh", "bash"):
+        found = shutil.which(exe)
+        if found:
+            return found, [str(Path(found).parent)]
+
+    roots: list[Path] = []
+    git = shutil.which("git")
+    if git:
+        # <root>\cmd\git.exe or <root>\bin\git.exe -> <root>
+        roots.append(Path(git).resolve().parent.parent)
+    for env_var in ("ProgramW6432", "ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"):
+        base = os.environ.get(env_var)
+        if base:
+            roots.append(Path(base) / "Git")
+            roots.append(Path(base) / "Programs" / "Git")
+
+    for root in roots:
+        sh_exe = root / "usr" / "bin" / "sh.exe"
+        if sh_exe.exists():
+            extra = [root / "usr" / "bin", root / "bin", root / "mingw64" / "bin"]
+            return str(sh_exe), [str(d) for d in extra if d.exists()]
+    return None, []
+
+
 def run_shell_script(script_name: str, cwd: Path) -> tuple[str, str]:
+    sh_cmd = "sh"
+    env = None
+    if os.name == "nt":
+        sh_path, extra_dirs = _windows_git_bash()
+        if sh_path is None:
+            # No git bash reachable: run nothing rather than crash. An advisory
+            # hook must never surface an error (issue #201). docs/codex.md tells
+            # Windows users to install Git for Windows to enable these hooks.
+            return "", ""
+        sh_cmd = sh_path
+        env = os.environ.copy()
+        if extra_dirs:
+            env["PATH"] = os.pathsep.join(extra_dirs) + os.pathsep + env.get("PATH", "")
+        # session-catchup.py resolves via $PYTHON_BIN first; hand it the real
+        # interpreter so it never falls back to the Store python3.exe stub.
+        env.setdefault("PYTHON_BIN", sys.executable)
+
     result = subprocess.run(
-        ["sh", str(HOOK_DIR / script_name)],
+        [sh_cmd, str(HOOK_DIR / script_name)],
         cwd=str(cwd),
         text=True,
         capture_output=True,
         check=False,
+        env=env,
     )
     return result.stdout.strip(), result.stderr.strip()
 

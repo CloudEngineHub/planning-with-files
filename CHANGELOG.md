@@ -23,6 +23,25 @@ Infrastructure only. Nothing in the distributed skill changed, so no version bum
 
 - @Yigtwxx (Yiğit) for filing the CI gap (#197) and landing both the test-portability fixes (#198) and the pytest plus vitest workflow (#199).
 
+## [3.4.1] - 2026-07-12
+
+### Fixed
+
+- **Codex hooks failed on Windows with "hook exited with code 1"** (closes #201, reported by @mahdiit). Every hook in `.codex/hooks.json` carried only a POSIX `command` (`sh`, `python3`, `2>/dev/null`, `$HOME`, a trailing `|| true`). Codex on Windows runs that string through the native command interpreter, not a POSIX shell, so `python3` hit the Microsoft Store alias, `2>/dev/null` was an invalid path, and the `|| true` success guard itself failed because `true` is not a Windows command. The chain exited non-zero and Codex reported the hook as failed on every Bash call. Reproduced on Windows: the PostToolUse command exits 1 when Git's `usr\bin` (home of `sh` and `true`) is not on PATH, which is the default Git for Windows layout.
+
+### Added
+
+- **Windows hook execution for Codex** via the per-hook `commandWindows` override, the mechanism OpenAI's hooks documentation sanctions. The POSIX `command` is untouched, so macOS and Linux stay byte-for-byte unchanged. On Windows all seven hooks route through a new launcher, `.codex/hooks/pwf-hook.cmd`, which selects a real Python (`py -3`, falling back to `python`, never the Store `python3` alias) and always exits 0 so an advisory hook cannot surface an error. The four Python hooks run their entry point directly; the three shell hooks route through a new front door, `.codex/hooks/run_sh.py`. `codex_hook_adapter.run_shell_script` now resolves the Git for Windows `sh.exe` by anchoring on `git.exe` and the standard install roots, so the shell scripts run even when Git's `usr\bin` is off PATH, and it hands `session-catchup.py` a real interpreter through `PYTHON_BIN`. Without Git for Windows the three shell hooks degrade to a silent no-op instead of an error, and the four Python hooks still work. The `docs/codex.md` Windows section was rewritten (it previously stated hooks were disabled on Windows).
+
+### Verification
+
+- Codex hook suites green: `tests/test_codex_hooks.py` (11 tests, including a cross-platform guard that every hook declares a `commandWindows` free of the POSIX tokens that break on Windows, and a Windows-only end-to-end test of the `run_sh.py` front door) and `tests/test_codex_session_isolation.py` (6 tests). Version parity and frontmatter suites green after the bump. End-to-end on Windows: PostToolUse, SessionStart, and PreToolUse all exit 0 with correct output, including a simulation of the reporter's environment (Git installed, `usr\bin` off PATH) where the `git.exe` anchor resolves `sh`, and a no-Git case that degrades to a silent no-op.
+- Supply-chain review: no new runtime dependencies, no install scripts, no bin shims. Two new files under `.codex/hooks/` (`pwf-hook.cmd`, `run_sh.py`), both Windows-only entry points that reuse the existing adapter and shell scripts.
+
+### Thanks
+
+- @mahdiit (Mahdi) for reporting the Codex Windows hook failure (#201) with the exact error and environment.
+
 ## [3.4.0] - 2026-07-06
 
 ### Added

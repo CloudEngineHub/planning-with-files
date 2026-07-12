@@ -7,6 +7,7 @@
           {
             "type": "command",
             "command": "sh .codex/hooks/session-start.sh 2>/dev/null || sh \"$HOME/.codex/hooks/session-start.sh\" 2>/dev/null || true",
+            "commandWindows": "cmd /c .codex\\hooks\\pwf-hook.cmd run_sh.py session-start.sh",
             "statusMessage": "Loading planning context"
           }
         ]
@@ -17,7 +18,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh .codex/hooks/user-prompt-submit.sh 2>/dev/null || sh \"$HOME/.codex/hooks/user-prompt-submit.sh\" 2>/dev/null || true"
+            "command": "sh .codex/hooks/user-prompt-submit.sh 2>/dev/null || sh \"$HOME/.codex/hooks/user-prompt-submit.sh\" 2>/dev/null || true",
+            "commandWindows": "cmd /c .codex\\hooks\\pwf-hook.cmd run_sh.py user-prompt-submit.sh"
           }
         ]
       }
@@ -29,6 +31,7 @@
           {
             "type": "command",
             "command": "python3 .codex/hooks/pre_tool_use.py 2>/dev/null || python3 \"$HOME/.codex/hooks/pre_tool_use.py\" 2>/dev/null || true",
+            "commandWindows": "cmd /c .codex\\hooks\\pwf-hook.cmd pre_tool_use.py",
             "statusMessage": "Checking plan before Bash"
           }
         ]
@@ -39,7 +42,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .codex/hooks/permission_request.py 2>/dev/null || python3 \"$HOME/.codex/hooks/permission_request.py\" 2>/dev/null || true"
+            "command": "python3 .codex/hooks/permission_request.py 2>/dev/null || python3 \"$HOME/.codex/hooks/permission_request.py\" 2>/dev/null || true",
+            "commandWindows": "cmd /c .codex\\hooks\\pwf-hook.cmd permission_request.py"
           }
         ]
       }
@@ -51,6 +55,7 @@
           {
             "type": "command",
             "command": "python3 .codex/hooks/post_tool_use.py 2>/dev/null || python3 \"$HOME/.codex/hooks/post_tool_use.py\" 2>/dev/null || true",
+            "commandWindows": "cmd /c .codex\\hooks\\pwf-hook.cmd post_tool_use.py",
             "statusMessage": "Reviewing Bash against plan"
           }
         ]
@@ -63,6 +68,7 @@
           {
             "type": "command",
             "command": "sh .codex/hooks/pre-compact.sh 2>/dev/null || sh \"$HOME/.codex/hooks/pre-compact.sh\" 2>/dev/null || true",
+            "commandWindows": "cmd /c .codex\\hooks\\pwf-hook.cmd run_sh.py pre-compact.sh",
             "statusMessage": "Preparing planning context before compact"
           }
         ]
@@ -74,6 +80,7 @@
           {
             "type": "command",
             "command": "python3 .codex/hooks/stop.py 2>/dev/null || python3 \"$HOME/.codex/hooks/stop.py\" 2>/dev/null || true",
+            "commandWindows": "cmd /c .codex\\hooks\\pwf-hook.cmd stop.py",
             "timeout": 30
           }
         ]

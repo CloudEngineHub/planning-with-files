@@ -106,6 +106,10 @@ These amazing people have contributed code, documentation, or significant improv
 
 ### Other Contributors
 
+- **[@mahdiit](https://github.com/mahdiit)** (Mahdi) - [Issue #201](https://github.com/OthmanAdi/planning-with-files/issues/201)
+  - Reported that Codex hooks failed on Windows with `hook exited with code 1`: the `.codex/hooks.json` commands were POSIX only, so the Windows command interpreter choked on `python3` (the Store alias), `2>/dev/null`, and the `|| true` success guard whose `true` is not a Windows command
+  - **Impact:** v3.4.1 adds per-hook `commandWindows` overrides, a `pwf-hook.cmd` launcher, a `run_sh.py` front door, and a git-bash resolver so all seven Codex hooks run on Windows
+
 - **[@Dikshj](https://github.com/Dikshj)** (diksha) - [PR #193](https://github.com/OthmanAdi/planning-with-files/pull/193), closes [Issue #190](https://github.com/OthmanAdi/planning-with-files/issues/190)
   - Added the `/plan-execute` approval command to the Pi extension: hooks previously activated the moment `task_plan.md` existed, so plan injection, pre-tool recitation, post-write reminders, and auto-continue could start while the user was still reviewing a draft plan
   - The extension now stays passive (status line only) until the user approves the active plan; approval is scoped to the current session and plan path, resets on session lifecycle events, and `/plan-execute reset` returns to passive review mode

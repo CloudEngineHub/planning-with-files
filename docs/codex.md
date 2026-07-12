@@ -13,7 +13,7 @@ This integration includes both:
 - `.codex/skills/planning-with-files/` for the skill itself
 - `.codex/hooks.json` plus `.codex/hooks/` for lifecycle automation
 
-The hook behavior reuses the same mature shell scripts as the Cursor integration, with a thin Codex adapter layer for the differences in hook protocol.
+The hook behavior reuses the same mature shell scripts as the Cursor integration, with a thin Codex adapter layer for the differences in hook protocol. On Windows those same scripts run through an auto-resolved Git Bash (see [Windows Support](#windows-support)).
 
 > **Important:** Codex hooks require `hooks = true` in `~/.codex/config.toml`. The older `codex_hooks = true` still works as a deprecated alias.
 
@@ -192,7 +192,17 @@ If you enable both, Codex may run both sets of hooks and duplicate the reminders
 
 ### Windows Support
 
-OpenAI's current Codex hooks documentation says hooks are disabled on Windows. The skill files can still be installed there, but the hook automation is currently for macOS/Linux Codex environments.
+Hooks run on Windows. Codex reads a per-hook `commandWindows` override from `.codex/hooks.json` on Windows and the POSIX `command` everywhere else, so macOS and Linux are unchanged.
+
+On Windows every hook routes through `.codex\hooks\pwf-hook.cmd`, which finds a real Python (`py -3`, falling back to `python`) and never the Microsoft Store `python3` alias. The four Python hooks run their `.py` entry point directly. The three shell hooks (SessionStart, UserPromptSubmit, PreCompact) route through `run_sh.py`, which locates the Git for Windows `sh.exe` and runs the same shell scripts the macOS/Linux hooks use.
+
+Requirements on Windows:
+
+- `hooks = true` in `~/.codex/config.toml` (same as every platform).
+- Python reachable through the `py` launcher (installed by the python.org installer) or on PATH as `python`. If you only have `python`, the launcher falls back to it automatically. The Microsoft Store `python3` alias is skipped on purpose.
+- Git for Windows installed, for the three shell-backed hooks. The launcher finds `sh.exe` even when Git's `usr\bin` is not on your PATH, which is the default install layout. Without Git for Windows those three hooks stay silent and the four Python hooks still work.
+
+Use the workspace install (Method 1) on Windows: the `commandWindows` entries use relative `.codex\...` paths resolved against your project directory. A global `~/.codex` install needs absolute paths in `commandWindows`.
 
 ---
 

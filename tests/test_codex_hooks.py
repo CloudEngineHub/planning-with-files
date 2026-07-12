@@ -37,6 +37,17 @@ class CodexHooksTests(unittest.TestCase):
             check=False,
         )
 
+    def run_windows_front_door(self, sh_script: str, payload: dict, cwd: Path) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, str(HOOKS_DIR / "run_sh.py"), sh_script],
+            input=json.dumps(payload),
+            text=True,
+            encoding="utf-8",
+            capture_output=True,
+            cwd=str(cwd),
+            check=False,
+        )
+
     def test_hooks_json_declares_all_expected_codex_events(self) -> None:
         self.assertTrue(HOOKS_JSON.exists(), ".codex/hooks.json is missing")
 
@@ -210,6 +221,47 @@ class CodexHooksTests(unittest.TestCase):
         self.assertIn("progress.md is up to date", first_payload["systemMessage"])
         self.assertNotIn("continue working", first_payload["systemMessage"])
         self.assertIn("Task in progress", second_payload["systemMessage"])
+
+    def test_every_hook_has_windows_override_without_posix_isms(self) -> None:
+        """issue #201: on Windows Codex runs commandWindows, not the POSIX command.
+
+        Every hook must carry a commandWindows routed through pwf-hook.cmd, and it
+        must contain none of the tokens that break under the Windows interpreter
+        (python3 alias stub, /dev/null, $HOME, the missing `true` command). Runs on
+        every OS so unix CI also enforces the JSON stays valid and the keys stay.
+        """
+        payload = json.loads(HOOKS_JSON.read_text(encoding="utf-8"))
+        for event, entries in payload["hooks"].items():
+            for entry in entries:
+                for hook in entry["hooks"]:
+                    cw = hook.get("commandWindows", "")
+                    self.assertTrue(cw, f"{event} hook is missing commandWindows")
+                    self.assertIn("pwf-hook.cmd", cw, f"{event} commandWindows not routed through the launcher")
+                    for bad in ("$HOME", "2>/dev/null", "|| true", "python3 "):
+                        self.assertNotIn(bad, cw, f"{event} commandWindows still contains POSIX-ism {bad!r}")
+
+    @unittest.skipUnless(os.name == "nt", "commandWindows path is Windows-only")
+    def test_run_sh_front_door_injects_plan_on_windows(self) -> None:
+        """End-to-end Windows path: run_sh.py -> adapter git-bash resolver -> .sh."""
+        sys.path.insert(0, str(HOOKS_DIR))
+        try:
+            import codex_hook_adapter as adapter
+            sh_path, _ = adapter._windows_git_bash()
+        finally:
+            sys.path.pop(0)
+        if sh_path is None:
+            self.skipTest("Git for Windows sh.exe not resolvable on this runner")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            root.joinpath("task_plan.md").write_text(
+                "# Task Plan\n\n## Goal\nWindows hook parity\n", encoding="utf-8"
+            )
+            result = self.run_windows_front_door("user-prompt-submit.sh", {"cwd": str(root)}, root)
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("ACTIVE PLAN", result.stdout)
+        self.assertIn("Windows hook parity", result.stdout)
 
 
 if __name__ == "__main__":
