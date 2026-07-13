@@ -277,6 +277,13 @@ That's it! Now use one of these commands in Claude Code:
 | `/planning-with-files:plan` | Type `/plan` | Start planning session (v2.11.0+) |
 | `/planning-with-files:status` | Type `/plan:status` | Show planning progress at a glance (v2.15.0+) |
 | `/planning-with-files:start` | Type `/planning` | Original start command |
+| `/planning-with-files:pwf` | Type `/pwf` | Short alias for `/plan`; supports `--autonomous` / `--gated` init (v3.0.0+) |
+| `/planning-with-files:plan-goal` | Type `/plan-goal` | Run until the plan reports complete by composing with Claude Code `/goal` (v2.38.0+) |
+| `/planning-with-files:plan-loop` | Type `/plan-loop` | Planning-aware cadence on Claude Code `/loop`, default 10m tick (v2.38.0+) |
+| `/planning-with-files:plan-attest` | Type `/plan-attest` | Lock `task_plan.md` with a SHA-256 attestation; `--show` / `--clear` (v2.37.0+) |
+| `/planning-with-files:plan-de` | Type `/plan-de` | Start planning in German (also `-ar`, `-es`, `-zh`, `-zht`) (v2.33.0+) |
+
+Typing `/plan` prefix-matches every `plan*` command in autocomplete; `/planning-with-files:status` autocompletes as `/status` (the older `/plan:status` label predates the rename). On the Pi extension the status command is named `plan-status`.
 
 **Alternative:** If you want `/planning-with-files` (without prefix), copy skills to your local folder:
 
@@ -291,6 +298,24 @@ Copy-Item -Recurse -Path "$env:USERPROFILE\.claude\plugins\cache\planning-with-f
 ```
 
 See [docs/installation.md](docs/installation.md) for all installation methods.
+
+### Pi extension commands
+
+Install the Pi extension with `pi install npm:@tomxprime/planning-with-files`; it registers these commands, and on Pi they are typed with no `/planning-with-files:` prefix.
+
+| Command | What it does | Version |
+|---------|--------------|---------|
+| `/plan-execute` | Pi only. Approve the active plan to ACTIVATE all Pi hooks; hooks stay passive until you run this; `reset` returns to passive review | v3.3.0+ |
+| `/plan-status` | Active plan path, scope, and phase totals | v2.39.0+ |
+| `/plan-goal <text\|default\|clear>` | Set or clear the goal string appended to auto-continue prompts | v2.39.0+ |
+| `/plan-loop [interval] [prompt\|stop]` | Start or stop a planning tick (default 10m) that re-reads the plan and nudges progress | v2.39.0+ |
+| `/plan-attest [--show\|--clear]` | Run the attest-plan helper; shares the `.attestation` file with Claude Code | v2.39.0+ |
+
+On Pi there is no `/plan` command to create the files; the skill creates them, then `/plan-execute` approves and activates the hooks. Note that Pi `plan-goal`/`plan-loop` run their own logic, while the Claude Code commands of the same name forward to native `/goal` and `/loop`.
+
+### Command names vs skill names
+
+The command you TYPE differs by platform. Claude Code uses `/planning-with-files:<verb>` (for example `/plan`, `/plan-de`, `/plan-goal`, `/plan-attest`, `/pwf`, `/status`). Pi uses the bare form (`/plan-status`, `/plan-execute`, `/plan-goal`, `/plan-loop`, `/plan-attest`), no prefix. Continue.dev uses `/planning-with-files`. The underlying model-invocable SKILLS are named `planning-with-files:planning-with-files` (and `-de`, `-es`, `-ar`, `-zh`, `-zht`); that doubled form is the skill id, not a command you type. There is no `/pwf-de` and no `/planning-with-files:planning-with-files-goal`; `/pwf` is just a short alias for `/plan`.
 
 ## Why This Skill?
 
@@ -351,10 +376,45 @@ Once installed, the AI agent will:
 
 Invoke with:
 - `/planning-with-files:plan` - Type `/plan` to find in autocomplete (v2.11.0+)
+- `/planning-with-files:pwf` - Type `/pwf`, short alias for `/plan` (v3.0.0+)
 - `/planning-with-files:start` - Type `/planning` to find in autocomplete
 - `/planning-with-files` - Only if you copied skills to `~/.claude/skills/`
 
+For the goal, loop, attest, language, and Pi commands, see the command tables above.
+
 See [docs/quickstart.md](docs/quickstart.md) for the full 5-step guide.
+
+## v3 Long-Running Agent Features
+
+The v3 line adds features aimed at long-running agentic runs. Each one is listed with the command or flag that turns it on. With no mode marker set, the hooks produce the same output as v2.43, so nothing changes for existing setups.
+
+- **Autonomous mode** (`/pwf --autonomous`, or `init-session.sh --autonomous`): drops the per-tool-call plan recitation, keeps the turn-start injection, and turns attestation on by default.
+- **Gated mode** (`--gated`): adds a Stop completion gate that blocks only when all completion conditions hold at once, so an incomplete plan alone never traps a session.
+- **Auto-continue on Pi** (`agent_end` handler): re-prompts the agent up to a limit of 3 to keep an unfinished plan moving, plus an optional `/plan-goal` string appended to the prompt.
+- **Pi approval gate** (`/plan-execute`): Pi hooks stay passive with a status line until you approve the active plan for the current session.
+- **Session-catchup**: resumes work after `/clear` by re-reading the planning files from the active IDE's session store.
+- **PreCompact progress flush** (`PreCompact` hook): surfaces a reminder to flush progress before compaction completes, and prints the active Plan-SHA256 when attested.
+- **SHA-256 plan attestation** (`/plan-attest`): locks `task_plan.md`; a tampered plan body is refused at injection.
+- **Run ledger**: an append-only JSONL record of phase transitions that replaces the raw `progress.md` tail in v3 modes with a fixed-shape summary.
+- **Host capability tiers**: hard block on Claude Code, Codex, and Continue; follow-up injection on Cursor, Pi, and Kiro; notify-only elsewhere.
+- **Per-invocation opt-out** (`PLANNING_DISABLED=1`, v3.4.0): a one-shot session that merely shares a cwd with an incomplete plan skips all plan reading at every hook entry point.
+
+### Hooks and modes reference
+
+| Platform | Lifecycle hooks | Where registered |
+|----------|-----------------|------------------|
+| Claude Code | 5: UserPromptSubmit, PreToolUse, PostToolUse, Stop, PreCompact | The skill's `SKILL.md` frontmatter (not `plugin.json`), so they ship with the bundled skill |
+| Codex CLI | 7: SessionStart, UserPromptSubmit, PreToolUse, PermissionRequest, PostToolUse, PreCompact, Stop | `.codex/hooks.json`, Windows-safe via `commandWindows` since v3.4.1 |
+| Pi | 8 lifecycle handlers in the bundled extension | The injection and recitation handlers stay passive until `/plan-execute` |
+
+Pi runtime modes:
+
+| Pi mode | Behavior |
+|---------|----------|
+| `auto` | Detects the model and picks `parity` or `cache-safe` |
+| `parity` | Full plan injection, mirrors the Claude Code skill |
+| `cache-safe` | A stable reminder instead of full injection, for KV-cache-sensitive models like DeepSeek |
+| `notify` | Status-line only, no model injection |
 
 ## Benchmark Results
 
@@ -397,9 +457,16 @@ Formally evaluated using Anthropic's [skill-creator](https://github.com/anthropi
 planning-with-files/
 ├── commands/                # Plugin commands
 │   ├── plan.md              # /planning-with-files:plan command (v2.11.0+)
+│   ├── pwf.md               # /planning-with-files:pwf short alias for /plan (v3.0.0+)
+│   ├── status.md            # /planning-with-files:status progress view (v2.15.0+)
+│   ├── plan-goal.md         # /planning-with-files:plan-goal, composes with /goal (v2.38.0+)
+│   ├── plan-loop.md         # /planning-with-files:plan-loop, composes with /loop (v2.38.0+)
+│   ├── plan-attest.md       # /planning-with-files:plan-attest SHA-256 lock (v2.37.0+)
 │   ├── plan-ar.md           # Arabic /plan command (v2.33.0+)
 │   ├── plan-de.md           # German /plan command (v2.33.0+)
 │   ├── plan-es.md           # Spanish /plan command (v2.33.0+)
+│   ├── plan-zh.md           # Chinese Simplified /plan command (v2.33.0+)
+│   ├── plan-zht.md          # Chinese Traditional /plan command (v2.33.0+)
 │   └── start.md             # /planning-with-files:start command
 ├── templates/               # Root-level templates (for CLAUDE_PLUGIN_ROOT)
 ├── scripts/                 # Root-level scripts (for CLAUDE_PLUGIN_ROOT)
@@ -504,6 +571,10 @@ Context rot is the drift that sets in as the context window fills and earlier in
 ### Which coding agents does this work with?
 
 Claude Code, OpenAI Codex CLI, Cursor, GitHub Copilot, Kiro, OpenCode, Continue, Pi, CodeBuddy, Factory, Mastra, and 60+ others via the SKILL.md open standard. Installation is one command; see [Quick Install](#quick-install) above.
+
+### What happens to the plan files after a task is complete?
+
+They are working memory, not a tracked deliverable. `task_plan.md`, `findings.md`, `progress.md`, and the `.planning/` directory are gitignored by default and are not archived automatically: the next task overwrites the root plan, and a slug directory just stops being active. Anything worth keeping should be promoted into code, a commit, or a doc. See [After Completion: What Happens to the Plan Files](docs/workflow.md#after-completion-what-happens-to-the-plan-files) for the full lifecycle and how to retain a completed plan. This is a deliberate default, not a missing feature; a completion-triggered archive step is a welcome opt-in extension.
 
 ## Documentation
 

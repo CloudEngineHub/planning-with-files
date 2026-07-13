@@ -140,6 +140,8 @@ remaining risks, and rollback notes in the topic handoff.
 
 **If complete:** Deliver your work! All three planning files document your process.
 
+The planning files are working memory, not a tracked deliverable: they are gitignored and are not archived automatically. See [After Completion: What Happens to the Plan Files](workflow.md#after-completion-what-happens-to-the-plan-files) for the intended lifecycle and how to keep a completed plan if you want one.
+
 ---
 
 ## Quick Reference: When to Update Which File
