@@ -2,26 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
-
-Infrastructure only. Nothing in the distributed skill changed, so no version bump: these changes touch `.github/` and `tests/`, not any of the 19 version-bump targets.
-
-### Added
-
-- **CI test workflow** (`.github/workflows/tests.yml`, PR #199 by @Yigtwxx, closes #197). Runs the pytest suite on `ubuntu-latest` and `windows-latest` (Python 3.12) plus the Pi extension vitest suite on `ubuntu-latest` (Node 22), on every pull request and push to master. Until now the only CI was the Tessl skill-prose review, so nothing ran the 200+ pytest tests or the 21 Pi vitest tests that CONTRIBUTING.md asks contributors to run before opening a PR. The `windows-latest` leg targets the recurring Windows regression class (the v3.2.0 audit found `session-catchup.py` silently non-functional on Windows). Workflow permissions are `contents: read` only, `fail-fast: false` keeps a Windows-only failure visible instead of masked by a cancel, and an explicit step asserts `sh` is on PATH so the roughly ten hook tests that skip without it cannot silently drop coverage. The workflow lives in `.github/` and is not part of the distributed skill.
+## [3.5.1] - 2026-07-14
 
 ### Fixed
 
+- **Codex Windows hook resolver defaulted to the WSL bash launcher** (extracted from PR #207 by @mahdiit). The shell resolver in `codex_hook_adapter` preferred `C:\Windows\System32\bash.exe`, the WSL launcher, whenever Git Bash's `usr\bin` was not on PATH, the default Git for Windows install layout. On machines where WSL is present but no distro is installed, a common Docker Desktop setup, that launcher exists on disk but fails immediately, so every shell hook silently failed. This is why #201 and #204 kept resurfacing on some Windows machines even after those releases shipped. The resolver now skips WSL launchers, both the System32 binary and the Microsoft Store WindowsApps alias, and continues on to the Git for Windows probe.
+
+- **`pwf-hook.cmd` lost the Python interpreter under Codex's reduced PATH** (also from PR #207). Codex starts hooks with a trimmed environment, so the launcher's plain `py -3` / `python` lookup often found nothing. `pwf-hook.cmd` now honors a `PYTHON_BIN` override, probes the standard `uv` and CPython install locations, and quotes the interpreter path so installs under a path containing spaces still resolve.
+
+- **Pi extension 1.2.1: pre-tool recitations and the tamper notice were consumed by interactive tool dialogs** (#206, diagnosed with the exact mechanism by @jschmied). The `tool_call` hook delivered queued planning text as steer, but when an interactive tool such as AskUserQuestion blocked the turn on its own custom UI, the steer text was read as the dialog's answer instead of reaching the model. Recitations and the tamper notice are now delivered as `nextTurn`, landing after the interactive tool releases the turn instead of being swallowed by it. Bundled Pi extension bumped to 1.2.1.
+
 - **Two test-portability failures surfaced by the first hosted-runner run** (PR #198 by @Yigtwxx, test files only, no production script changes). `tests/test_containment.py` canonicalized the resolver's Git Bash POSIX path with `os.path.realpath`, which read `/tmp/...` as `C:\tmp` and failed the escaping-symlink containment assertion on symlink-capable `windows-latest`; a `host_realpath()` helper now maps the path back with `cygpath` before comparing. `tests/test_path_fix.py` ran two Windows-shaped path vectors on `ubuntu-latest`, where `Path.resolve()` treats `C:/...` as relative and prepends the CWD; both now skip unless `os.name == "nt"`, the only platform where that input shape is meaningful. In both cases the resolver rejected the escape correctly and only the test comparison was wrong.
+
+### Added
+
+- **CI test workflow** (`.github/workflows/tests.yml`, PR #199 by @Yigtwxx, closes #197). Runs the pytest suite on `ubuntu-latest` and `windows-latest` (Python 3.12) plus the Pi extension vitest suite on `ubuntu-latest` (Node 22), on every pull request and push to master. Until now the only CI was the Tessl skill-prose review, so nothing ran the 200+ pytest tests or the 21 Pi vitest tests that CONTRIBUTING.md asks contributors to run before opening a PR. The `windows-latest` leg targets the recurring Windows regression class (the v3.2.0 audit found `session-catchup.py` silently non-functional on Windows). Workflow permissions are `contents: read` only, `fail-fast: false` keeps a Windows-only failure visible instead of masked by a cancel, and an explicit step asserts `sh` is on PATH so the roughly ten hook tests that skip without it cannot silently drop coverage.
 
 ### Verification
 
-- Python suite green on master before merge (200 passed, 5 skipped on a non-symlink-capable Windows host). Contributor's hosted-runner run green on all three jobs: 202 passed / 3 skipped on ubuntu (symlink containment tests running), the equivalent profile on windows, and 21 vitest. The workflow's first run on the merge commit (master) is green across all three jobs.
-- Supply-chain review: no new runtime dependencies, no install scripts, no bin shims. The workflow installs `pytest` and `pyyaml` for the pytest job and runs `npm install` against the Pi extension's existing devDependencies (vitest, typescript, @types/node). It uses `pull_request` (not `pull_request_target`), so fork PRs run with a read-only token and no secret access.
+- Python suite green on master before merge (200 passed, 5 skipped on a non-symlink-capable Windows host). Contributor's hosted-runner run on PR #199 green on all three jobs: pytest on ubuntu with symlink containment tests running, the equivalent profile on windows, and 21 vitest.
+- Supply-chain review on PR #198 and #199: no new runtime dependencies, no install scripts, no bin shims. The workflow installs `pytest` and `pyyaml` for the pytest job and runs `npm install` against the Pi extension's existing devDependencies (vitest, typescript, @types/node). It uses `pull_request` (not `pull_request_target`), so fork PRs run with a read-only token and no secret access.
 
 ### Thanks
 
-- @Yigtwxx (Yiğit) for filing the CI gap (#197) and landing both the test-portability fixes (#198) and the pytest plus vitest workflow (#199).
+- Mahdi (@mahdiit) for producing the Codex Windows WSL bash launcher fix and the Windows Python discovery hardening (PR #207), using Codex Terra after v3.4.1 still failed to clear the hook errors on his own machine.
+- jschmied for diagnosing #206 down to the exact runtime location, steer delivered recitations consumed by AskUserQuestion's interactive dialog, and for the `nextTurn` delivery fix that shipped.
+- Yigtwxx (Yiğit) for filing the CI gap (#197) and landing both the test-portability fixes (#198) and the pytest plus vitest workflow (#199).
 
 ## [3.5.0] - 2026-07-13
 

@@ -271,7 +271,7 @@ describe("Pi extension runtime handlers", () => {
 				content: expect.stringContaining("PreToolUse recitation"),
 				display: false,
 			}),
-			{ deliverAs: "steer", triggerTurn: false },
+			{ deliverAs: "nextTurn", triggerTurn: false },
 		);
 	});
 

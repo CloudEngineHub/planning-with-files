@@ -88,11 +88,14 @@ def _windows_git_bash() -> tuple[str | None, list[str]]:
         found = shutil.which(exe)
         if found:
             candidate = Path(found).resolve()
+            parent = candidate.parent
             # Windows' bash.exe is a WSL launcher, not a POSIX shell. Selecting
             # it before Git Bash makes every shell hook fail when WSL has no
-            # installed distro (the common Git-for-Windows-only setup).
-            if candidate.parent != system32:
-                return str(candidate), [str(candidate.parent)]
+            # installed distro (the common Git-for-Windows-only setup), and even
+            # a working WSL bash cannot run C:\ script paths. The Store alias
+            # under WindowsApps is the same launcher.
+            if parent != system32 and parent.name.lower() != "windowsapps":
+                return str(candidate), [str(parent)]
 
     roots: list[Path] = []
     git = shutil.which("git")

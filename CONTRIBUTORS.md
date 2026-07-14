@@ -106,6 +106,10 @@ These amazing people have contributed code, documentation, or significant improv
 
 ### Other Contributors
 
+- **[@jschmied](https://github.com/jschmied)** - [Issue #206](https://github.com/OthmanAdi/planning-with-files/issues/206)
+  - Diagnosed that pre-tool recitations and the tamper notice queued by the Pi extension's `tool_call` hook were delivered as steer, and that an interactive tool such as AskUserQuestion blocking the turn on its own custom UI consumed that steer text as the dialog's answer instead of letting it reach the model, pinning down the precise runtime location of the collision and the `nextTurn` delivery fix that shipped
+  - **Impact:** v3.5.1 delivers Pi extension recitations and the tamper notice as `nextTurn` instead of steer, so interactive tool dialogs no longer swallow injected planning text; bundled Pi extension bumped to 1.2.1
+
 - **[@yolo0731](https://github.com/yolo0731)** (yoloyq) - [PR #205](https://github.com/OthmanAdi/planning-with-files/pull/205), closes [Issue #204](https://github.com/OthmanAdi/planning-with-files/issues/204)
   - Fixed the Codex hooks on Windows emitting invalid JSON and failing on Unicode: plain `[planning-with-files]` stdout where Codex expects `hookSpecificOutput.additionalContext` or a common-fields object, UTF-8 shell output decoded through the Windows code page, and `ensure_ascii=False` JSON written through cmd.exe
   - Serialized each event in its supported Codex JSON shape with ASCII-safe output, decoded shell output as UTF-8, routed PreToolUse plan text through model-visible `additionalContext`, resolved scoped plans in PermissionRequest, added `clear|compact` SessionStart sources, wrote the `.active_plan` pointer without a BOM, and hardened the containment resolver to fail closed
@@ -119,9 +123,10 @@ These amazing people have contributed code, documentation, or significant improv
   - Asked for a direct statement of the plan-file lifecycle and why there is no archiving step, noting the earlier #14 had no visible resolution
   - **Impact:** v3.5.0 documents the ephemeral-working-memory lifecycle in `docs/workflow.md`, with pointers from `quickstart.md` and the README FAQ
 
-- **[@mahdiit](https://github.com/mahdiit)** (Mahdi) - [Issue #201](https://github.com/OthmanAdi/planning-with-files/issues/201)
+- **[@mahdiit](https://github.com/mahdiit)** (Mahdi) - [Issue #201](https://github.com/OthmanAdi/planning-with-files/issues/201), [PR #207](https://github.com/OthmanAdi/planning-with-files/pull/207)
   - Reported that Codex hooks failed on Windows with `hook exited with code 1`: the `.codex/hooks.json` commands were POSIX only, so the Windows command interpreter choked on `python3` (the Store alias), `2>/dev/null`, and the `|| true` success guard whose `true` is not a Windows command
-  - **Impact:** v3.4.1 adds per-hook `commandWindows` overrides, a `pwf-hook.cmd` launcher, a `run_sh.py` front door, and a git-bash resolver so all seven Codex hooks run on Windows
+  - PR #207: after v3.4.1 still did not clear the hook errors on his machine, traced the remaining failure to the shell resolver preferring the WSL bash launcher over Git Bash whenever `usr\bin` was off PATH, and to `pwf-hook.cmd` losing the Python interpreter under Codex's reduced PATH; produced the fix with Codex Terra, having the resolver skip WSL launchers and adding a `PYTHON_BIN` override plus standard install-location probing to the launcher
+  - **Impact:** v3.4.1 adds per-hook `commandWindows` overrides, a `pwf-hook.cmd` launcher, a `run_sh.py` front door, and a git-bash resolver so all seven Codex hooks run on Windows; v3.5.1 closes the remaining WSL-launcher and Python-discovery gaps that PR #207 found
 
 - **[@Dikshj](https://github.com/Dikshj)** (diksha) - [PR #193](https://github.com/OthmanAdi/planning-with-files/pull/193), closes [Issue #190](https://github.com/OthmanAdi/planning-with-files/issues/190)
   - Added the `/plan-execute` approval command to the Pi extension: hooks previously activated the moment `task_plan.md` existed, so plan injection, pre-tool recitation, post-write reminders, and auto-continue could start while the user was still reviewing a draft plan
@@ -371,4 +376,4 @@ If you've contributed and don't see your name here, please open an issue! We wan
 
 **Total Contributors:** 50+ and growing!
 
-*Last updated: July 13, 2026*
+*Last updated: July 14, 2026*

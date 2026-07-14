@@ -377,6 +377,65 @@ class CodexHooksTests(unittest.TestCase):
         self.assertTrue(compact_payload["continue"])
         self.assertIn("PreCompact", compact_payload["systemMessage"])
 
+    @unittest.skipUnless(
+        os.name == "nt",
+        "Windows-shaped path; System32 comparison only meaningful on Windows",
+    )
+    def test_windows_git_bash_rejects_wsl_launcher_in_system32(self) -> None:
+        """A bare `bash` on PATH resolving into System32 is the WSL launcher.
+
+        _windows_git_bash must never hand that path back to callers even when
+        it is the only `bash` shutil.which can see; it should keep looking
+        (and return a real Git-for-Windows sh.exe, or None) instead.
+        """
+        sys.path.insert(0, str(HOOKS_DIR))
+        try:
+            import codex_hook_adapter as adapter
+
+            def fake_which(exe, *args, **kwargs):
+                if exe == "sh":
+                    return None
+                if exe == "bash":
+                    return r"C:\windows\system32\bash.EXE"
+                return None
+
+            with mock.patch.object(adapter.shutil, "which", side_effect=fake_which):
+                sh_path, _ = adapter._windows_git_bash()
+        finally:
+            sys.path.pop(0)
+
+        if sh_path is not None:
+            self.assertNotIn("system32", sh_path.lower())
+
+    @unittest.skipUnless(
+        os.name == "nt",
+        "Windows-shaped path; WindowsApps comparison only meaningful on Windows",
+    )
+    def test_windows_git_bash_rejects_wsl_launcher_in_windowsapps(self) -> None:
+        """The Microsoft Store WSL alias lives under WindowsApps, not System32.
+
+        Even a working WSL bash there cannot execute C:\\ script paths, so
+        _windows_git_bash must reject it the same way it rejects System32.
+        """
+        sys.path.insert(0, str(HOOKS_DIR))
+        try:
+            import codex_hook_adapter as adapter
+
+            def fake_which(exe, *args, **kwargs):
+                if exe == "sh":
+                    return None
+                if exe == "bash":
+                    return r"C:\Users\x\AppData\Local\Microsoft\WindowsApps\bash.exe"
+                return None
+
+            with mock.patch.object(adapter.shutil, "which", side_effect=fake_which):
+                sh_path, _ = adapter._windows_git_bash()
+        finally:
+            sys.path.pop(0)
+
+        if sh_path is not None:
+            self.assertNotIn("windowsapps", sh_path.lower())
+
 
 if __name__ == "__main__":
     unittest.main()

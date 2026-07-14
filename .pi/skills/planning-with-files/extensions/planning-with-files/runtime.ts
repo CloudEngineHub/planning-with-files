@@ -543,7 +543,7 @@ export default function planningWithFilesExtension(pi: ExtensionAPI): void {
 						content: buildTamperMessage(status),
 						display: true,
 					},
-					{ deliverAs: "steer", triggerTurn: false },
+					{ deliverAs: "nextTurn", triggerTurn: false },
 				);
 			} else if (mode === "parity") {
 				pi.sendMessage(
@@ -552,7 +552,7 @@ export default function planningWithFilesExtension(pi: ExtensionAPI): void {
 						content: buildPreToolParityRecitation(status),
 						display: false,
 					},
-					{ deliverAs: "steer", triggerTurn: false },
+					{ deliverAs: "nextTurn", triggerTurn: false },
 				);
 			} else if (mode === "cache-safe") {
 				pi.sendMessage(
@@ -561,7 +561,7 @@ export default function planningWithFilesExtension(pi: ExtensionAPI): void {
 						content: PRE_TOOL_CACHE_SAFE_REMINDER,
 						display: false,
 					},
-					{ deliverAs: "steer", triggerTurn: false },
+					{ deliverAs: "nextTurn", triggerTurn: false },
 				);
 			}
 		}
