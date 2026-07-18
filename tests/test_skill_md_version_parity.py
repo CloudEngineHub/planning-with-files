@@ -39,6 +39,7 @@ PARITY_SKILL_MD = [
     ".hermes/skills/planning-with-files/SKILL.md",
     ".mastracode/skills/planning-with-files/SKILL.md",
     ".opencode/skills/planning-with-files/SKILL.md",
+    ".agents/skills/planning-with-files/SKILL.md",
     "clawhub-upload/SKILL.md",
 ]
 

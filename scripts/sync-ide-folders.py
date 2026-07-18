@@ -54,6 +54,23 @@ SCRIPTS = [
     "scripts/set-active-plan.ps1",
     "scripts/attest-plan.sh",
     "scripts/attest-plan.ps1",
+    "scripts/plan-doctor.sh",
+]
+
+# .agents/ ships the FULL canonical surface (no IDE adapter layer exists to
+# carry the rest): hook dispatchers, ledger tooling, and every template.
+AGENTS_EXTRA_SCRIPTS = [
+    "scripts/gate-stop.sh",
+    "scripts/inject-plan.sh",
+    "scripts/ledger-append.sh",
+    "scripts/ledger-append.ps1",
+    "scripts/ledger-summary.sh",
+    "scripts/ledger-summary.ps1",
+    "scripts/phase-status.sh",
+    "scripts/phase-status.ps1",
+]
+AGENTS_EXTRA_TEMPLATES = [
+    "templates/task_plan_autonomous.md",
 ]
 
 # ─── IDE sync manifests ───────────────────────────────────────────
@@ -165,6 +182,27 @@ IDE_MANIFESTS = {
     # Kiro: maintained under .kiro/ (skill + wrappers); not synced from canonical scripts/.
     ".kiro": {},
 }
+
+
+def _build_agents_manifest():
+    """Manifest for .agents/skills/ — the cross-tool Agent Skills standard.
+
+    Shipped in-repo so a plain git clone is natively discoverable by every
+    tool that reads .agents/skills/ (Zed, Amp, Warp, Devin, Antigravity,
+    Gemini CLI, Cursor). SKILL.md itself is version-bumped by bump-version.py
+    and deliberately not synced here, matching every other IDE folder.
+    """
+    base = ".agents/skills/planning-with-files"
+    manifest = _build_manifest(base, ref_style="flat", include_scripts=True)
+    b = Path(base)
+    for s in AGENTS_EXTRA_SCRIPTS:
+        manifest[s] = str(b / s)
+    for t in AGENTS_EXTRA_TEMPLATES:
+        manifest[t] = str(b / "templates" / Path(t).name)
+    return manifest
+
+
+IDE_MANIFESTS[".agents"] = _build_agents_manifest()
 
 
 # ─── Utility functions ─────────────────────────────────────────────

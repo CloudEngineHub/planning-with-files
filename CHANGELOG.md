@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.7.0] - 2026-07-18
+
+### Added
+
+- **The repo now ships the cross-tool Agent Skills standard layout in-tree: `.agents/skills/planning-with-files/`.** Tools that read the standard path natively (Zed, Amp, Warp, Devin, Antigravity, Gemini CLI, Cursor, and the wider agentskills.io adopter list) discover the current skill from a plain `git clone` with no per-tool setup. The mirror carries the full canonical surface: SKILL.md, references, all six templates including the autonomous plan template, and the complete script set (hook dispatchers, ledger tooling, doctor). It is wired into both maintenance systems so it cannot silently rot: `sync-ide-folders.py` gained a `.agents` manifest, and the SKILL.md joined the `bump-version.py` parity set and the version-parity test (now 18 locked entries).
+
+- **`plan-doctor.sh` now ships in every synced IDE skill folder** (`.codebuddy`, `.codex`, `.continue`, `.factory`, `.gemini`, `.pi`, and the new `.agents`), not only the two canonical `scripts/` locations.
+
+### Changed
+
+- **`docs/gemini.md` now recommends the Agent Skills standard path.** Gemini CLI reads `.agents/skills/` natively and that alias takes precedence, so new installs get the current, version-locked skill instead of the intentionally version-lagged `.gemini/skills/` variant, which stays in place for existing installs. Manual install methods now copy from the standard layout as well.
+
+- `AGENTS.md` and the `bump-version.py` docstring now describe the actual parity set (18 entries including `.agents`), replacing the stale 19-file wording that predated the `.pi` and `.kiro` scheme split.
+
+### Verification
+
+- Full suite green (217 passed) with the `.agents` SKILL.md under version-parity lock. `sync-ide-folders.py --verify` covers the mirror's shared files from this release on.
+
 ## [3.6.0] - 2026-07-18
 
 ### Fixed

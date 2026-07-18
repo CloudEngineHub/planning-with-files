@@ -11,18 +11,19 @@ Run before tagging a release:
     python scripts/bump-version.py 2.37.0
     python scripts/bump-version.py 2.37.0 --dry-run
 
-Files touched (parity set, 19 entries):
+Files touched (parity set, 18 entries):
     skills/planning-with-files/SKILL.md            (canonical)
     skills/planning-with-files-{ar,de,es,zh,zht}/SKILL.md
-    .{codebuddy,codex,cursor,factory,hermes,mastracode,opencode,pi,kiro}/skills/planning-with-files/SKILL.md
+    .{codebuddy,codex,cursor,factory,hermes,mastracode,opencode}/skills/planning-with-files/SKILL.md
+    .agents/skills/planning-with-files/SKILL.md    (Agent Skills standard layout)
     clawhub-upload/SKILL.md
     .claude-plugin/plugin.json
     .claude-plugin/marketplace.json
     CITATION.cff
 
-Files intentionally left behind (do not bump automatically):
-    .continue/skills/planning-with-files/SKILL.md
-    .gemini/skills/planning-with-files/SKILL.md
+Files intentionally left behind (see LAGGING_FILES; do not bump automatically):
+    .continue and .gemini (intentionally behind), .pi (npm scheme),
+    .kiro (-kiro-suffixed scheme)
 """
 from __future__ import annotations
 
@@ -51,6 +52,7 @@ PARITY_FILES = [
     (".hermes/skills/planning-with-files/SKILL.md", "skill_md"),
     (".mastracode/skills/planning-with-files/SKILL.md", "skill_md"),
     (".opencode/skills/planning-with-files/SKILL.md", "skill_md"),
+    (".agents/skills/planning-with-files/SKILL.md", "skill_md"),
     ("clawhub-upload/SKILL.md", "skill_md"),
     (".claude-plugin/plugin.json", "plugin_json"),
     (".claude-plugin/marketplace.json", "marketplace_json"),
