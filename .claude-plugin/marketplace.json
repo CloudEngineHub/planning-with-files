@@ -1,5 +1,6 @@
 {
   "name": "planning-with-files",
+  "description": "Marketplace for the planning-with-files plugin: persistent Manus-style markdown planning for AI coding agents, with session recovery, plan attestation, and an opt-in completion gate.",
   "owner": {
     "name": "Ahmad Othman Ammar Adi",
     "url": "https://github.com/OthmanAdi"
