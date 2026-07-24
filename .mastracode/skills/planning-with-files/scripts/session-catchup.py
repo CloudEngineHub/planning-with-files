@@ -109,6 +109,82 @@ def get_sessions_sorted(project_dir: Path) -> List[Path]:
     return sorted(main_sessions, key=lambda p: p.stat().st_mtime, reverse=True)
 
 
+def claude_session_cwd(session_file: Path) -> Optional[str]:
+    """The cwd a Claude Code transcript records, or None if it records none."""
+    try:
+        with open(session_file, 'r', encoding='utf-8', errors='replace') as f:
+            for _ in range(50):
+                line = f.readline()
+                if not line:
+                    break
+                try:
+                    data = json.loads(line)
+                except ValueError:
+                    continue
+                if isinstance(data, dict):
+                    cwd = data.get('cwd')
+                    if isinstance(cwd, str) and cwd:
+                        return cwd
+    except OSError:
+        return None
+    return None
+
+
+def same_project_path(left: str, right: str) -> bool:
+    """Compare two absolute paths the way the host filesystem would."""
+    def canonical(value: str) -> str:
+        expanded = os.path.expanduser(value)
+        try:
+            return str(Path(expanded).resolve())
+        except (OSError, ValueError):
+            return os.path.abspath(expanded)
+
+    a, b = canonical(left), canonical(right)
+    if os.name == 'nt':
+        a, b = a.lower(), b.lower()
+    return a == b
+
+
+def filter_sessions_by_cwd(sessions: List[Path], project_path: str) -> Tuple[List[Path], Optional[str]]:
+    """Drop transcripts that positively belong to a different project.
+
+    Claude Code folds project paths into a single directory name, so two
+    projects whose paths differ only in folded characters (client.acme and
+    client-acme both fold to client-acme) share one store. Without this
+    filter a catchup in one of them prints the other's conversation into the
+    fresh context.
+
+    Fail open: transcripts that record no cwd are kept, because that field is
+    not present in every generation of the format, and a store whose sessions
+    all record another project is reported rather than silently used.
+    Returns (sessions_to_use, notice).
+    """
+    project_cmp = normalize_project_path(project_path)
+    mine: List[Path] = []
+    unknown: List[Path] = []
+    foreign: List[str] = []
+    for session in sessions:
+        cwd = claude_session_cwd(session)
+        if cwd is None:
+            unknown.append(session)
+        elif same_project_path(cwd, project_cmp):
+            mine.append(session)
+        else:
+            foreign.append(cwd)
+
+    if mine:
+        keep = [s for s in sessions if s in mine or s in unknown]
+        return keep, None
+    if foreign:
+        return [], (
+            "[planning-with-files] Session catchup skipped: "
+            f"{Path(sorted(set(foreign))[0]).name} and this project share one "
+            "~/.claude/projects directory, so no transcript here belongs to "
+            f"{project_cmp}."
+        )
+    return unknown, None
+
+
 def parse_session_messages(session_file: Path) -> List[Dict]:
     """Parse all messages from a session file, preserving order."""
     messages = []
@@ -233,7 +309,11 @@ def main():
         # No previous sessions, nothing to catch up on
         return
 
-    sessions = get_sessions_sorted(project_dir)
+    sessions, cwd_notice = filter_sessions_by_cwd(
+        get_sessions_sorted(project_dir), project_path
+    )
+    if cwd_notice:
+        print(cwd_notice)
     if len(sessions) < 1:
         return
 
