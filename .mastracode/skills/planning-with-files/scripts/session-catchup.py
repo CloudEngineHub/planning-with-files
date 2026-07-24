@@ -9,6 +9,7 @@ Usage: python3 session-catchup.py [project-path]
 """
 
 import json
+import re
 import sys
 import os
 from pathlib import Path
@@ -17,20 +18,75 @@ from typing import List, Dict, Optional, Tuple
 PLANNING_FILES = ['task_plan.md', 'progress.md', 'findings.md']
 
 
-def get_project_dir(project_path: str) -> Tuple[Optional[Path], Optional[str]]:
-    """Resolve session storage path for the current runtime variant."""
-    sanitized = project_path.replace('/', '-')
-    if not sanitized.startswith('-'):
-        sanitized = '-' + sanitized
-    # Claude Code keeps underscores in project-dir names; probe the exact
-    # spelling first and fall back to the legacy '-' spelling for stores
-    # created by older versions of this script (v3.8.0 fix).
-    projects_root = Path.home() / '.claude' / 'projects'
-    if (not (projects_root / sanitized).is_dir()
-            and (projects_root / sanitized.replace('_', '-')).is_dir()):
-        sanitized = sanitized.replace('_', '-')
+def normalize_project_path(project_path: str) -> str:
+    """Absolute, platform-native spelling of a project path.
 
-    claude_path = projects_root / sanitized
+    Git Bash / MSYS2 hands us /c/Users/... where Claude Code recorded
+    C:\\Users\\..., so the drive letter is restored before anything else.
+    """
+    p = project_path
+    if len(p) >= 3 and p[0] == '/' and p[2] == '/' and p[1].isalpha():
+        p = p[1].upper() + ':' + p[2:]
+    if ':' in p or '\\' in p:
+        try:
+            p = str(Path(p).resolve())
+        except (OSError, ValueError):
+            pass
+    return p
+
+
+def claude_sanitize(path_str: str, astral_width: int = 2) -> str:
+    """Spell a project path the way Claude Code names ~/.claude/projects entries.
+
+    Every character outside [A-Za-z0-9_-] becomes '-'. The count is in UTF-16
+    code units, not codepoints: Claude Code walks the name as UTF-16, so a
+    non-BMP character (an emoji in a folder name) costs TWO dashes. Passing
+    astral_width=1 produces the codepoint-width spelling for older stores.
+    """
+    return re.sub(
+        r'[^A-Za-z0-9_-]',
+        lambda m: '-' * (astral_width if ord(m.group()) > 0xFFFF else 1),
+        path_str,
+    )
+
+
+def store_candidates(normalized: str) -> List[str]:
+    """Every ~/.claude/projects spelling Claude Code has used, exact first.
+
+    Current versions fold '_' to '-' as well, but stores written before that
+    change kept it, and both are live on disk, so both spellings are probed.
+    The leading-dash-stripped forms cover stores created by pre-v3.8.0
+    versions of this script.
+    """
+    candidates: List[str] = []
+    for width in (2, 1):
+        exact = claude_sanitize(normalized, width)
+        for spelling in (exact, exact.replace('_', '-')):
+            if spelling not in candidates:
+                candidates.append(spelling)
+    for candidate in list(candidates):
+        stripped = candidate[1:] if candidate.startswith('-') else candidate
+        if stripped and stripped not in candidates:
+            candidates.append(stripped)
+    return candidates
+
+
+def get_project_dir(project_path: str) -> Tuple[Optional[Path], Optional[str]]:
+    """Resolve session storage path for the current runtime variant.
+
+    Probes the exact ~/.claude/projects spelling first and falls back through
+    the legacy spellings, so a store written by any past version still
+    resolves. Paths containing '.', ' ' or any other non-alphanumeric
+    character are folded the same way Claude Code folds them, which is what
+    makes recovery work for hidden directories such as ~/.dotfiles (#209).
+    """
+    projects_root = Path.home() / '.claude' / 'projects'
+    candidates = store_candidates(normalize_project_path(project_path))
+    claude_path = projects_root / candidates[0]
+    for candidate in candidates:
+        if (projects_root / candidate).is_dir():
+            claude_path = projects_root / candidate
+            break
 
     # Codex stores sessions in ~/.codex/sessions with a different format.
     # Avoid silently scanning Claude paths when running from Codex skill folder.

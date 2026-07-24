@@ -70,11 +70,24 @@ def normalize_path(project_path: str) -> str:
     return p
 
 
-def _claude_sanitize(path_str: str) -> str:
-    """Claude Code's project-dir name: every character outside [A-Za-z0-9_-]
-    becomes '-'; underscores and the leading dash of POSIX absolute paths are
-    KEPT (real stores look like -home-user-proj and C--Users-x-My_Repo)."""
-    return re.sub(r'[^A-Za-z0-9_-]', '-', path_str)
+def _claude_sanitize(path_str: str, astral_width: int = 2) -> str:
+    """Claude Code's project-dir name for a project path.
+
+    Every character outside [A-Za-z0-9_-] becomes '-', and the leading dash of
+    POSIX absolute paths is kept (real stores look like -home-user-proj). The
+    count is in UTF-16 code units rather than codepoints, so a non-BMP
+    character such as an emoji in a folder name costs TWO dashes; passing
+    astral_width=1 produces the codepoint-width spelling for older stores.
+
+    Underscores are NOT universally kept: current versions fold '_' to '-'
+    while older stores kept it, and both spellings are live on disk, so
+    get_claude_project_dir() probes both.
+    """
+    return re.sub(
+        r'[^A-Za-z0-9_-]',
+        lambda m: '-' * (astral_width if ord(m.group()) > 0xFFFF else 1),
+        path_str,
+    )
 
 
 def _newest_session_cwd_matches(project_dir: Path, normalized: str) -> bool:
@@ -120,9 +133,11 @@ def get_claude_project_dir(project_path: str) -> Path:
 
     primary = _claude_sanitize(normalized)
     candidates = [primary]
-    legacy_underscore = primary.replace('_', '-')
-    if legacy_underscore not in candidates:
-        candidates.append(legacy_underscore)
+    for width in (2, 1):
+        exact = _claude_sanitize(normalized, width)
+        for spelling in (exact, exact.replace('_', '-')):
+            if spelling not in candidates:
+                candidates.append(spelling)
     for cand in list(candidates):
         stripped = cand[1:] if cand.startswith('-') else cand
         if stripped and stripped not in candidates:

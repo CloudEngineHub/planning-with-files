@@ -14,6 +14,7 @@ Usage: python3 session-catchup.py [project-path]
 """
 
 import json
+import re
 import sys
 import os
 from pathlib import Path
@@ -44,20 +45,75 @@ def detect_ide() -> str:
     return 'unknown'
 
 
+def normalize_project_path(project_path: str) -> str:
+    """Absolute, platform-native spelling of a project path.
+
+    Git Bash / MSYS2 hands us /c/Users/... where Claude Code recorded
+    C:\\Users\\..., so the drive letter is restored before anything else.
+    """
+    p = project_path
+    if len(p) >= 3 and p[0] == '/' and p[2] == '/' and p[1].isalpha():
+        p = p[1].upper() + ':' + p[2:]
+    if ':' in p or '\\' in p:
+        try:
+            p = str(Path(p).resolve())
+        except (OSError, ValueError):
+            pass
+    return p
+
+
+def claude_sanitize(path_str: str, astral_width: int = 2) -> str:
+    """Spell a project path the way Claude Code names ~/.claude/projects entries.
+
+    Every character outside [A-Za-z0-9_-] becomes '-'. The count is in UTF-16
+    code units, not codepoints: Claude Code walks the name as UTF-16, so a
+    non-BMP character (an emoji in a folder name) costs TWO dashes. Passing
+    astral_width=1 produces the codepoint-width spelling for older stores.
+    """
+    return re.sub(
+        r'[^A-Za-z0-9_-]',
+        lambda m: '-' * (astral_width if ord(m.group()) > 0xFFFF else 1),
+        path_str,
+    )
+
+
+def store_candidates(normalized: str) -> List[str]:
+    """Every ~/.claude/projects spelling Claude Code has used, exact first.
+
+    Current versions fold '_' to '-' as well, but stores written before that
+    change kept it, and both are live on disk, so both spellings are probed.
+    The leading-dash-stripped forms cover stores created by pre-v3.8.0
+    versions of this script.
+    """
+    candidates: List[str] = []
+    for width in (2, 1):
+        exact = claude_sanitize(normalized, width)
+        for spelling in (exact, exact.replace('_', '-')):
+            if spelling not in candidates:
+                candidates.append(spelling)
+    for candidate in list(candidates):
+        stripped = candidate[1:] if candidate.startswith('-') else candidate
+        if stripped and stripped not in candidates:
+            candidates.append(stripped)
+    return candidates
+
+
 def get_project_dir_claude(project_path: str) -> Path:
-    """Convert project path to Claude's storage path format."""
-    sanitized = project_path.replace('/', '-')
-    if not sanitized.startswith('-'):
-        sanitized = '-' + sanitized
-    # Claude Code keeps underscores in project-dir names; probe the exact
-    # spelling first and fall back to the legacy '-' spelling for stores
-    # created by older versions of this script (v3.8.0 fix).
+    """Resolve Claude Code's session store directory for a project path.
+
+    Probes the exact spelling first and falls back through the legacy
+    spellings, so a store written by any past version still resolves. Paths
+    containing '.', ' ' or any other non-alphanumeric character are folded
+    the same way Claude Code folds them, which is what makes recovery work
+    for hidden directories such as ~/.dotfiles (issue #209).
+    """
+    normalized = normalize_project_path(project_path)
     projects_root = Path.home() / '.claude' / 'projects'
-    if not (projects_root / sanitized).is_dir():
-        legacy = sanitized.replace('_', '-')
-        if (projects_root / legacy).is_dir():
-            return projects_root / legacy
-    return projects_root / sanitized
+    candidates = store_candidates(normalized)
+    for candidate in candidates:
+        if (projects_root / candidate).is_dir():
+            return projects_root / candidate
+    return projects_root / candidates[0]
 
 
 def get_project_dir_opencode(project_path: str) -> Optional[Path]:
