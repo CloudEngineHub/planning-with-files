@@ -106,6 +106,10 @@ These amazing people have contributed code, documentation, or significant improv
 
 ### Other Contributors
 
+- **[@seathatflowsinourveins](https://github.com/seathatflowsinourveins)** - [Issue #209](https://github.com/OthmanAdi/planning-with-files/issues/209)
+  - Reported that `session-catchup.py` never folded `.` while Claude Code does, so any project path containing a dot resolved to a `~/.claude/projects` directory that is never written, citing the exact blob, the two sanitize branches, and the `main()` line where the miss returns exit 0 with no output
+  - **Impact:** v3.8.2 folds every character Claude Code folds in the three remaining copies (one of them the copy every `/plugin install` runs on Linux, macOS and Git Bash), counts UTF-16 code units so emoji folder names resolve, and adds a per-session `cwd` filter so two projects sharing one folded directory name cannot read each other's transcripts
+
 - **[@fd44fdg](https://github.com/fd44fdg)** - [Issue #208](https://github.com/OthmanAdi/planning-with-files/issues/208)
   - Reported that a stale `.planning/<id>/` directory silently shadowed a fresh root `task_plan.md` in the Pi extension while a false "No task_plan.md found" warning fired on every write and edit, with a root-cause trace against `resolvePlanPaths` and the `runtime.ts` warning path
   - **Impact:** v3.8.1 anchors Pi plan resolution on the nearest ancestor with planning state (bounded by the `.git` repository boundary), labels every injection with the resolved plan id so shadowing is visible, and kills the subdirectory warning loop; bundled Pi extension bumped to 1.2.2
@@ -380,4 +384,4 @@ If you've contributed and don't see your name here, please open an issue! We wan
 
 **Total Contributors:** 50+ and growing!
 
-*Last updated: July 14, 2026*
+*Last updated: July 24, 2026*

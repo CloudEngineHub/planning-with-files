@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.8.2] - 2026-07-24
+
+### Fixed
+- **Session recovery silently found nothing for any project path containing a dot, a space, or any other non-alphanumeric character (closes #209, reported by @seathatflowsinourveins).** Claude Code names `~/.claude/projects/` entries by folding every character outside `[A-Za-z0-9-]` to `-`, but three copies of `session-catchup.py` still used a manual replace chain that handled only `/`, `\` and `:`. Those copies computed a directory name Claude Code never writes, no candidate matched, and `main()` returned at the `exists()` check with exit 0, so catchup after `/clear` produced nothing and reported nothing. Hidden directories such as `~/.dotfiles` were the common case. One of the three sits on a live install route: `marketplace.json` declares `"source": "./"`, so the plugin root is the repository root and the SKILL.md restore block resolves `${CLAUDE_PLUGIN_ROOT}/scripts/session-catchup.py` for every plugin user on Linux, macOS or Git Bash. Measured against a real store holding 89 sessions, the shipped resolver produced 0 bytes where the fixed one produces 11336 and recovers 166 messages. The root, `.hermes` and `.mastracode` copies now share the same normalize, sanitize and candidate helpers as the canonical copy, keeping their existing function names, signatures and the `.mastracode` Codex guard (`tests/test_catchup_store_resolution_parity.py`).
+- **An emoji in a folder name made a project unresolvable in every copy, including the canonical one.** Claude Code walks the directory name as UTF-16, so a non-BMP character costs two dashes, while the sanitizer counted codepoints and produced one. Folding is now counted in UTF-16 code units. The rules were measured against 24 real stores whose recorded `cwd` could be read: one model matches all 24, and it also showed that current versions fold `_` while older stores kept it, so both spellings stay in the probe chain and the exact spelling is still probed first.
+- The 15 copies that already folded dots keep that behavior unchanged. `.kiro` is untouched because it ships a different program that reads `.kiro/plan/` and never looks at `~/.claude/projects`.
+
+### Security
+- **Two projects whose paths fold to the same `~/.claude/projects` name could read each other's transcripts.** The mapping is lossy, so `client.acme` and `client-acme` share one directory. Until this release the resolver did not fold those characters and simply missed the directory; folding the way Claude Code folds means it now finds it, so catchup filters transcripts by the `cwd` they record. A transcript is skipped only when it positively records a different project, transcripts that record none are kept because the field is not present in every generation of the format, and a directory whose transcripts all belong to another project is reported instead of used. The filter works per session rather than rejecting the whole directory, because in a collision both projects live there permanently and rejecting it would cost the project its own history. Reproduced with a planted canary against the preceding commit and again after the fix (`tests/test_catchup_cross_project_guard.py`).
+
+### Verification
+- Suite 305 to 311 passing, 282 subtests, plus `sync-ide-folders.py --verify` clean. The new parity suite discovers the copies with `git ls-files` and runs one vector table through each, so the drift that produced #209 fails the suite instead of hiding in a single file.
+
+### Thanks
+- seathatflowsinourveins reported the dot-folding mismatch with an exact blob reference, a working reproduction, and a correct reading of the silent return path (#209).
+
 ## [3.8.1] - 2026-07-21
 
 ### Fixed
