@@ -1,4 +1,4 @@
-# Report phase completion status for task_plan.md (stdout only, always exit 0).
+﻿# Report phase completion status for task_plan.md (stdout only, always exit 0).
 # Default plan path: .kiro/plan/task_plan.md (relative to current directory).
 
 param(

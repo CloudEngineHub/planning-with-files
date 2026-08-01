@@ -1,4 +1,4 @@
-# Bootstrap planning-with-files into the current workspace (idempotent).
+﻿# Bootstrap planning-with-files into the current workspace (idempotent).
 # Run from the workspace root:
 #   pwsh -File .kiro/skills/planning-with-files/assets/scripts/bootstrap.ps1
 

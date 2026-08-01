@@ -1,4 +1,4 @@
-# planning-with-files: Session start hook for GitHub Copilot (PowerShell)
+﻿# planning-with-files: Session start hook for GitHub Copilot (PowerShell)
 # When task_plan.md exists: runs session-catchup or reads plan header.
 # When task_plan.md doesn't exist: injects SKILL.md so Copilot knows the planning workflow.
 # Always exits 0 — outputs JSON to stdout.

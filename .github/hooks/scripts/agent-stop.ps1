@@ -1,4 +1,4 @@
-# planning-with-files: Agent stop hook for GitHub Copilot (PowerShell)
+﻿# planning-with-files: Agent stop hook for GitHub Copilot (PowerShell)
 # Checks if all phases in task_plan.md are complete.
 # Injects continuation context if phases are incomplete.
 # Always exits 0 — outputs JSON to stdout.
