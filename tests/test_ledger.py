@@ -65,9 +65,9 @@ class LedgerTestBase(unittest.TestCase):
             check=False,
         )
 
-    def summary(self):
+    def summary(self, *args: str):
         return subprocess.run(
-            ["sh", str(LEDGER_SUMMARY)],
+            ["sh", str(LEDGER_SUMMARY), *args],
             cwd=str(self.tmp),
             text=True,
             encoding="utf-8",
@@ -164,6 +164,113 @@ class LedgerSummaryTests(LedgerTestBase):
         self.assertIn("phases: 0/2 complete", result.stdout)
         self.assertIn("Phase 1: Build", result.stdout)
         self.assertIn("agent main:", result.stdout)
+
+
+class LedgerSummaryPlanDirArgTests(LedgerTestBase):
+    """The optional plan-dir argument (issue #212).
+
+    inject-plan.sh passes the plan dir it already resolved; the summary must
+    honour it instead of re-resolving from the process cwd, otherwise a
+    PWF_PLAN_ROOT-pinned thread gets the pinned plan's body paired with the
+    cwd plan's phase counts and agent events.
+    """
+
+    def test_explicit_arg_beats_cwd_resolution(self) -> None:
+        # A second plan dir with different counts; .active_plan still points
+        # at "p", so cwd resolution and the argument disagree on purpose.
+        q = self.tmp / ".planning" / "q"
+        q.mkdir()
+        (q / "task_plan.md").write_text(
+            "# Plan Q\n"
+            "### Phase 1: A\n- **Status:** complete\n"
+            "### Phase 2: B\n- **Status:** complete\n"
+            "### Phase 3: C\n- **Status:** in_progress\n",
+            encoding="utf-8",
+        )
+        (q / "ledger-qagent.jsonl").write_text(
+            '{"tick": 1, "event": "q_evt"}\n', encoding="utf-8"
+        )
+        self.append("progress", "p side", "--agent", "main")
+        result = self.summary(".planning/q")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("phases: 2/3 complete", result.stdout)
+        self.assertIn("Phase 3: C", result.stdout)
+        self.assertIn("agent qagent: q_evt", result.stdout)
+        self.assertNotIn("phases: 0/2 complete", result.stdout)
+        self.assertNotIn("agent main:", result.stdout)
+
+    def test_arg_naming_missing_dir_is_unavailable_not_zero_zero(self) -> None:
+        # The caller named a plan dir; if it is gone we must not report some
+        # OTHER plan's counts, and we must not fabricate a confident 0/0.
+        result = self.summary("no-such-dir")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("unavailable", result.stdout)
+        self.assertNotIn("phases: 0/0 complete", result.stdout)
+        self.assertNotIn("in_progress: none", result.stdout)
+
+    def test_no_arg_resolution_unchanged(self) -> None:
+        # Legacy call shape: no argument, resolver present. Byte-identical
+        # resolution to before the argument existed.
+        result = self.summary()
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("phases: 0/2 complete", result.stdout)
+        self.assertIn("Phase 1: Build", result.stdout)
+
+
+class LedgerSummaryDegradationTests(LedgerTestBase):
+    """Loud degradation when the counts are not computable.
+
+    Defect: with resolve-plan-dir.sh absent next to it, ledger-summary.sh fell
+    back to plan_dir="." and emitted "phases: 0/0 complete" + "in_progress:
+    none" + "entries: 0" — a false completion signal fed straight into an
+    autonomous loop. Missing resolver + no argument must be a clearly marked
+    unavailable state; an explicit argument needs no resolver at all.
+    """
+
+    def _orphan_copy(self) -> Path:
+        """ledger-summary.sh copied somewhere with NO resolver next to it."""
+        bin_dir = self.tmp / "orphan-bin"
+        bin_dir.mkdir()
+        target = bin_dir / "ledger-summary.sh"
+        shutil.copy(str(LEDGER_SUMMARY), str(target))
+        return target
+
+    def _run_script(self, script: Path, *args: str):
+        return subprocess.run(
+            ["sh", str(script), *args],
+            cwd=str(self.tmp),
+            text=True,
+            encoding="utf-8",
+            capture_output=True,
+            env=self.env,
+            check=False,
+        )
+
+    def test_missing_resolver_without_arg_is_loud_not_zero_zero(self) -> None:
+        orphan = self._orphan_copy()
+        result = self._run_script(orphan)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("=== RUN LEDGER ===", result.stdout)
+        self.assertIn("unavailable", result.stdout)
+        self.assertNotIn("phases: 0/0 complete", result.stdout)
+        self.assertNotIn("in_progress: none", result.stdout)
+        self.assertNotIn("entries: 0", result.stdout)
+
+    def test_missing_resolver_unavailable_block_is_byte_stable(self) -> None:
+        orphan = self._orphan_copy()
+        first = self._run_script(orphan)
+        second = self._run_script(orphan)
+        self.assertEqual(first.stdout, second.stdout)
+
+    def test_missing_resolver_with_arg_still_computes(self) -> None:
+        # The argument is the caller's already-resolved dir; the resolver is
+        # not needed on that path.
+        orphan = self._orphan_copy()
+        result = self._run_script(orphan, ".planning/p")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("phases: 0/2 complete", result.stdout)
+        self.assertIn("Phase 1: Build", result.stdout)
+        self.assertNotIn("unavailable", result.stdout)
 
 
 class PhaseStatusTests(LedgerTestBase):
