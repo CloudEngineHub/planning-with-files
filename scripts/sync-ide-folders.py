@@ -57,6 +57,20 @@ SCRIPTS = [
     "scripts/plan-doctor.sh",
 ]
 
+# Hook dispatch targets (issue #212): every hook-bearing SKILL.md dispatches
+# its UserPromptSubmit/PreToolUse/PreCompact scalars to inject-plan.sh, and
+# inject-plan.sh shells its sibling ledger-summary.sh in autonomous/gated mode.
+# ledger-summary.sh in turn shells its sibling resolve-plan-dir.sh; when the
+# resolver is missing it falls back to plan_dir="." and injects a false
+# "phases: 0/0 complete" into an autonomous loop. All three must ship in every
+# variant's own scripts/ dir or the dispatch resolves to nothing, or to a lying
+# summary, on that host (tests/test_skill_hook_dispatch_parity.py pins this).
+HOOK_DISPATCH_SCRIPTS = [
+    "scripts/inject-plan.sh",
+    "scripts/ledger-summary.sh",
+    "scripts/resolve-plan-dir.sh",
+]
+
 # .agents/ ships the FULL canonical surface (no IDE adapter layer exists to
 # carry the rest): hook dispatchers, ledger tooling, and every template.
 AGENTS_EXTRA_SCRIPTS = [
@@ -78,7 +92,8 @@ AGENTS_EXTRA_TEMPLATES = [
 # Only files listed here are synced. Everything else is untouched.
 
 def _build_manifest(base, *, ref_style="flat", template_dirs=None,
-                    include_scripts=True, extra_template_dirs=None):
+                    include_scripts=True, extra_template_dirs=None,
+                    extra_scripts=None):
     """Build a sync manifest for an IDE folder.
 
     Args:
@@ -87,6 +102,8 @@ def _build_manifest(base, *, ref_style="flat", template_dirs=None,
         template_dirs: list of template subdirs (default: ["templates/"])
         include_scripts: whether to sync scripts
         extra_template_dirs: additional dirs to also receive template copies
+        extra_scripts: scripts beyond the shared SCRIPTS list (e.g. the hook
+            dispatch targets in HOOK_DISPATCH_SCRIPTS)
     """
     manifest = {}
     b = Path(base)
@@ -120,6 +137,11 @@ def _build_manifest(base, *, ref_style="flat", template_dirs=None,
         for s in SCRIPTS:
             manifest[s] = str(b / s)
 
+    # Extra scripts (hook dispatch targets and other per-IDE additions)
+    if extra_scripts:
+        for s in extra_scripts:
+            manifest[s] = str(b / s)
+
     return manifest
 
 
@@ -127,8 +149,11 @@ IDE_MANIFESTS = {
     ".cursor": _build_manifest(
         ".cursor/skills/planning-with-files",
         ref_style="flat",
-        include_scripts=False,
-        # Cursor hooks are IDE-specific, not synced
+        include_scripts=True,
+        extra_scripts=HOOK_DISPATCH_SCRIPTS,
+        # Cursor hooks (.cursor/hooks/) are IDE-specific, not synced. The
+        # skill's own scripts/ ARE synced: the SKILL.md hook scalars dispatch
+        # to them (issue #212), so shipping none left the dispatch dead.
     ),
 
     ".gemini": _build_manifest(
@@ -141,6 +166,7 @@ IDE_MANIFESTS = {
         ".codex/skills/planning-with-files",
         ref_style="subdir",
         include_scripts=True,
+        extra_scripts=HOOK_DISPATCH_SCRIPTS,
     ),
 
     # .openclaw, .kilocode, .adal, .agent removed in v2.24.0 (IDE audit)
@@ -165,23 +191,50 @@ IDE_MANIFESTS = {
         ".codebuddy/skills/planning-with-files",
         ref_style="subdir",
         include_scripts=True,
+        extra_scripts=HOOK_DISPATCH_SCRIPTS,
     ),
 
     ".factory": _build_manifest(
         ".factory/skills/planning-with-files",
         ref_style="skip",  # Uses combined references.md, not synced
         include_scripts=True,
+        extra_scripts=HOOK_DISPATCH_SCRIPTS,
     ),
 
     ".opencode": _build_manifest(
         ".opencode/skills/planning-with-files",
         ref_style="flat",
         include_scripts=False,
+        extra_scripts=HOOK_DISPATCH_SCRIPTS,
+    ),
+
+    # Mastracode: templates/references maintained under .mastracode/; only the
+    # hook dispatch targets are synced from canonical.
+    ".mastracode": _build_manifest(
+        ".mastracode/skills/planning-with-files",
+        ref_style="skip",
+        template_dirs=[],
+        include_scripts=False,
+        extra_scripts=HOOK_DISPATCH_SCRIPTS,
     ),
 
     # Kiro: maintained under .kiro/ (skill + wrappers); not synced from canonical scripts/.
     ".kiro": {},
 }
+
+# Language variants (skills/planning-with-files-<lang>/): SKILL.md, templates
+# and references are real translations and must NEVER be overwritten with the
+# English canonical. Scripts are language-neutral; the hook dispatch targets
+# are synced so the dispatcher scalars can resolve (issue #212).
+for _lang in ("ar", "de", "es", "zh", "zht"):
+    _base = f"skills/planning-with-files-{_lang}"
+    IDE_MANIFESTS[_base] = _build_manifest(
+        _base,
+        ref_style="skip",
+        template_dirs=[],
+        include_scripts=False,
+        extra_scripts=HOOK_DISPATCH_SCRIPTS,
+    )
 
 
 def _build_agents_manifest():
