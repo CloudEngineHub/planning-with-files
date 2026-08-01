@@ -92,6 +92,19 @@ function closedIncompletePlan(): string {
 	return incompletePlan() + "\n<!-- pwf: closed -->\n";
 }
 
+// Shape verified against @earendil-works/pi-coding-agent 0.80.3 and 0.82.1:
+// AgentEndEvent has no top-level stopReason; the outcome lives on the last
+// assistant entry of event.messages.
+function agentEndEvent(stopReason: string): { type: string; messages: unknown[] } {
+	return {
+		type: "agent_end",
+		messages: [
+			{ role: "user", content: "continue", timestamp: 1 },
+			{ role: "assistant", content: [], stopReason, timestamp: 2 },
+		],
+	};
+}
+
 function attestPlan(cwd: string, content: string): void {
 	writeFileSync(join(cwd, ".planning", "demo", ".attestation"), sha256(content));
 }
@@ -496,6 +509,180 @@ describe("Pi extension runtime modes", () => {
 		expect(ctx.ui.notify).toHaveBeenCalledWith(
 			"[planning-with-files] Update progress.md with what you just did. If a phase is now complete, update task_plan.md status.",
 			"info",
+		);
+	});
+});
+
+describe("Pi extension agent_end failure guard", () => {
+	it("agent_end sends no follow-up when the last assistant message stopped with an error", async () => {
+		const cwd = makeWorkspace();
+		const pi = loadExtension();
+		const ctx = createContext(cwd);
+
+		await approvePlan(pi, ctx);
+		await emit(pi, "agent_end", agentEndEvent("error"), ctx);
+
+		expect(pi.sendUserMessage).not.toHaveBeenCalled();
+	});
+
+	it("agent_end sends no follow-up when the last assistant message was aborted", async () => {
+		const cwd = makeWorkspace();
+		const pi = loadExtension();
+		const ctx = createContext(cwd);
+
+		await approvePlan(pi, ctx);
+		await emit(pi, "agent_end", agentEndEvent("aborted"), ctx);
+
+		expect(pi.sendUserMessage).not.toHaveBeenCalled();
+	});
+
+	it("consecutive failed turns leave the full auto-continue allowance for later successful turns", async () => {
+		const cwd = makeWorkspace();
+		const pi = loadExtension();
+		const ctx = createContext(cwd);
+
+		await approvePlan(pi, ctx);
+		await emit(pi, "agent_end", agentEndEvent("error"), ctx);
+		await emit(pi, "agent_end", agentEndEvent("aborted"), ctx);
+		await emit(pi, "agent_end", agentEndEvent("error"), ctx);
+
+		expect(pi.sendUserMessage).not.toHaveBeenCalled();
+
+		// Fourth firing succeeds and must still send: the failed turns above
+		// may not have consumed any of the AUTO_CONTINUE_LIMIT budget.
+		await emit(pi, "agent_end", agentEndEvent("stop"), ctx);
+
+		expect(pi.sendUserMessage).toHaveBeenCalledTimes(1);
+		expect(pi.sendUserMessage).toHaveBeenCalledWith(
+			expect.stringContaining("Task incomplete (1/2 phases done)"),
+			{ deliverAs: "followUp" },
+		);
+
+		// The full allowance (3) survives: two more successes send, the next
+		// one hits the limit. Any increment during the failed turns would
+		// surface here as a missing send.
+		await emit(pi, "agent_end", agentEndEvent("stop"), ctx);
+		await emit(pi, "agent_end", agentEndEvent("stop"), ctx);
+		expect(pi.sendUserMessage).toHaveBeenCalledTimes(3);
+
+		await emit(pi, "agent_end", agentEndEvent("stop"), ctx);
+		expect(pi.sendUserMessage).toHaveBeenCalledTimes(3);
+	});
+
+	it("agent_end still auto-continues when the last assistant message stopped normally", async () => {
+		const cwd = makeWorkspace();
+		const pi = loadExtension();
+		const ctx = createContext(cwd);
+
+		await approvePlan(pi, ctx);
+		await emit(pi, "agent_end", agentEndEvent("stop"), ctx);
+
+		expect(pi.sendUserMessage).toHaveBeenCalledTimes(1);
+	});
+
+	it("agent_end treats a bare event object as a normal completed turn", async () => {
+		const cwd = makeWorkspace();
+		const pi = loadExtension();
+		const ctx = createContext(cwd);
+
+		await approvePlan(pi, ctx);
+		await emit(pi, "agent_end", {}, ctx);
+
+		expect(pi.sendUserMessage).toHaveBeenCalledTimes(1);
+	});
+
+	it("agent_end treats an empty messages array as a normal completed turn", async () => {
+		const cwd = makeWorkspace();
+		const pi = loadExtension();
+		const ctx = createContext(cwd);
+
+		await approvePlan(pi, ctx);
+		await emit(pi, "agent_end", { messages: [] }, ctx);
+
+		expect(pi.sendUserMessage).toHaveBeenCalledTimes(1);
+	});
+
+	it("agent_end treats a turn without assistant messages as a normal completed turn", async () => {
+		const cwd = makeWorkspace();
+		const pi = loadExtension();
+		const ctx = createContext(cwd);
+
+		await approvePlan(pi, ctx);
+		await emit(
+			pi,
+			"agent_end",
+			{ messages: [null, { role: "user", content: "continue" }, { role: "toolResult" }] },
+			ctx,
+		);
+
+		expect(pi.sendUserMessage).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("Pi extension active status publishing", () => {
+	it("tool_result publishes the live phase count once the plan is execution-approved", async () => {
+		const cwd = makeWorkspace();
+		const pi = loadExtension();
+		const ctx = createContext(cwd);
+
+		await approvePlan(pi, ctx);
+		await emit(pi, "tool_result", { toolName: "write", content: [] }, ctx);
+
+		expect(ctx.ui.setStatus).toHaveBeenCalledWith("planning-with-files", "1/2 phases complete");
+
+		writeFileSync(join(cwd, ".planning", "demo", "task_plan.md"), completePlan());
+		await emit(pi, "tool_result", { toolName: "edit", content: [] }, ctx);
+
+		expect(ctx.ui.setStatus).toHaveBeenLastCalledWith("planning-with-files", "2/2 phases complete");
+	});
+
+	it("agent_end publishes the live phase count on the approved auto-continue path", async () => {
+		const cwd = makeWorkspace();
+		const pi = loadExtension();
+		const ctx = createContext(cwd);
+
+		await approvePlan(pi, ctx);
+		await emit(pi, "agent_end", agentEndEvent("stop"), ctx);
+
+		expect(ctx.ui.setStatus).toHaveBeenCalledWith("planning-with-files", "1/2 phases complete");
+	});
+
+	it("before_agent_start publishes the live phase count in active parity mode", async () => {
+		const cwd = makeWorkspace();
+		const pi = loadExtension();
+		const ctx = createContext(cwd);
+
+		await approvePlan(pi, ctx);
+		await emit(pi, "before_agent_start", {}, ctx);
+
+		expect(ctx.ui.setStatus).toHaveBeenCalledWith("planning-with-files", "1/2 phases complete");
+	});
+
+	it("session_before_compact publishes the live phase count", async () => {
+		const cwd = makeWorkspace();
+		const pi = loadExtension();
+		const ctx = createContext(cwd);
+
+		await approvePlan(pi, ctx);
+		await emit(pi, "session_before_compact", {}, ctx);
+
+		expect(ctx.ui.setStatus).toHaveBeenCalledWith("planning-with-files", "1/2 phases complete");
+	});
+
+	it("agent_end publishes the final count when the last phase completes", async () => {
+		const cwd = makeWorkspace();
+		const pi = loadExtension();
+		const ctx = createContext(cwd);
+
+		await approvePlan(pi, ctx);
+		writeFileSync(join(cwd, ".planning", "demo", "task_plan.md"), completePlan());
+		await emit(pi, "agent_end", agentEndEvent("stop"), ctx);
+
+		// The N/M to M/M transition is the one the user watches for. It reached
+		// the ALL PHASES COMPLETE notification but never the status bar.
+		expect(ctx.ui.setStatus).toHaveBeenLastCalledWith(
+			"planning-with-files",
+			"2/2 phases complete",
 		);
 	});
 });

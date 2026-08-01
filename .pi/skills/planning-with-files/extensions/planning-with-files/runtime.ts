@@ -296,6 +296,38 @@ function setPassivePlanStatus(ctx: ExtensionContext, status: PlanStatus): void {
 	ctx.ui.setStatus(PKG_NAME, `${summarizePlan(status)} — run /plan-execute to activate hooks`);
 }
 
+// Status-bar publish for execution-approved sessions. Not routed through
+// setPassivePlanStatus: that helper appends the "run /plan-execute" nudge,
+// which is wrong once the plan is approved. Same bare string the notify-mode
+// branch always used (#211: the bar went stale after /plan-execute because
+// only passive paths ever published).
+function publishPlanStatus(ctx: ExtensionContext, status: PlanStatus): void {
+	ctx.ui.setStatus(PKG_NAME, summarizePlan(status));
+}
+
+// agent_end carries no top-level stopReason; the turn outcome lives on the
+// last assistant entry of event.messages (AgentEndEvent -> AgentMessage ->
+// AssistantMessage.stopReason). Defensive on purpose: handlers must never
+// throw on a malformed payload, and an absent/odd shape means "treat as a
+// normal completed turn".
+function lastAssistantStopReason(event: unknown): string | undefined {
+	if (typeof event !== "object" || event === null) return undefined;
+	const messages = (event as { messages?: unknown }).messages;
+	if (!Array.isArray(messages)) return undefined;
+	for (let i = messages.length - 1; i >= 0; i--) {
+		const entry = messages[i] as { role?: unknown; stopReason?: unknown } | null | undefined;
+		if (entry && typeof entry === "object" && entry.role === "assistant") {
+			return typeof entry.stopReason === "string" ? entry.stopReason : undefined;
+		}
+	}
+	return undefined;
+}
+
+function isFailedTurn(event: unknown): boolean {
+	const stopReason = lastAssistantStopReason(event);
+	return stopReason === "error" || stopReason === "aborted";
+}
+
 // Word-boundary regex check so legitimate commands like
 // `git push origin feature/draft-notification` don't trigger the warning, but
 // destructive variants like `git push --force` or `git push --mirror` still do.
@@ -512,6 +544,8 @@ export default function planningWithFilesExtension(pi: ExtensionAPI): void {
 			return;
 		}
 
+		publishPlanStatus(ctx, status);
+
 		const mode = deriveEffectiveMode(resolveConfiguredMode(anchorCwd(ctx)), ctx);
 		const attestation = checkPlanAttestation(status);
 
@@ -611,6 +645,11 @@ export default function planningWithFilesExtension(pi: ExtensionAPI): void {
 			return;
 		}
 
+		// Publish here in every mode: tool_result on write/edit fires right
+		// after the change that can move the phase count, and it was the last
+		// active-path handler with no route to the status bar (#211).
+		publishPlanStatus(ctx, status);
+
 		const mode = deriveEffectiveMode(resolveConfiguredMode(anchorCwd(ctx)), ctx);
 		if (mode === "parity") {
 			return {
@@ -621,7 +660,7 @@ export default function planningWithFilesExtension(pi: ExtensionAPI): void {
 		ctx.ui.notify(POST_WRITE_REMINDER, "info");
 	});
 
-	pi.on("agent_end", async (_event, ctx) => {
+	pi.on("agent_end", async (event, ctx) => {
 		if (!isAttachedSession(ctx)) return;
 
 		const status = readPlanStatus(ctx.cwd);
@@ -637,12 +676,29 @@ export default function planningWithFilesExtension(pi: ExtensionAPI): void {
 
 		if (isAllPhasesComplete(status)) {
 			state.autoContinueCountBySessionPlan.set(planKey, 0);
+			// Publish before the early return: this is the transition the bar
+			// most needs to show (N/M to M/M), and it was the one branch where
+			// the count reached the notification but never the status bar
+			// (#211). No /plan-execute nudge here, the plan is done.
+			publishPlanStatus(ctx, status);
 			ctx.ui.notify(
 				`[planning-with-files] ALL PHASES COMPLETE (${status.completePhases}/${status.totalPhases}).`,
 				"info",
 			);
 			return;
 		}
+
+		// #211: a turn that ended in a provider error or user abort is not a
+		// completed turn. Sending the auto-continue follow-up would fire a
+		// fresh request into the same failing provider (error -> follow-up ->
+		// error, up to AUTO_CONTINUE_LIMIT) and bury the original error.
+		// Return before the counter is read or incremented so a provider
+		// outage never burns the retry budget. The closed/all-complete
+		// branches above stay reachable on failed turns: their resets key
+		// off durable on-disk plan state (any later agent_end would apply
+		// the same reset), and the ALL PHASES COMPLETE notice must not be
+		// suppressed when that is genuinely the state.
+		if (isFailedTurn(event)) return;
 
 		if (!isPlanIncomplete(status)) return;
 
@@ -654,6 +710,8 @@ export default function planningWithFilesExtension(pi: ExtensionAPI): void {
 			setPassivePlanStatus(ctx, status);
 			return;
 		}
+
+		publishPlanStatus(ctx, status);
 
 		if (mode === "notify") {
 			ctx.ui.notify(
@@ -699,6 +757,10 @@ export default function planningWithFilesExtension(pi: ExtensionAPI): void {
 			setPassivePlanStatus(ctx, status);
 			return;
 		}
+
+		// Compaction is exactly when the bar is worth trusting: the transcript is
+		// about to be summarized away and the plan file becomes the record (#211).
+		publishPlanStatus(ctx, status);
 
 		const attestation = checkPlanAttestation(status);
 		const reminder = [
