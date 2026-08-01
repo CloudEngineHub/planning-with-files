@@ -39,6 +39,31 @@ def session_id_from_payload(payload: dict[str, Any]) -> str | None:
     return env_sid if env_sid else None
 
 
+def effective_plan_root(cwd: Path) -> Path | None:
+    """Resolve the plan root the hooks must read planning state from.
+
+    Issue #212: PWF_PLAN_ROOT pins a thread whose cwd is a shared parent of
+    the real project (e.g. /workspace above /workspace/project) to the project
+    root that owns the plan. Highest precedence. Every entrypoint routes its
+    shell helper and session-attachment check through the returned root, so
+    all planning-state reads go through the pin.
+
+    A pin that is not a directory fails CLOSED (returns None): the hooks
+    inject nothing rather than silently falling back to the ambiguous cwd
+    plan the pin was escaping. The user-facing notice for a broken pin lives
+    in user-prompt-submit.sh, the once-per-turn hook; the per-tool-call hooks
+    served by this adapter must refuse silently or the notice becomes spam.
+
+    With the variable unset the cwd passes through untouched (legacy
+    invariant).
+    """
+    pin = os.environ.get("PWF_PLAN_ROOT", "")
+    if not pin:
+        return cwd
+    pin_path = Path(pin)
+    return pin_path if pin_path.is_dir() else None
+
+
 def is_session_attached(root: Path, session_id: str | None) -> bool:
     """Return True if this session should receive plan context.
 
