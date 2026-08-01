@@ -106,6 +106,18 @@ These amazing people have contributed code, documentation, or significant improv
 
 ### Other Contributors
 
+- **[@webwww123](https://github.com/webwww123)** - [Issue #212](https://github.com/OthmanAdi/planning-with-files/issues/212)
+  - Reported that a Codex thread whose cwd is a shared parent injects an unrelated nested project's plan on every hook fire, with a working reproduction, a correct trace of the `PLAN_ID` to `.active_plan` to newest-by-mtime chain, and the observation that the Agent Skills route never received the session-attachment mechanism the `.codex` hooks got in #146
+  - **Impact:** v3.9.0 adds `PWF_PLAN_ROOT` for an absolute plan root binding that a cwd relative slug could not express, refuses to inject on an ambiguous cwd instead of guessing, and moves all eleven stale hook bearing SKILL.md variants onto the hardened dispatcher. Verifying the report also exposed that `PLANNING_DISABLED=1` was inoperative on those eleven routes, that the Stop hook could never find its script on six hosts, and that eight shipped PowerShell scripts could not be parsed by Windows PowerShell 5.1 at all
+
+- **[@killianMei](https://github.com/killianMei)** - [Issue #211](https://github.com/OthmanAdi/planning-with-files/issues/211)
+  - Traced the Pi extension's follow-up amplification to an `agent_end` handler that ignores its event argument entirely, and the stale status bar to the specific handlers that never publish once a plan is execution approved, citing every call site
+  - **Impact:** v3.9.0 returns from `agent_end` on a trailing assistant `stopReason` of `error` or `aborted` before the auto continue counter is touched, so a provider outage costs no retry budget, and publishes the phase count from all four active handlers including the all-phases-complete branch where the final transition never reached the bar; bundled Pi extension bumped to 1.2.3
+
+- **[@GlitterKill](https://github.com/GlitterKill)** - [Issue #210](https://github.com/OthmanAdi/planning-with-files/issues/210)
+  - Asked whether plan injection is deterministic enough not to break prompt caching, a question the project had never actually measured for the injection script itself
+  - **Impact:** v3.9.0 asserts byte-identical injection across fires in every context and mode, normalizes wall clock timestamps on the five routes that had never received the v2.40 pass, and corrects the skill text that attributed a whole-workflow token measurement to per tool call recitation
+
 - **[@seathatflowsinourveins](https://github.com/seathatflowsinourveins)** - [Issue #209](https://github.com/OthmanAdi/planning-with-files/issues/209)
   - Reported that `session-catchup.py` never folded `.` while Claude Code does, so any project path containing a dot resolved to a `~/.claude/projects` directory that is never written, citing the exact blob, the two sanitize branches, and the `main()` line where the miss returns exit 0 with no output
   - **Impact:** v3.8.2 folds every character Claude Code folds in the three remaining copies (one of them the copy every `/plugin install` runs on Linux, macOS and Git Bash), counts UTF-16 code units so emoji folder names resolve, and adds a per-session `cwd` filter so two projects sharing one folded directory name cannot read each other's transcripts
@@ -384,4 +396,4 @@ If you've contributed and don't see your name here, please open an issue! We wan
 
 **Total Contributors:** 50+ and growing!
 
-*Last updated: July 24, 2026*
+*Last updated: August 1, 2026*
