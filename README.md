@@ -84,7 +84,7 @@ The transcript is illustrative; the `===BEGIN PLAN DATA===` block is the skill's
 │  PLAN FILES                               3  │
 │  AGENTS COVERED                         60+  │
 │  PASS RATE (with skill)               96.7%  │
-│  TEST SUITE                       301 green  │
+│  TEST SUITE                       411 green  │
 │  SURVIVES /clear                        yes  │
 └──────────────────────────────────────────────┘
 ```
@@ -409,6 +409,19 @@ The v3 line adds features aimed at long-running agentic runs. Each one is listed
 - **Run ledger**: an append-only JSONL record of phase transitions that replaces the raw `progress.md` tail in v3 modes with a fixed-shape summary.
 - **Host capability tiers**: hard block on Claude Code, Codex, and Continue; follow-up injection on Cursor, Pi, and Kiro; notify-only elsewhere.
 - **Per-invocation opt-out** (`PLANNING_DISABLED=1`, v3.4.0): a one-shot session that merely shares a cwd with an incomplete plan skips all plan reading at every hook entry point.
+- **Absolute plan-root pin** (`PWF_PLAN_ROOT`, v3.9.0): binds a thread to a project root by absolute path, for agent threads whose cwd is a shared parent of the project they are actually working in. Ambiguous cwds refuse to inject rather than guessing.
+
+### Environment variables
+
+| Variable | Since | What it does |
+|---|---|---|
+| `PLANNING_DISABLED=1` | v3.4.0 | Skips all plan reading for this invocation. For one-shot or CI sessions that share a cwd with a plan they never opted into. |
+| `PLAN_ID=<slug>` | v2.36.0 | Pins the terminal to one plan under `$(pwd)/.planning`. Slug only, resolved against the current directory. |
+| `PWF_PLAN_ROOT=<abs path>` | v3.9.0 | Pins the thread to a project root by absolute path, which `PLAN_ID` cannot express. Use it when the agent's cwd is a shared parent such as `/workspace` while the work lives in `/workspace/project`. A pin that does not resolve stops injection instead of falling back. |
+| `PWF_SESSION_ID=<id>` | v2.36.0 | Identifies the session for plan attachment. Only consulted when `.planning/sessions/` exists, in which case a session sees plan context only if `.planning/sessions/<id>.attached` exists. Delete that directory to turn session isolation off. |
+| `PWF_INJECT=smart` | v3.8.0 | Replaces the fixed `head -50` injection window with the goal, next step, current phase, the full in-progress phase, and the last three decisions. |
+| `PWF_MODE` | v2.39.0 | Pi extension runtime mode: `auto`, `parity`, `cache-safe`, `notify`. Also settable in `.pi/settings.json` under `planningWithFiles.mode`. |
+| `PWF_GATE_CAP` | v3.0.0 | Maximum consecutive Stop-gate blocks in gated mode. Default 20. |
 
 ### Hooks and modes reference
 
@@ -506,6 +519,7 @@ One hook fire measures 289ms wall-clock since the v3.6.0 optimization, down from
 
 | Version | Highlights |
 |---------|------------|
+| **v3.9.0** | **A Codex thread whose cwd was a shared parent injected an unrelated project's plan on every hook fire** (closes #212, reported by @webwww123). Resolution was cwd relative with no notion of a thread, so the shared parent's pointer was the only one the hook could see. Adds `PWF_PLAN_ROOT` for an absolute plan root binding, which a cwd relative `PLAN_ID` slug structurally could not express, and refuses to inject when the cwd is ambiguous rather than guessing. Verifying the report exposed that `PLANNING_DISABLED=1` was inoperative on eleven of thirteen install routes, that the Stop hook could never find its script on six hosts, and that eight shipped PowerShell scripts could not be parsed by Windows PowerShell 5.1 at all, leaving Cursor injection and both Chinese variants' `init-session` dead on Windows. Also closes #211 (a provider error queued another request into the same failing provider, and the Pi status bar stopped tracking the plan after approval) and #210 (injection determinism now asserted, five routes normalized). Suite 311 to 411. |
 | **v3.8.2** | **Session recovery silently found nothing for any project path containing a dot, a space, or any other non-alphanumeric character** (closes #209, reported by @seathatflowsinourveins). Three copies of `session-catchup.py` still folded only `/`, `\` and `:`, and one of them is the copy every `/plugin install` runs on Linux, macOS and Git Bash. Against a real store holding 89 sessions the shipped resolver produced 0 bytes where the fix produces 11336 and recovers 166 messages. Folding now counts UTF-16 code units, so emoji folder names resolve too, and a per-session `cwd` filter stops two projects that fold to one directory name from reading each other's transcripts. One vector table now runs across every copy, so this drift cannot come back. Suite at 311. |
 | **v3.8.1** | **Pi extension: plan resolution no longer depends on the live shell cwd** (closes #208, reported by @fd44fdg). An agent that cd'd into a subdirectory lost the plan, recitation went dark, and the "No task_plan.md found" warning fired on every write. Resolution now anchors on the nearest ancestor with planning state, bounded by the `.git` repository boundary, with slug-validation and containment parity with the sh resolver; every injection states which plan it resolved (`plan: <id>`), making slug-over-root shadowing visible. Also: `init-session` heredocs never carried the v3.8.0 Next Step section; all copies fixed with an output-level regression test. Gated by an Opus adversarial pass plus a five-lens Sonnet reliability fleet. |
 | **v3.8.0** | **The Stop hook never fired on macOS or Linux** (a dead install-path fallback stacked on PowerShell-first dispatch), and **session recovery searched a project directory that does not exist** for POSIX or underscore project paths; both fixed with tests that execute the hooks end to end. Opt-in structure-aware injection (`PWF_INJECT=smart`) keeps the active phase and decision journal in the window late in long plans. Next Step pointer in the templates, tool-result outcomes in session catchup, macOS CI leg plus a BSD-userland simulation harness, `resolve-plan-dir.ps1` parity with fail-closed containment, UTF-8-safe ledger truncation, pinned line endings, and a rebuilt README with honest benchmark charts. Suite at 301. |

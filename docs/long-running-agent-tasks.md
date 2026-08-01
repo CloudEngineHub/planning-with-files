@@ -10,7 +10,7 @@ The same files make context death survivable mid-run. If the session dies at hou
 
 ## Autonomous mode
 
-Started with `/pwf --autonomous` or `sh scripts/init-session.sh --autonomous "Task name"`. It keeps the turn-start plan injection and drops the per-tool-call plan recitation, the main component of the +68% token overhead measured in the v2.21 eval. Strong models drift less, so once-per-turn anchoring is enough; dropping the anchor entirely is not supported by the evidence. Autonomous mode also turns attestation on by default and replaces the raw `progress.md` tail with a structured ledger summary.
+Started with `/pwf --autonomous` or `sh scripts/init-session.sh --autonomous "Task name"`. It keeps the turn-start plan injection and drops the per-tool-call plan recitation, which costs about 90 tokens per matched tool call and is the component that scales with tool use. Strong models drift less, so once-per-turn anchoring is enough; dropping the anchor entirely is not supported by the evidence. Autonomous mode also turns attestation on by default and replaces the raw `progress.md` tail with a structured ledger summary.
 
 With no mode marker set, the hooks produce the same output as v2.43. Both v3 modes are opt-in.
 
