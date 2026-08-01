@@ -34,6 +34,17 @@ function safeRead(path: string): string {
 	}
 }
 
+// Wall-clock times inside the injected progress tail move on every fire, so the
+// bytes after them stop matching a cached prefix. The shell hooks have flattened
+// them since v2.40; this is the same substitution, kept equivalent to the sed -E
+// expression in scripts/inject-plan.sh so every route emits identical bytes for
+// identical input. Matters most in parity mode, which re-sends the tail each turn.
+export function normalizeWallClock(text: string): string {
+	return text
+		.replace(/T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?Z/g, "T00:00:00Z")
+		.replace(/T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?([+-][0-9]{2}:[0-9]{2})/g, "T00:00:00$2");
+}
+
 function resolveNewestPlanDir(planRoot: string): string | undefined {
 	if (!existsSync(planRoot)) return undefined;
 
@@ -219,7 +230,7 @@ export function readPlanStatus(cwd: string): PlanStatus {
 	let progressTail20 = "";
 	if (paths.progressPath && existsSync(paths.progressPath)) {
 		const progressLines = safeRead(paths.progressPath).split("\n");
-		progressTail20 = progressLines.slice(-20).join("\n");
+		progressTail20 = normalizeWallClock(progressLines.slice(-20).join("\n"));
 	}
 
 	return {

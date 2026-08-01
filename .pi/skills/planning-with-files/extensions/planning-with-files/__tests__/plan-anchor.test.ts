@@ -198,4 +198,31 @@ describe("slug validation and containment parity with the sh resolver (v3.8.1)",
 		expect(label.startsWith("plan: ")).toBe(true);
 		expect(label.slice(6)).toMatch(/^[A-Za-z0-9._-]+$/);
 	});
+
+	// Issue #210: parity mode re-sends the progress tail every turn, so a moving
+	// wall-clock time costs cache reuse for everything after it. The shell hooks
+	// have flattened these since v2.40; this route had not.
+	it("flattens wall-clock times in the injected progress tail", () => {
+		const root = mkdtempSync(join(tmpdir(), "pwf-clock-"));
+		mkdirSync(join(root, ".planning", "demo"), { recursive: true });
+		writeFileSync(
+			join(root, ".planning", "demo", "task_plan.md"),
+			"# Plan\n\n### Phase 1: a\n- **Status:** in_progress\n",
+		);
+		writeFileSync(
+			join(root, ".planning", "demo", "progress.md"),
+			"# Progress\n- landed at 2026-08-01T11:02:55Z\n- again at 2026-08-01T09:16:03.221Z\n" +
+				"- offset 2026-08-01T14:30:00+02:00\n",
+		);
+		writeFileSync(join(root, ".planning", ".active_plan"), "demo\n");
+
+		const status = readPlanStatus(root);
+		expect(status.progressTail20).not.toContain("T11:02:55");
+		expect(status.progressTail20).not.toContain("T09:16:03");
+		expect(status.progressTail20).not.toContain("T14:30:00");
+		expect(status.progressTail20).toContain("T00:00:00Z");
+		// The UTC offset itself is content, only the clock is flattened.
+		expect(status.progressTail20).toContain("T00:00:00+02:00");
+		rmSync(root, { recursive: true, force: true });
+	});
 });

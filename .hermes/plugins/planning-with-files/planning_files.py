@@ -1,3 +1,4 @@
+import re
 import shutil
 from pathlib import Path
 from typing import Any
@@ -6,11 +7,26 @@ from .constants import PLANNING_FILES, PLAN_PREVIEW_LINES, PROGRESS_TAIL_LINES
 from .paths import resolve_skill_dir
 
 
+# Wall-clock times inside the injected progress tail move on every fire, which
+# costs prompt-cache reuse for the bytes that follow them. The shell hooks have
+# normalized them since v2.40; this is the same substitution, kept character for
+# character equivalent to the `sed -E` expression in scripts/inject-plan.sh so
+# every route emits the same bytes for the same input.
+_WALL_CLOCK_UTC = re.compile(r"T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?Z")
+_WALL_CLOCK_OFFSET = re.compile(r"T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?([+-][0-9]{2}:[0-9]{2})")
+
+
+def normalize_wall_clock(text: str) -> str:
+    """Flatten ISO-8601 clock times to T00:00:00, keeping any UTC offset."""
+    text = _WALL_CLOCK_UTC.sub("T00:00:00Z", text)
+    return _WALL_CLOCK_OFFSET.sub(r"T00:00:00\2", text)
+
+
 def tail_lines(path: Path, limit: int) -> str:
     if not path.exists():
         return ""
     lines = path.read_text(encoding="utf-8").splitlines()
-    return "\n".join(lines[-limit:])
+    return normalize_wall_clock("\n".join(lines[-limit:]))
 
 
 def head_lines(path: Path, limit: int) -> str:
