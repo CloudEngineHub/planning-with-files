@@ -266,7 +266,7 @@ Typing `/plan` prefix-matches every `plan*` command in autocomplete; `/planning-
 
 ### Pi extension commands
 
-Install the Pi extension with `pi install npm:@tomxprime/planning-with-files`; it registers these commands, typed with no `/planning-with-files:` prefix.
+Install the Pi extension with `pi install npm:planning-with-files`; it registers these commands, typed with no `/planning-with-files:` prefix.
 
 | Command | What it does | Version |
 |---------|--------------|---------|

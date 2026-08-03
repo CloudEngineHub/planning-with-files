@@ -9,7 +9,7 @@ How to use planning-with-files with [Pi Coding Agent](https://pi.dev).
 ### Recommended: Install from npm
 
 ```bash
-pi install npm:pi-planning-with-files
+pi install npm:planning-with-files
 ```
 
 This package now installs **both**:

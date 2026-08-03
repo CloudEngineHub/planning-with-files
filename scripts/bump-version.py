@@ -11,7 +11,7 @@ Run before tagging a release:
     python scripts/bump-version.py 2.37.0
     python scripts/bump-version.py 2.37.0 --dry-run
 
-Files touched (parity set, 18 entries):
+Files touched (parity set, 19 entries):
     skills/planning-with-files/SKILL.md            (canonical)
     skills/planning-with-files-{ar,de,es,zh,zht}/SKILL.md
     .{codebuddy,codex,cursor,factory,hermes,mastracode,opencode}/skills/planning-with-files/SKILL.md
@@ -20,9 +20,11 @@ Files touched (parity set, 18 entries):
     .claude-plugin/plugin.json
     .claude-plugin/marketplace.json
     CITATION.cff
+    .pi/skills/planning-with-files/package.json    (npm package "planning-with-files"; publish after tagging)
 
 Files intentionally left behind (see LAGGING_FILES; do not bump automatically):
-    .continue and .gemini (intentionally behind), .pi (npm scheme),
+    .continue and .gemini (intentionally behind),
+    .pi SKILL.md (no version field; the Pi version lives in its package.json above),
     .kiro (-kiro-suffixed scheme)
 """
 from __future__ import annotations
@@ -57,13 +59,19 @@ PARITY_FILES = [
     (".claude-plugin/plugin.json", "plugin_json"),
     (".claude-plugin/marketplace.json", "marketplace_json"),
     ("CITATION.cff", "citation_cff"),
+    # npm package for the Pi channel (issue #213: it sat at a third-party 1.1.0
+    # for 15 releases because nothing bumped it). Same single-"version" JSON
+    # shape as plugin.json, so the handler is shared. Remember: bumping only
+    # changes the file; `npm publish` from .pi/skills/planning-with-files/ is a
+    # manual per-release step, like the ClawHub upload.
+    (".pi/skills/planning-with-files/package.json", "plugin_json"),
 ]
 
 # Files left behind on purpose. Documented to make the omission explicit.
 LAGGING_FILES = [
     ".continue/skills/planning-with-files/SKILL.md",
     ".gemini/skills/planning-with-files/SKILL.md",
-    ".pi/skills/planning-with-files/SKILL.md",       # npm scheme (1.0.x)
+    ".pi/skills/planning-with-files/SKILL.md",       # no version field; npm version lives in its package.json (parity set)
     ".kiro/skills/planning-with-files/SKILL.md",     # kiro scheme (2.32.0-kiro)
 ]
 

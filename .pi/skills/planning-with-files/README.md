@@ -11,7 +11,7 @@ A [Pi Coding Agent](https://pi.dev) package that ships both:
 ### Pi Install
 
 ```bash
-pi install npm:@tomxprime/planning-with-files
+pi install npm:planning-with-files
 ```
 
 ### Manual Install

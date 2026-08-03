@@ -7,8 +7,9 @@ done by hand across 19 files. This test fails the build the moment that drifts.
 
 Source of truth = canonical English SKILL.md. Every file in PARITY_FILES below
 must report the same `metadata.version` (or `version` for JSON/CFF). Lagging
-variants (.continue, .gemini, .pi, .kiro) are intentionally on different schemes
-and excluded from the lock.
+SKILL.md variants (.continue, .gemini, .pi, .kiro) are intentionally on
+different schemes and excluded from the lock; the Pi channel's npm package.json
+IS locked (see PARITY_JSON_LIKE).
 
 Use `python scripts/bump-version.py X.Y.Z` to bump the entire parity set in one
 shot, which is what the release protocol expects.
@@ -47,6 +48,9 @@ PARITY_SKILL_MD = [
 PARITY_JSON_LIKE = [
     ".claude-plugin/plugin.json",
     ".claude-plugin/marketplace.json",
+    # npm package for the Pi channel (issue #213: stayed at a third-party
+    # 1.1.0 for 15 releases because no test locked it to the release version)
+    ".pi/skills/planning-with-files/package.json",
 ]
 
 CITATION_CFF = "CITATION.cff"

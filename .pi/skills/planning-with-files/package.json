@@ -1,6 +1,6 @@
 {
-  "name": "@tomxprime/planning-with-files",
-  "version": "1.1.0",
+  "name": "planning-with-files",
+  "version": "3.9.0",
   "description": "Manus-style file-based planning for Pi Coding Agent",
   "keywords": [
     "pi-package",
@@ -24,7 +24,11 @@
     "reference.md",
     "scripts/",
     "templates/",
-    "extensions/"
+    "extensions/",
+    "!**/node_modules",
+    "!**/__pycache__",
+    "!**/*.pyc",
+    "!extensions/planning-with-files/package-lock.json"
   ],
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
