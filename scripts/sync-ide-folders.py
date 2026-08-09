@@ -222,10 +222,46 @@ IDE_MANIFESTS = {
     ".kiro": {},
 }
 
+# Scripts the language variants ship in TRANSLATED form: check-complete and
+# init-session carry localized user-facing output, and session-catchup.py
+# carries localized recovery prose (verified: -de/session-catchup.py contains
+# German text, five -ar scripts contain Arabic). include_scripts=True would
+# overwrite all of them with the English canonical, so these are never synced
+# and stay owned by their translators.
+LANG_TRANSLATED_SCRIPTS = [
+    "scripts/check-complete.sh",
+    "scripts/check-complete.ps1",
+    "scripts/init-session.sh",
+    "scripts/init-session.ps1",
+    "scripts/session-catchup.py",
+]
+
+# Everything else the canonical skill ships. These 12 never existed in any
+# variant, so delivering them is purely additive: non-English users were
+# missing the completion gate, the ledger, phase-status, plan-doctor and
+# attestation entirely, which is the drift issue #130 describes. Their few
+# user-facing strings are English until a translator PR localizes them; a
+# missing script is a silently dead feature, an English string is not.
+LANG_EXTRA_SCRIPTS = HOOK_DISPATCH_SCRIPTS + [
+    "scripts/attest-plan.sh",
+    "scripts/attest-plan.ps1",
+    "scripts/gate-stop.sh",
+    "scripts/ledger-append.sh",
+    "scripts/ledger-append.ps1",
+    "scripts/ledger-summary.ps1",
+    "scripts/phase-status.sh",
+    "scripts/phase-status.ps1",
+    "scripts/plan-doctor.sh",
+    "scripts/resolve-plan-dir.ps1",
+    "scripts/set-active-plan.sh",
+    "scripts/set-active-plan.ps1",
+]
+
 # Language variants (skills/planning-with-files-<lang>/): SKILL.md, templates
 # and references are real translations and must NEVER be overwritten with the
-# English canonical. Scripts are language-neutral; the hook dispatch targets
-# are synced so the dispatcher scalars can resolve (issue #212).
+# English canonical. Same for LANG_TRANSLATED_SCRIPTS above. The rest of the
+# canonical script surface is synced so non-English installs get the same
+# features, not a subset (issue #212 covered only the 3 dispatch targets).
 for _lang in ("ar", "de", "es", "zh", "zht"):
     _base = f"skills/planning-with-files-{_lang}"
     IDE_MANIFESTS[_base] = _build_manifest(
@@ -233,7 +269,7 @@ for _lang in ("ar", "de", "es", "zh", "zht"):
         ref_style="skip",
         template_dirs=[],
         include_scripts=False,
-        extra_scripts=HOOK_DISPATCH_SCRIPTS,
+        extra_scripts=LANG_EXTRA_SCRIPTS,
     )
 
 
