@@ -1,18 +1,35 @@
-# Pi Planning With Files
+# planning-with-files
 
-> **Work like Manus** - Use persistent markdown files as your "working memory on disk."
+> **Your agent's context window dies. The plan does not.**
 
-A [Pi Coding Agent](https://pi.dev) package that ships both:
-- the planning skill (task_plan.md / findings.md / progress.md)
-- a Pi extension that provides Claude-style lifecycle automation
+Persistent file-based planning for AI coding agents. The skill keeps `task_plan.md`, `findings.md` and `progress.md` on disk and re-injects them every turn, so the plan survives context loss, `/clear`, crashes and compaction. Manus-style working memory on disk, with an opt-in completion gate.
+
+This is the npm distribution of [OthmanAdi/planning-with-files](https://github.com/OthmanAdi/planning-with-files), which installs across 60+ agents via the Agent Skills standard. The package ships:
+
+- the planning skill itself: `SKILL.md`, `scripts/` and `templates/`
+- a [Pi Coding Agent](https://pi.dev) extension providing Claude-style lifecycle automation
 
 ## Installation
+
+### npm
+
+```bash
+npm install planning-with-files
+```
+
+Places the skill, scripts and templates under `node_modules/planning-with-files/`. Use this to pin an exact version into a project, or to copy `SKILL.md` and `scripts/` into your agent's skills directory yourself. It does not register hooks on its own.
 
 ### Pi Install
 
 ```bash
 pi install npm:planning-with-files
 ```
+
+Wires up the skill, the extension and the status bar automatically.
+
+### Other agents
+
+Claude Code gets the full surface (skill, hooks, slash commands) through the plugin route, and 60+ other agents install in one line. See the [main README](https://github.com/OthmanAdi/planning-with-files#quick-install).
 
 ### Manual Install
 
