@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.10.0] - 2026-08-09
+
+### Fixed
+- **Two sessions sharing one plan directory could silently destroy each other's work (closes #217, reported by @dubes394).** Both agents read `task_plan.md`, both write it back, and the later write discards the earlier one's phases. Nothing noticed: injection emitted the clobbered file as an ordinary edit, `plan-doctor` reported PASS, and the Stop gate read the reverted status as current. Attestation was the nearest mechanism and did not cover it: it is opt-in in legacy mode, it compares against a baseline a human approved once rather than against what the hooks last observed, it reports a collaborator's edit with the same `[PLAN TAMPERED]` wording as a hostile rewrite, and it is a read-side gate that cannot stop the stale write from landing. The new guard compares progress between turn-start fires instead of hashes, because a hash comparison would flag a single agent's own edit on its very next fire. Checked items and completed phases only go up during normal work, so a decrease means work that was on disk is gone, and forward motion stays silent (tests/test_plan_regression_guard.py).
+- **Every non-English install was a subset install (#130).** The five language variants shipped 8 of the 20 scripts the canonical skill ships. `attest-plan`, `gate-stop`, `ledger-append`, `ledger-summary.ps1`, `phase-status`, `plan-doctor`, `resolve-plan-dir.ps1` and `set-active-plan` had never reached them, so attestation, the completion gate, the ledger, phase status and plan-doctor were absent for the 39.8K installs those five listings carry. `sync-ide-folders.py` covered only the three hook dispatch targets from #212, so the gap was structural and every future feature would have kept missing them. Closed additively: 60 files created, 0 overwritten.
+- **A non-ASCII session log still crashed session recovery on a Windows legacy code page in all five language variants.** `configure_utf8_stdio()` shipped in v3.2.0 but only to the canonical skill, leaving the failure live for exactly the users most likely to have non-ASCII content. Backported by insertion so the translated prose in those files is untouched.
+- **The top of the README was unreadable on a phone.** The before/after comparison used `width="50%"` cells, which GitHub honors directly, so the two columns locked to a 50/50 split of a roughly 340px container instead of scrolling as one unit, crushing the `<pre>` block that shows the actual injection payload into a strip with a nested scrollbar. The stats panel was a 48-column box-drawing block needing about 375px, with every value right-flushed, so a first-time mobile visitor saw five labels and no numbers. Both restructured, all content preserved.
+
+### Added
+- `PWF_PLAN_GUARD=0`, and a `plan-guard-off` token in `.mode`, to turn the parallel-write guard off. The guard is on by default in every mode, which is a deliberate narrow exception to the legacy byte-identical-output invariant: arming it only in a v3 mode would arm it where it is redundant, since a v3 mode refuses to inject an unattested plan and an attested one already reports outside edits as tampered. The unprotected population is legacy, which is also the default.
+
+### Changed
+- The pinned `tesslio/skill-review-and-optimize` SHA moves to the current release commit (PR #215, by @popey). The old pin predated the vendor's migration to Tessl Review, so skill reviews had stopped running correctly. The range it moves across also restricts trusted optimization comments to `user.type == 'Bot'`, closing a hole in the pinned commit where any human commenter could spoof the bot's marker.
+- `sync-ide-folders.py` now records which variant scripts are translator-owned. Its previous comment claimed variant scripts were language-neutral, which is false: `-de/session-catchup.py` contains German prose and five `-ar` scripts contain Arabic. `check-complete`, `init-session` and `session-catchup` are pinned as never-synced so a future full sync cannot overwrite real translations with the English canonical.
+
+### Verification
+- Suite 411 to 417. The new guard is exercised end to end through the real hook: legacy silence, forward progress silence, a regression warning with exact loss counts, no repeat once observed, both off switches, and pretool silence.
+- The guard's marker lives in its own `pwf-prog` cache directory rather than `pwf-sha`, because `test_pinned_plan_shares_one_cache_slot_across_cwds` asserts one slot per plan there to catch the per-cwd-key bug from #212. The key derivation is deliberately identical, so the marker inherits the same cwd-invariance.
+
+### Thanks
+- Kunal reported the parallel-write clobber with a clear agent-interleaving diagram and offered both a revision-header design and a simpler reread rule; the simpler one is what shipped (#217).
+- Alan found that the pinned Tessl action SHA predated their migration and sent the bump as a pinned SHA rather than a tag, matching how this repo pins actions (#215).
+- Som audited the five language variants against the canonical skill and proved the drift #130 predicted, naming the exact 12 missing scripts and the missing UTF-8 fix. That analysis drove this release's variant work, though the variants themselves stay: they carry 39.8K of the project's 89.3K installs, and skills.sh has no pruning job, so deleting the directories would leave five permanent listings advertising an install that fails rather than removing them (#216).
+
 ## [3.9.0] - 2026-08-01
 
 ### Fixed
