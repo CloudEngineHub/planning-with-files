@@ -41,11 +41,7 @@ Persistent file-based planning for AI coding agents and long-running agent tasks
 
 Every coding agent loses its working memory when the context window resets. The plan does not have to die with it.
 
-<table>
-<tr>
-<td width="50%" valign="top">
-
-**Without planning files**
+### Without planning files
 
 > **you:** continue
 >
@@ -53,10 +49,9 @@ Every coding agent loses its working memory when the context window resets. The 
 
 The agent re-reads the repo, asks you to restate the goal, and rediscovers work it already finished.
 
-</td>
-<td width="50%" valign="top">
+---
 
-**With planning-with-files**
+### With planning-with-files
 
 ```text
 ===BEGIN PLAN DATA===
@@ -73,21 +68,15 @@ The agent re-reads the repo, asks you to restate the goal, and rediscovers work 
 
 > **agent:** Resuming Phase 3: adding the expiry edge-case tests.
 
-</td>
-</tr>
-</table>
-
 The transcript is illustrative; the `===BEGIN PLAN DATA===` block is the skill's real injection format, written into context by the `UserPromptSubmit` hook from `task_plan.md` on disk. In the project's internal recovery benchmark, a fresh session with the files on disk resumed in 5.0 turns on average against 13.3 for a raw agent (internal v1, author-run; method and limits in [docs/evals.md](docs/evals.md)).
 
-```
-┌──────────────────────────────────────────────┐
-│  PLAN FILES                               3  │
-│  AGENTS COVERED                         60+  │
-│  PASS RATE (with skill)               96.7%  │
-│  TEST SUITE                       411 green  │
-│  SURVIVES /clear                        yes  │
-└──────────────────────────────────────────────┘
-```
+| | |
+|---|---:|
+| Plan files | **3** |
+| Agents covered | **60+** |
+| Pass rate (with skill) | **96.7%** |
+| Test suite | **417 green** |
+| Survives `/clear` | **yes** |
 
 ## The Problem
 
@@ -224,6 +213,10 @@ npx skills add OthmanAdi/planning-with-files --skill planning-with-files-zh -g
 ```bash
 npx skills add OthmanAdi/planning-with-files --skill planning-with-files-zht -g
 ```
+
+These are real translations, not an English body with a translated description: the SKILL.md prose, the templates, and the user-facing output of `check-complete`, `init-session` and `session-catchup` are all localized. The status tokens stay literal English (`**Status:** complete`) on purpose, because `check-complete.sh` matches them with `grep -F`, so translating them would disable the completion gate.
+
+Since v3.10.0 the variants also ship the full script surface: attestation, the Stop gate, the ledger, phase status and plan-doctor used to be canonical-only, which quietly made every non-English install a subset install. See [issue #130](https://github.com/OthmanAdi/planning-with-files/issues/130) for why they stay separate skills rather than collapsing into one.
 
 </details>
 
@@ -420,6 +413,7 @@ The v3 line adds features aimed at long-running agentic runs. Each one is listed
 | `PWF_PLAN_ROOT=<abs path>` | v3.9.0 | Pins the thread to a project root by absolute path, which `PLAN_ID` cannot express. Use it when the agent's cwd is a shared parent such as `/workspace` while the work lives in `/workspace/project`. A pin that does not resolve stops injection instead of falling back. |
 | `PWF_SESSION_ID=<id>` | v2.36.0 | Identifies the session for plan attachment. Only consulted when `.planning/sessions/` exists, in which case a session sees plan context only if `.planning/sessions/<id>.attached` exists. Delete that directory to turn session isolation off. |
 | `PWF_INJECT=smart` | v3.8.0 | Replaces the fixed `head -50` injection window with the goal, next step, current phase, the full in-progress phase, and the last three decisions. |
+| `PWF_PLAN_GUARD=0` | v3.10.0 | Turns off the parallel-write guard, which is on by default. The guard compares checked items and completed phases against the previous hook fire and prints one advisory line when they go DOWN, meaning a second session overwrote work. A `plan-guard-off` token in `.mode` does the same. |
 | `PWF_MODE` | v2.39.0 | Pi extension runtime mode: `auto`, `parity`, `cache-safe`, `notify`. Also settable in `.pi/settings.json` under `planningWithFiles.mode`. |
 | `PWF_GATE_CAP` | v3.0.0 | Maximum consecutive Stop-gate blocks in gated mode. Default 20. |
 
@@ -480,7 +474,7 @@ planning-with-files/
 └── README.md
 ```
 
-Every release bumps 18 parity-locked copies via `scripts/bump-version.py`; a test fails if any variant lags.
+Every release bumps 19 parity-locked copies via `scripts/bump-version.py`; a test fails if any variant lags.
 
 </details>
 
