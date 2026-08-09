@@ -157,7 +157,15 @@ Maintainer depth (hook architecture, dispatcher layout, parity tooling) lives in
 npx skills add OthmanAdi/planning-with-files --skill planning-with-files -g
 ```
 
-**Pi Coding Agent**, from npm (ships the skill plus the Pi extension and its status bar):
+**npm**, to pin an exact version into a project or vendor it:
+
+```bash
+npm install planning-with-files
+```
+
+The package carries `SKILL.md`, `scripts/` and `templates/`, so this is the route for locking a version into a repo's dependencies or copying the skill in yourself. It does not register hooks on its own.
+
+**Pi Coding Agent**, same npm package, wired up for you (skill, extension, status bar):
 
 ```bash
 pi install npm:planning-with-files
@@ -171,6 +179,7 @@ What each route actually ships:
 |---|---|---|---|
 | Claude Code plugin | yes | **yes** | **yes** |
 | `npx skills add` | yes | no | frontmatter hooks, see note |
+| `npm install` | yes, under `node_modules/` | no | no, copy the skill in yourself |
 | `pi install npm:` | yes | **yes**, Pi commands | **yes**, via the Pi extension |
 | ClawHub / manual copy | yes | no | frontmatter hooks, see note |
 
