@@ -43,9 +43,7 @@ Every coding agent loses its working memory when the context window resets. The 
 
 ### Without planning files
 
-> **you:** continue
->
-> **agent:** I don't have context from an earlier session. Can you describe the task and where you left off?
+<img src="media/terminal-without-plan.svg" alt="Terminal after /clear without planning files: the user types continue, the agent replies that it has no context from an earlier session and asks the user to describe the task and where they left off" width="560">
 
 The agent re-reads the repo, asks you to restate the goal, and rediscovers work it already finished.
 
@@ -53,20 +51,7 @@ The agent re-reads the repo, asks you to restate the goal, and rediscovers work 
 
 ### With planning-with-files
 
-```text
-===BEGIN PLAN DATA===
-# Task Plan: auth middleware refactor
-### Phase 2: Patch token expiry check
-- [x] Reproduce the bug
-- [x] Fix expiry comparison
-- **Status:** complete
-### Phase 3: Regression tests
-- [ ] Add expiry edge-case tests
-- **Status:** in_progress
-===END PLAN DATA===
-```
-
-> **agent:** Resuming Phase 3: adding the expiry edge-case tests.
+<img src="media/terminal-with-plan.svg" alt="Terminal after /clear with planning-with-files: the hook injects a plan data block showing Phase 2 complete and Phase 3 in progress, and the agent resumes Phase 3 by adding the expiry edge-case tests" width="560">
 
 The transcript is illustrative; the `===BEGIN PLAN DATA===` block is the skill's real injection format, written into context by the `UserPromptSubmit` hook from `task_plan.md` on disk. In the project's internal recovery benchmark, a fresh session with the files on disk resumed in 5.0 turns on average against 13.3 for a raw agent (internal v1, author-run; method and limits in [docs/evals.md](docs/evals.md)).
 
@@ -172,6 +157,12 @@ Maintainer depth (hook architecture, dispatcher layout, parity tooling) lives in
 npx skills add OthmanAdi/planning-with-files --skill planning-with-files -g
 ```
 
+**Pi Coding Agent**, from npm (ships the skill plus the Pi extension and its status bar):
+
+```bash
+pi install npm:planning-with-files
+```
+
 Under a minute. Safe to re-run. Trigger it by typing `/plan` (plugin) or asking the agent to "plan this task"; the skill also self-triggers on multi-step tasks.
 
 What each route actually ships:
@@ -180,6 +171,7 @@ What each route actually ships:
 |---|---|---|---|
 | Claude Code plugin | yes | **yes** | **yes** |
 | `npx skills add` | yes | no | frontmatter hooks, see note |
+| `pi install npm:` | yes | **yes**, Pi commands | **yes**, via the Pi extension |
 | ClawHub / manual copy | yes | no | frontmatter hooks, see note |
 
 Skill-route installs can end up silently hook-less (project trust not accepted, or frontmatter hooks not registering on project-level installs). The hooks are the differentiating mechanism, so if they matter to you, use the plugin route, then verify with `/plan-doctor`. Full matrix and the two silent killers: [docs/installation.md](docs/installation.md#what-each-install-route-actually-ships).
