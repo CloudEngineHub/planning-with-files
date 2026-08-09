@@ -70,7 +70,7 @@ The agent re-reads the repo, asks you to restate the goal, and rediscovers work 
 
 The transcript is illustrative; the `===BEGIN PLAN DATA===` block is the skill's real injection format, written into context by the `UserPromptSubmit` hook from `task_plan.md` on disk. In the project's internal recovery benchmark, a fresh session with the files on disk resumed in 5.0 turns on average against 13.3 for a raw agent (internal v1, author-run; method and limits in [docs/evals.md](docs/evals.md)).
 
-| | |
+| At a glance | |
 |---|---:|
 | Plan files | **3** |
 | Agents covered | **60+** |
