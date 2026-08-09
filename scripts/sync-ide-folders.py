@@ -172,11 +172,27 @@ IDE_MANIFESTS = {
     # .openclaw, .kilocode, .adal, .agent removed in v2.24.0 (IDE audit)
     # These IDEs use the standard Agent Skills spec — install via npx skills add
 
+    # .pi is not just another IDE mirror: this directory IS the root of the
+    # npm package `planning-with-files`, so whatever it contains is what
+    # `npm install planning-with-files` delivers. It shipped 12 of the 20
+    # canonical scripts, missing inject-plan.sh itself, which meant the npm
+    # channel carried a skill that could not inject a plan at all. Everything
+    # language-neutral is synced here for that reason.
+    # package.json and README.md stay npm-specific and are not synced.
     ".pi": _build_manifest(
         ".pi/skills/planning-with-files",
         ref_style="flat",
         include_scripts=True,
-        # package.json and README.md are IDE-specific, not synced
+        extra_scripts=[
+            "scripts/inject-plan.sh",
+            "scripts/gate-stop.sh",
+            "scripts/ledger-append.sh",
+            "scripts/ledger-append.ps1",
+            "scripts/ledger-summary.sh",
+            "scripts/ledger-summary.ps1",
+            "scripts/phase-status.sh",
+            "scripts/phase-status.ps1",
+        ],
     ),
 
     ".continue": _build_manifest(
