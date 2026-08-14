@@ -59,7 +59,13 @@ class CodexHooksTests(unittest.TestCase):
             check=False,
         )
 
-    def run_windows_front_door(self, sh_script: str, payload: dict, cwd: Path) -> subprocess.CompletedProcess[str]:
+    def run_shell_front_door(
+        self,
+        sh_script: str,
+        payload: dict,
+        cwd: Path,
+        env: dict | None = None,
+    ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [sys.executable, str(HOOKS_DIR / "run_sh.py"), sh_script],
             input=json.dumps(payload),
@@ -67,6 +73,7 @@ class CodexHooksTests(unittest.TestCase):
             encoding="utf-8",
             capture_output=True,
             cwd=str(cwd),
+            env=env,
             check=False,
         )
 
@@ -301,6 +308,22 @@ class CodexHooksTests(unittest.TestCase):
                     for bad in ("$HOME", "2>/dev/null", "|| true", "python3 "):
                         self.assertNotIn(bad, cw, f"{event} commandWindows still contains POSIX-ism {bad!r}")
 
+    def test_posix_shell_events_route_through_run_sh_adapter(self) -> None:
+        payload = json.loads(HOOKS_JSON.read_text(encoding="utf-8"))
+        scripts = {
+            "SessionStart": "session-start.sh",
+            "UserPromptSubmit": "user-prompt-submit.sh",
+            "PreCompact": "pre-compact.sh",
+        }
+
+        for event, script in scripts.items():
+            command = payload["hooks"][event][0]["hooks"][0]["command"]
+            self.assertEqual(
+                f'python3 .codex/hooks/run_sh.py {script} 2>/dev/null || '
+                f'python3 "$HOME/.codex/hooks/run_sh.py" {script} 2>/dev/null || true',
+                command,
+            )
+
     def test_adapter_uses_explicit_utf8_for_shell_output(self) -> None:
         sys.path.insert(0, str(HOOKS_DIR))
         try:
@@ -337,17 +360,19 @@ class CodexHooksTests(unittest.TestCase):
         self.assertTrue(raw.isascii())
         self.assertEqual("\u4e2d\u6587", json.loads(raw)["message"])
 
-    @unittest.skipUnless(os.name == "nt", "commandWindows path is Windows-only")
-    def test_run_sh_front_door_serializes_shell_events_on_windows(self) -> None:
-        """End-to-end Windows path emits event-appropriate Codex JSON."""
-        sys.path.insert(0, str(HOOKS_DIR))
-        try:
-            import codex_hook_adapter as adapter
-            sh_path, _ = adapter._windows_git_bash()
-        finally:
-            sys.path.pop(0)
-        if sh_path is None:
-            self.skipTest("Git for Windows sh.exe not resolvable on this runner")
+    def test_run_sh_front_door_serializes_shell_events(self) -> None:
+        """The shared POSIX and Windows path emits event-appropriate Codex JSON."""
+        if os.name == "nt":
+            sys.path.insert(0, str(HOOKS_DIR))
+            try:
+                import codex_hook_adapter as adapter
+                sh_path, _ = adapter._windows_git_bash()
+            finally:
+                sys.path.pop(0)
+            if sh_path is None:
+                self.skipTest("Git for Windows sh.exe not resolvable on this runner")
+        elif shutil.which("sh") is None:
+            self.skipTest("POSIX sh is unavailable")
 
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
@@ -356,9 +381,9 @@ class CodexHooksTests(unittest.TestCase):
             )
             root.joinpath("progress.md").write_text("# Progress\n", encoding="utf-8")
 
-            user_prompt = self.run_windows_front_door("user-prompt-submit.sh", {"cwd": str(root)}, root)
-            session_start = self.run_windows_front_door("session-start.sh", {"cwd": str(root)}, root)
-            pre_compact = self.run_windows_front_door("pre-compact.sh", {"cwd": str(root)}, root)
+            user_prompt = self.run_shell_front_door("user-prompt-submit.sh", {"cwd": str(root)}, root)
+            session_start = self.run_shell_front_door("session-start.sh", {"cwd": str(root)}, root)
+            pre_compact = self.run_shell_front_door("pre-compact.sh", {"cwd": str(root)}, root)
 
         for result in (user_prompt, session_start, pre_compact):
             self.assertEqual(0, result.returncode, result.stderr)
@@ -376,6 +401,38 @@ class CodexHooksTests(unittest.TestCase):
         compact_payload = json.loads(pre_compact.stdout)
         self.assertTrue(compact_payload["continue"])
         self.assertIn("PreCompact", compact_payload["systemMessage"])
+
+    def test_run_sh_front_door_is_silent_without_context_or_when_disabled(self) -> None:
+        if os.name == "nt":
+            sys.path.insert(0, str(HOOKS_DIR))
+            try:
+                import codex_hook_adapter as adapter
+                sh_path, _ = adapter._windows_git_bash()
+            finally:
+                sys.path.pop(0)
+            if sh_path is None:
+                self.skipTest("Git for Windows sh.exe not resolvable on this runner")
+        elif shutil.which("sh") is None:
+            self.skipTest("POSIX sh is unavailable")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            no_context = [
+                self.run_shell_front_door(script, {"cwd": str(root)}, root)
+                for script in ("session-start.sh", "user-prompt-submit.sh", "pre-compact.sh")
+            ]
+
+            root.joinpath("task_plan.md").write_text("# Task Plan\n", encoding="utf-8")
+            disabled_env = os.environ.copy()
+            disabled_env["PLANNING_DISABLED"] = "1"
+            disabled = [
+                self.run_shell_front_door(script, {"cwd": str(root)}, root, env=disabled_env)
+                for script in ("session-start.sh", "user-prompt-submit.sh", "pre-compact.sh")
+            ]
+
+        for result in (*no_context, *disabled):
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual("", result.stdout.strip())
 
     @unittest.skipUnless(
         os.name == "nt",
