@@ -11,12 +11,12 @@ Run before tagging a release:
     python scripts/bump-version.py 2.37.0
     python scripts/bump-version.py 2.37.0 --dry-run
 
-Files touched (parity set, 19 entries):
+Maintained targets (19 entries: 18 tracked files plus optional local staging):
     skills/planning-with-files/SKILL.md            (canonical)
     skills/planning-with-files-{ar,de,es,zh,zht}/SKILL.md
     .{codebuddy,codex,cursor,factory,hermes,mastracode,opencode}/skills/planning-with-files/SKILL.md
     .agents/skills/planning-with-files/SKILL.md    (Agent Skills standard layout)
-    clawhub-upload/SKILL.md
+    clawhub-upload/SKILL.md                        (gitignored; bumped when present)
     .claude-plugin/plugin.json
     .claude-plugin/marketplace.json
     CITATION.cff
@@ -66,6 +66,14 @@ PARITY_FILES = [
     # manual per-release step, like the ClawHub upload.
     (".pi/skills/planning-with-files/package.json", "plugin_json"),
 ]
+
+# Publish staging that remains parity-locked whenever it exists, but is
+# intentionally absent from clean clones because the directory is gitignored.
+# Keep these paths in PARITY_FILES so maintainer worktrees still bump and
+# validate them as part of the canonical 19-entry release set.
+OPTIONAL_PARITY_FILES = {
+    "clawhub-upload/SKILL.md": "optional gitignored ClawHub publish staging",
+}
 
 # Files left behind on purpose. Documented to make the omission explicit.
 LAGGING_FILES = [
@@ -158,10 +166,16 @@ def main(argv=None) -> int:
     failures: list[str] = []
     changed = 0
     skipped = 0
+    optional_missing = 0
 
     for rel, kind in PARITY_FILES:
         path = REPO_ROOT / rel
         if not path.exists():
+            optional_reason = OPTIONAL_PARITY_FILES.get(rel)
+            if optional_reason:
+                optional_missing += 1
+                print(f"  OPTIONAL:  {rel}  (missing; {optional_reason})")
+                continue
             failures.append(f"missing: {rel}")
             print(f"  MISSING:   {rel}")
             continue
@@ -179,6 +193,7 @@ def main(argv=None) -> int:
             print(f"  bumped:    {rel}  {old} -> {new}")
 
     print(f"\nChanged: {changed}  Unchanged: {skipped}  Errors: {len(failures)}")
+    print(f"Optional gitignored publish staging absent: {optional_missing}")
     print(f"Lagging (not auto-bumped): {len(LAGGING_FILES)}")
     for rel in LAGGING_FILES:
         print(f"  -> {rel}")

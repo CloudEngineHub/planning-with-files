@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.10.1] - 2026-08-14
+
+### Fixed
+- **Codex on Linux and macOS rejected active planning context from `SessionStart` and `UserPromptSubmit` as invalid JSON (fixes #220, reported by @mfehlhaber).** The POSIX hook commands called shell producers whose output begins `[planning-with-files]`; Codex treats output beginning with `[` as JSON and rejected it. All three shell-backed context events now route through `run_sh.py`, which emits event-appropriate JSON for `SessionStart`, `UserPromptSubmit`, and `PreCompact`.
+- **The tracked npm package source and the published tarball had different provenance.** `planning-with-files@3.10.0` already contained all 20 shared scripts, but its recorded `gitHead` preceded the commit that added eight of those files to the repository. The tracked npm payload and sync manifest now match the published surface, so the next tag, source tree, and package are aligned.
+- **The release reference listed the wrong version-parity files.** `AGENTS.md` included the independently versioned Kiro and Pi skill files and omitted the npm package manifest. It now matches `scripts/bump-version.py` and the parity test.
+- **The version bumper failed in fresh clones that correctly lacked the gitignored ClawHub upload stage.** The parity test had treated this manual staging file as optional since v3.0.0, but `scripts/bump-version.py` still reported it as a fatal missing target. The bumper now reports an absent stage explicitly without failing, while continuing to update and validate it whenever it exists.
+
+### Changed
+- The installation docs now distinguish direct npm vendoring from Pi's automatically wired route. The npm listing describes `planning-with-files` as the cross-agent package while retaining its bundled Pi extension.
+- The README's `/clear` comparison now uses committed terminal-style SVG illustrations, the statistics table has an explicit "At a glance" heading, and the repository layout no longer hard-codes a stale test count.
+- The Codex guide now documents the shared POSIX and Windows hook adapter, the `python3` requirement on macOS and Linux, and the need to review changed hook definitions with `/hooks` after upgrading.
+
+### Verification
+- Full Python suite: 424 passed, 11 skipped, and 474 subtests passed.
+- Focused Codex hook suite: 19 passed, including routing, event JSON, no-context silence, and `PLANNING_DISABLED=1` silence for all three shell-backed events.
+- Version-bumper regression and version-parity tests: 9 passed.
+- Version, frontmatter, hook-dispatch, and mirror parity gate: 40 passed, 10 skipped, and 131 subtests passed.
+- Pi extension: 48 Vitest tests passed. The npm dry-run tarball contains the expected 40 files and all 20 shared scripts.
+- ClawHub staging bundle: all 29 canonical files match by SHA-256, with no cache or credential artifacts.
+
+### Thanks
+- @mfehlhaber reported that the Codex POSIX `SessionStart` and `UserPromptSubmit` routes bypassed the event JSON adapter (#220).
+
 ## [3.10.0] - 2026-08-09
 
 ### Fixed

@@ -423,7 +423,7 @@ The v3 line adds features aimed at long-running agentic runs. Each one is listed
 | Platform | Lifecycle hooks | Where registered |
 |----------|-----------------|------------------|
 | Claude Code | 5: UserPromptSubmit, PreToolUse, PostToolUse, Stop, PreCompact | The skill's `SKILL.md` frontmatter (not `plugin.json`), so they ship with the bundled skill |
-| Codex CLI | 7: SessionStart, UserPromptSubmit, PreToolUse, PermissionRequest, PostToolUse, PreCompact, Stop | `.codex/hooks.json`, Windows-safe via `commandWindows` since v3.4.1 |
+| Codex CLI | 7: SessionStart, UserPromptSubmit, PreToolUse, PermissionRequest, PostToolUse, PreCompact, Stop | `.codex/hooks.json`, with event-aware adapters on every platform and `commandWindows` on Windows |
 | Pi | 8 lifecycle handlers in the bundled extension | The injection and recitation handlers stay passive until `/plan-execute` |
 
 Pi runtime modes:
@@ -469,13 +469,13 @@ planning-with-files/
 ├── .codex/ .cursor/ .github/ .gemini/ .kiro/ .continue/ .pi/
 ├── .codebuddy/ .factory/ .hermes/ .mastracode/ .opencode/   # per-IDE mirrors, parity-locked
 ├── docs/                         # 25+ guides incl. per-platform setup, evals.md, benchmark/
-├── tests/                        # 217-test suite (pytest), green on Windows and Linux CI
+├── tests/                        # cross-platform pytest suite, green on Windows, Linux, and macOS CI
 ├── CHANGELOG.md · MIGRATION.md · SECURITY.md · CONTRIBUTING.md · CONTRIBUTORS.md
 ├── CITATION.cff · llms.txt · LICENSE
 └── README.md
 ```
 
-Every release bumps 19 parity-locked copies via `scripts/bump-version.py`; a test fails if any variant lags.
+Every release maintains 18 tracked parity targets plus the gitignored ClawHub upload stage when it is present. `scripts/bump-version.py` updates every available target, and CI fails if a tracked variant lags.
 
 </details>
 
@@ -514,6 +514,7 @@ One hook fire measures 289ms wall-clock since the v3.6.0 optimization, down from
 
 | Version | Highlights |
 |---------|------------|
+| **v3.10.1** | **Codex context hooks now emit valid event JSON on Linux and macOS** (fixes #220, reported by @mfehlhaber). `SessionStart`, `UserPromptSubmit`, and `PreCompact` use the same adapter as Windows, so planning output beginning with `[` is no longer misread as malformed JSON. This release also aligns the tracked npm payload with the published 20-script package, corrects the release reference, and makes the version bumper safe to run without the gitignored ClawHub stage in a fresh clone. |
 | **v3.10.0** | **Two sessions sharing one plan directory could silently destroy each other's work** (closes #217, reported by @dubes394). Both read `task_plan.md`, both write it back, and the later write discards the earlier one's phases while injection, `plan-doctor` and the Stop gate all read the result as an ordinary edit. Attestation could not cover it: it compares against a baseline a human approved once, not against what the hooks last observed, and it is a read side gate that cannot stop the stale write. The guard compares progress rather than hashes, because a hash comparison flags a single agent's own edit on its very next fire; checked items and completed phases only go up during normal work, so a decrease means work is gone. Verifying #130 alongside it exposed that every non-English install was a subset install, missing attestation, the Stop gate, the ledger, phase status and plan-doctor entirely, plus a Windows UTF-8 crash fix that never left the canonical skill. Closed additively, 60 files created and 0 overwritten, with the translator-owned scripts pinned so no future sync can English them. Also fixes a README top that showed five labels and no numbers on a phone. Suite 411 to 417. |
 | **v3.9.0** | **A Codex thread whose cwd was a shared parent injected an unrelated project's plan on every hook fire** (closes #212, reported by @webwww123). Resolution was cwd relative with no notion of a thread, so the shared parent's pointer was the only one the hook could see. Adds `PWF_PLAN_ROOT` for an absolute plan root binding, which a cwd relative `PLAN_ID` slug structurally could not express, and refuses to inject when the cwd is ambiguous rather than guessing. Verifying the report exposed that `PLANNING_DISABLED=1` was inoperative on eleven of thirteen install routes, that the Stop hook could never find its script on six hosts, and that eight shipped PowerShell scripts could not be parsed by Windows PowerShell 5.1 at all, leaving Cursor injection and both Chinese variants' `init-session` dead on Windows. Also closes #211 (a provider error queued another request into the same failing provider, and the Pi status bar stopped tracking the plan after approval) and #210 (injection determinism now asserted, five routes normalized). Suite 311 to 411. |
 | **v3.8.2** | **Session recovery silently found nothing for any project path containing a dot, a space, or any other non-alphanumeric character** (closes #209, reported by @seathatflowsinourveins). Three copies of `session-catchup.py` still folded only `/`, `\` and `:`, and one of them is the copy every `/plugin install` runs on Linux, macOS and Git Bash. Against a real store holding 89 sessions the shipped resolver produced 0 bytes where the fix produces 11336 and recovers 166 messages. Folding now counts UTF-16 code units, so emoji folder names resolve too, and a per-session `cwd` filter stops two projects that fold to one directory name from reading each other's transcripts. One vector table now runs across every copy, so this drift cannot come back. Suite at 311. |

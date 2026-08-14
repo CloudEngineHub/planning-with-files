@@ -13,7 +13,7 @@ This integration includes both:
 - `.codex/skills/planning-with-files/` for the skill itself
 - `.codex/hooks.json` plus `.codex/hooks/` for lifecycle automation
 
-The hook behavior reuses the same mature shell scripts as the Cursor integration, with a thin Codex adapter layer for the differences in hook protocol. On Windows those same scripts run through an auto-resolved Git Bash (see [Windows Support](#windows-support)).
+The hook behavior reuses the same shell scripts as the Cursor integration, with a thin Codex adapter layer for the differences in hook protocol. The three shell-backed context events run through `run_sh.py` on every platform so their output is serialized as event-appropriate JSON. On Windows the adapter also resolves Git Bash automatically (see [Windows Support](#windows-support)).
 
 > **Important:** Codex hooks require `hooks = true` in `~/.codex/config.toml`. The older `codex_hooks = true` still works as a deprecated alias.
 
@@ -190,9 +190,15 @@ Avoid installing the same planning-with-files hooks in both places at once:
 
 If you enable both, Codex may run both sets of hooks and duplicate the reminders.
 
+### macOS and Linux requirements
+
+The POSIX hook commands require `python3` and `sh` on PATH. The other Codex Python hooks already use `python3`, so a working Python 3 installation is required for the full integration.
+
+Upgrading from v3.10.0 or earlier changes three command definitions in `.codex/hooks.json`. Review and trust the updated definitions with `/hooks` before expecting `SessionStart`, `UserPromptSubmit`, or `PreCompact` to run.
+
 ### Windows Support
 
-Hooks run on Windows. Codex reads a per-hook `commandWindows` override from `.codex/hooks.json` on Windows and the POSIX `command` everywhere else, so macOS and Linux are unchanged.
+Hooks run on Windows. Codex reads a per-hook `commandWindows` override from `.codex/hooks.json` on Windows and the POSIX `command` everywhere else. The three shell-backed context events use `run_sh.py` on every platform so Codex receives event-appropriate JSON.
 
 On Windows every hook routes through `.codex\hooks\pwf-hook.cmd`, which finds a real Python (`py -3`, falling back to `python`) and never the Microsoft Store `python3` alias. The four Python hooks run their `.py` entry point directly. The three shell hooks (SessionStart, UserPromptSubmit, PreCompact) route through `run_sh.py`, which locates the Git for Windows `sh.exe` and runs the same shell scripts the macOS/Linux hooks use.
 

@@ -370,6 +370,7 @@ Thank you to everyone who reported issues, provided feedback, and helped test fi
 - [@popey](https://github.com/popey) (Alan Pope) - [PR #215](https://github.com/OthmanAdi/planning-with-files/pull/215) (bumped the pinned Tessl action SHA past a migration that had silently stopped reviews from running; the range it moves across also closes a marker-spoofing hole in the commit this repo had been pinned to)
 - [@SomSamantray](https://github.com/SomSamantray) (Som Samantray) - [PR #216](https://github.com/OthmanAdi/planning-with-files/pull/216) (audited the language variants against the canonical skill and proved the drift issue #130 predicted: 12 missing scripts, a missing Windows UTF-8 fix, and sync tooling that covered only 3 dispatch targets; that analysis is what v3.10.0 acted on, closing the gap additively instead of by deletion)
 - [@marcmuon](https://github.com/marcmuon) (Marc Kelechava) - Issue #195 (one-shot `codex exec` sessions sharing a cwd with an incomplete plan got hijacked and mutated orchestrator-owned plan files; the report's reproductions, root-cause file list, and acceptance criteria shipped directly as the `PLANNING_DISABLED=1` opt-out in v3.4.0)
+- [@mfehlhaber](https://github.com/mfehlhaber): Issue #220 (identified that the Codex POSIX `SessionStart` and `UserPromptSubmit` routes bypassed the JSON adapter, causing planning context beginning with `[` to be rejected as invalid event JSON; fixed in v3.10.1)
 
 And many others who have starred, forked, and shared this project!
 
@@ -397,6 +398,6 @@ If you've contributed and don't see your name here, please open an issue! We wan
 
 ---
 
-**Total Contributors:** 50+ and growing!
+**Total Contributors:** 51+ and growing!
 
-*Last updated: August 1, 2026*
+*Last updated: August 14, 2026*
