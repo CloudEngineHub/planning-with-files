@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.10.2] - 2026-08-19
+
+### Fixed
+- **`PLANNING_DISABLED=1` did nothing on the GitHub Copilot route (PR #223, by @Whxuan0701).** The per-invocation opt-out from #195 reached the canonical, `.agents` and Codex routes in v3.9.0, but all ten Copilot entry points under `.github/hooks/scripts/` still read `task_plan.md` and emitted planning context whatever the variable said. That is the failure #195 was filed about: a one-shot task that merely shares a working directory with an unrelated plan gets that plan attached on every session start, matched tool call, error and stop, with no way to turn it off. All five shell and five PowerShell hooks now exit before touching the plan file.
+- **The same opt-out was inoperative on all eight Cursor hooks.** The Cursor route reads `task_plan.md` directly rather than dispatching to `scripts/inject-plan.sh`, which is where the #195 guard lives, so `PLANNING_DISABLED=1` never reached `pre-tool-use`, `post-tool-use`, `stop` or `user-prompt-submit` in either shell or PowerShell. Each guard reproduces its own hook's no-plan-file output, so the Cursor protocol shape is unchanged: `PreToolUse` still answers `{"decision": "allow"}` because that is what it emits unconditionally today, and the other three stay silent. `.gemini` is deliberately behind and is not covered.
+- **Disabling the skill made Copilot's `PreToolUse` more permissive than leaving it on.** The merged guard answered `permissionDecision: allow` on the disabled path, so a user who set the variable to make planning inert also handed every tool call a blanket approval it would not otherwise have had. Both the shell and PowerShell hooks now emit `{}`, matching their own no-plan-file path, which returns the decision to Copilot.
+- **The Copilot PowerShell stop hook reported "Task incomplete (0/0 phases done)" for a plan with no phase headings (PR #222, by @Whxuan0701).** The #191 guard shipped to `agent-stop.sh` and to the canonical scripts and never reached `agent-stop.ps1`, so Windows Copilot users kept getting the false nag the fix was written to remove.
+- **`.cursor/hooks/stop.ps1` was the last copy the #191 fix never reached.** It answered `0/0 phases done` and auto-continued on a plan that was never phase-structured. A repository-wide sweep of every script that emits a `(N/M phases done)` message now finds no unguarded copy left.
+- **The Copilot PowerShell error hook had never logged an error on Windows.** `error-occurred.ps1` read stdin into `$input`, which is PowerShell's automatic pipeline variable: under `-File` the assignment does not stick, so the JSON parse always saw an empty string and the hook emitted `{}` every time. Reproduced under both pwsh 7 and Windows PowerShell 5.1 before the rename.
+- **The Hermes determinism probe could not run on a host without a `python` alias (PR #224, by @Whxuan0701).** `tests/test_injection_determinism.py` spawned a hardcoded `python`, which does not exist on a default macOS setup or on any host that ships only `python3`, so the probe raised `FileNotFoundError` instead of testing anything. It now reuses `sys.executable`.
+
+### Changed
+- The opt-out tests run every hook twice, once with the variable unset and once with it set, and fail if the unset run is already inert. The merged versions asserted only the disabled run, which a fleet of hooks that emit `{}` unconditionally would also have passed: gutting all ten Copilot hooks left the suite green. That is the silent-death class behind the v3.6.0 realpath failure and the v3.8.0 Stop hook, and it is now the one thing these tests cannot miss. The `error-occurred.ps1` `$input` bug is what the new baseline caught first.
+
+### Verification
+- Full Python suite: 430 passed, 11 skipped, 492 subtests passed. Baseline before the three merges was 424 passed, 11 skipped, 474 subtests.
+- Each fix was mutation-tested rather than assumed: stripping all ten Copilot guards fails 9 assertions, gutting the hook fleet to unconditional `{}` fails 6, restoring `$input` in the error hook fails the anti-vacuity baseline by name, and stripping the eight Cursor guards plus the `stop.ps1` phase guard fails 9.
+- `#222` and `#223` both edit `agent-stop.ps1`. The combined tree was tested after both landed, not only in isolation.
+- All four `.ps1` files that carry non-ASCII keep their UTF-8 BOM, every touched script is pure LF, and `sh -n` parses all nine shell hooks.
+- `scripts/sync-ide-folders.py --verify` clean; `scripts/bump-version.py 3.10.2` reports 19 changed, 0 errors.
+
+### Thanks
+- Haoxuan sent three single-commit PRs rather than one bundle: the Copilot opt-out gap (#223), the missing zero-phase guard on the Copilot PowerShell stop hook (#222), and the hardcoded interpreter in the Hermes probe (#224). Each arrived with a test that executes the real script. Auditing them is what surfaced the Cursor route, the `PreToolUse` permission widening and the `$input` bug.
+
 ## [3.10.1] - 2026-08-14
 
 ### Fixed

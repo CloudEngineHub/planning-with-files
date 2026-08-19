@@ -372,6 +372,8 @@ Thank you to everyone who reported issues, provided feedback, and helped test fi
 - [@marcmuon](https://github.com/marcmuon) (Marc Kelechava) - Issue #195 (one-shot `codex exec` sessions sharing a cwd with an incomplete plan got hijacked and mutated orchestrator-owned plan files; the report's reproductions, root-cause file list, and acceptance criteria shipped directly as the `PLANNING_DISABLED=1` opt-out in v3.4.0)
 - [@mfehlhaber](https://github.com/mfehlhaber): Issue #220 (identified that the Codex POSIX `SessionStart` and `UserPromptSubmit` routes bypassed the JSON adapter, causing planning context beginning with `[` to be rejected as invalid event JSON; fixed in v3.10.1)
 
+- [@Whxuan0701](https://github.com/Whxuan0701) (WeiHaoxuan) - [PR #223](https://github.com/OthmanAdi/planning-with-files/pull/223), [PR #222](https://github.com/OthmanAdi/planning-with-files/pull/222), [PR #224](https://github.com/OthmanAdi/planning-with-files/pull/224) (found that the `PLANNING_DISABLED=1` opt-out from #195 had never reached any of the ten GitHub Copilot hook entry points, that the #191 zero-phase guard was missing from the Copilot PowerShell stop hook, and that the Hermes determinism probe hardcoded `python` so it could not run where only `python3` exists; three single-commit PRs, each with a test that executes the real script. Auditing them surfaced three further defects fixed in the same release: the Cursor route had the same opt-out gap across all eight of its hooks, the disabled `PreToolUse` branch was widening Copilot's permissions rather than staying neutral, and `error-occurred.ps1` had never logged an error on Windows because it read stdin into PowerShell's automatic `$input` variable)
+
 And many others who have starred, forked, and shared this project!
 
 - **[@voidborne-d](https://github.com/voidborne-d)** - [PR #149](https://github.com/OthmanAdi/planning-with-files/pull/149)
@@ -398,6 +400,6 @@ If you've contributed and don't see your name here, please open an issue! We wan
 
 ---
 
-**Total Contributors:** 51+ and growing!
+**Total Contributors:** 52+ and growing!
 
-*Last updated: August 14, 2026*
+*Last updated: August 19, 2026*
