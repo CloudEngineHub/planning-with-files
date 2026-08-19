@@ -7,10 +7,9 @@
 # Read stdin (required — Copilot pipes JSON to stdin)
 INPUT=$(cat)
 
-[ "${PLANNING_DISABLED:-}" = "1" ] && {
-    echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
-    exit 0
-}
+# Disabled means no opinion, not blanket approval: emit the same empty object the
+# no-plan-file path emits so Copilot's own permission flow decides.
+[ "${PLANNING_DISABLED:-}" = "1" ] && { echo '{}'; exit 0; }
 
 PLAN_FILE="task_plan.md"
 

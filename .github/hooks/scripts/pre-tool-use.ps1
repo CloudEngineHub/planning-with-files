@@ -8,8 +8,10 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 $InputData = [Console]::In.ReadToEnd()
 
+# Disabled means no opinion, not blanket approval: emit the same empty object the
+# no-plan-file path emits so Copilot's own permission flow decides.
 if ($env:PLANNING_DISABLED -eq '1') {
-    Write-Output '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
+    Write-Output '{}'
     exit 0
 }
 

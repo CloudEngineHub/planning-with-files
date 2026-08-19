@@ -20,6 +20,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 CODEX_HOOKS = REPO / ".codex" / "hooks"
 COPILOT_HOOKS = REPO / ".github" / "hooks" / "scripts"
+CURSOR_HOOKS = REPO / ".cursor" / "hooks"
 SCRIPTS = REPO / "scripts"
 POWERSHELL = (
     shutil.which("pwsh")
@@ -176,6 +177,12 @@ class PlanningDisabledOptOutTests(unittest.TestCase):
         )
 
     def test_copilot_shell_hooks_skip_context_when_disabled(self) -> None:
+        # Each hook is run twice against the same fixture. Asserting only the
+        # disabled run would pass against a fleet of hooks that emit {} no
+        # matter what, which is the silent-death class this repo has shipped
+        # twice, so the enabled run is the anti-vacuity baseline: it has to
+        # produce the context that the disabled run must not.
+        live = 0
         for name in (
             "session-start.sh",
             "pre-tool-use.sh",
@@ -184,6 +191,19 @@ class PlanningDisabledOptOutTests(unittest.TestCase):
             "error-occurred.sh",
         ):
             with self.subTest(hook=name):
+                enabled = run_sh(
+                    COPILOT_HOOKS / name,
+                    self.cwd,
+                    disabled=False,
+                    input_data='{"error":{"message":"fixture failure"}}',
+                )
+                self.assertEqual(0, enabled.returncode, enabled.stderr)
+                enabled_output = json.loads(
+                    enabled.stdout.lstrip("\ufeff")
+                ).get("hookSpecificOutput", {})
+                if "additionalContext" in enabled_output:
+                    live += 1
+
                 result = run_sh(
                     COPILOT_HOOKS / name,
                     self.cwd,
@@ -192,12 +212,18 @@ class PlanningDisabledOptOutTests(unittest.TestCase):
                 )
                 self.assertEqual(0, result.returncode, result.stderr)
                 payload = json.loads(result.stdout.lstrip("\ufeff"))
-                hook_output = payload.get("hookSpecificOutput", {})
-                self.assertNotIn("additionalContext", hook_output)
-                if name == "pre-tool-use.sh":
-                    self.assertEqual("allow", hook_output.get("permissionDecision"))
-                else:
-                    self.assertEqual({}, payload)
+                # Disabled means no opinion: no context, and for PreToolUse no
+                # permission decision either, so Copilot's own flow decides.
+                self.assertEqual({}, payload)
+
+        # error-occurred.sh JSON-escapes through python3 and goes quiet where
+        # that probe finds nothing, so four is the floor, not five.
+        self.assertGreaterEqual(
+            live,
+            4,
+            "no Copilot shell hook produced context with the opt-out unset; "
+            "the disabled-run assertions above cannot mean anything",
+        )
 
     # --- Every distributed copy carries the guard ---
 
@@ -229,6 +255,9 @@ class CopilotPowerShellPlanningDisabledTests(unittest.TestCase):
         self._tmp.cleanup()
 
     def test_copilot_powershell_hooks_skip_context_when_disabled(self) -> None:
+        # None of the five PowerShell hooks shells out to escape JSON, so every
+        # one of them must produce context with the opt-out unset. A hook that
+        # goes quiet in both runs is dead, not disabled.
         for name in (
             "session-start.ps1",
             "pre-tool-use.ps1",
@@ -237,17 +266,109 @@ class CopilotPowerShellPlanningDisabledTests(unittest.TestCase):
             "error-occurred.ps1",
         ):
             with self.subTest(hook=name):
+                enabled = run_powershell(
+                    COPILOT_HOOKS / name, self.cwd, disabled=False
+                )
+                self.assertEqual(0, enabled.returncode, enabled.stderr)
+                enabled_output = json.loads(
+                    enabled.stdout.lstrip("\ufeff")
+                ).get("hookSpecificOutput", {})
+                self.assertIn(
+                    "additionalContext",
+                    enabled_output,
+                    f"{name} emitted no context with the opt-out unset, so the "
+                    "disabled-run assertion below proves nothing",
+                )
+
                 result = run_powershell(
                     COPILOT_HOOKS / name, self.cwd, disabled=True
                 )
                 self.assertEqual(0, result.returncode, result.stderr)
                 payload = json.loads(result.stdout.lstrip("\ufeff"))
-                hook_output = payload.get("hookSpecificOutput", {})
-                self.assertNotIn("additionalContext", hook_output)
-                if name == "pre-tool-use.ps1":
-                    self.assertEqual("allow", hook_output.get("permissionDecision"))
-                else:
-                    self.assertEqual({}, payload)
+                # Disabled means no opinion: no context, and for PreToolUse no
+                # permission decision either, so Copilot's own flow decides.
+                self.assertEqual({}, payload)
+
+
+CURSOR_HOOK_NAMES = (
+    "pre-tool-use",
+    "post-tool-use",
+    "stop",
+    "user-prompt-submit",
+)
+
+
+class CursorPlanningDisabledTests(unittest.TestCase):
+    """The Cursor hooks read task_plan.md directly instead of dispatching to
+    scripts/inject-plan.sh, so the #195 opt-out never reached them. Each guard
+    reproduces its own hook's no-plan-file output: PreToolUse still answers
+    {"decision": "allow"} because that is what it emits unconditionally today,
+    and the other three stay silent.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.cwd = Path(self._tmp.name)
+        (self.cwd / "task_plan.md").write_text(PLAN, encoding="utf-8")
+        (self.cwd / "progress.md").write_text("progress line\n", encoding="utf-8")
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _expected_disabled(self, name: str) -> str:
+        return '{"decision": "allow"}' if name == "pre-tool-use" else ""
+
+    def test_cursor_shell_hooks_go_inert_when_disabled(self) -> None:
+        for name in CURSOR_HOOK_NAMES:
+            with self.subTest(hook=f"{name}.sh"):
+                script = CURSOR_HOOKS / f"{name}.sh"
+                enabled = run_sh(script, self.cwd, disabled=False)
+                disabled = run_sh(script, self.cwd, disabled=True)
+                self.assertEqual(0, enabled.returncode, enabled.stderr)
+                self.assertEqual(0, disabled.returncode, disabled.stderr)
+                inert = self._expected_disabled(name)
+                self.assertNotEqual(
+                    inert,
+                    (enabled.stdout + enabled.stderr).strip(),
+                    f"{name}.sh produced its inert output with the opt-out "
+                    "unset, so the disabled assertion below proves nothing",
+                )
+                self.assertEqual(
+                    inert, (disabled.stdout + disabled.stderr).strip()
+                )
+
+    @unittest.skipUnless(POWERSHELL, "PowerShell is not available")
+    def test_cursor_powershell_hooks_go_inert_when_disabled(self) -> None:
+        for name in CURSOR_HOOK_NAMES:
+            with self.subTest(hook=f"{name}.ps1"):
+                script = CURSOR_HOOKS / f"{name}.ps1"
+                enabled = run_powershell(script, self.cwd, disabled=False)
+                disabled = run_powershell(script, self.cwd, disabled=True)
+                self.assertEqual(0, enabled.returncode, enabled.stderr)
+                self.assertEqual(0, disabled.returncode, disabled.stderr)
+                inert = self._expected_disabled(name)
+                self.assertNotEqual(
+                    inert,
+                    (enabled.stdout + enabled.stderr).strip().lstrip("﻿"),
+                    f"{name}.ps1 produced its inert output with the opt-out "
+                    "unset, so the disabled assertion below proves nothing",
+                )
+                self.assertEqual(
+                    inert,
+                    (disabled.stdout + disabled.stderr).strip().lstrip("﻿"),
+                )
+
+    @unittest.skipUnless(POWERSHELL, "PowerShell is not available")
+    def test_cursor_stop_ps1_is_silent_on_an_unstructured_plan(self) -> None:
+        # issue #191, the copy the fix never reached. stop.sh has carried the
+        # zero-phase guard since v3.2.0; stop.ps1 answered "0/0 phases done"
+        # and auto-continued on a plan that was never phase-structured.
+        (self.cwd / "task_plan.md").write_text(
+            "# Notes\n\nThis file has no phase structure.\n", encoding="utf-8"
+        )
+        result = run_powershell(CURSOR_HOOKS / "stop.ps1", self.cwd, disabled=False)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("", (result.stdout + result.stderr).strip().lstrip("﻿"))
 
 
 if __name__ == "__main__":
