@@ -30,7 +30,7 @@ All notable changes to this project will be documented in this file.
 
 ### Thanks
 
-This one took four attempts and sixteen months of the issue tracker to answer, so credit goes to everyone who pushed on it.
+This one took four attempts across seven months of the issue tracker to answer, so credit goes to everyone who pushed on it.
 
 - Sean opened #130 in April with the analysis that framed the whole problem: the scripts and templates were identical, only the prose differed, and the six skills were costing every session five descriptions it did not need. Every later attempt is a variation on that report.
 - Dylan wrote the answer that shipped (#226). He found the one-level plugin scan, checked the install route rather than assuming it, and carried the literal English status-token warning into all five commands where a previous attempt had not. He also named the one cost he could not remove, which is what made the change reviewable.
