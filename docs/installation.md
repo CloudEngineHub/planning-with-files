@@ -115,6 +115,16 @@ Then move `planning-with-files/` to `~/.claude/skills/`.
 
 ---
 
+## Installing a language variant
+
+The workflow ships in Arabic, German, Spanish and both Chinese scripts alongside English. Each is its own skill, installed by name:
+
+```bash
+npx skills add OthmanAdi/planning-with-files --skill planning-with-files-de -g
+```
+
+Installing a translation does not install the English skill, and installing English does not pull in any translation. See [languages.md](languages.md) for the full table, the repository layout, and how the language commands behave on the plugin route.
+
 ## Verifying Installation
 
 After installation, verify the skill is loaded:

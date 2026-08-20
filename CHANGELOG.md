@@ -2,6 +2,44 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.11.0] - 2026-08-20
+
+### Changed
+- **The plugin registers one skill instead of six (closes #130, reported by @sean3808; implemented by @dylanpulver in PR #226).** The five language variants moved from `skills/planning-with-files-<lang>/` to `skills/i18n/planning-with-files-<lang>/`. Nothing was deleted, renamed or merged. All five skill names, all five `npx skills add --skill` commands, and all five install destinations are exactly what they were. One directory of depth is the whole mechanism: Claude Code discovers a plugin's skills by scanning `skills/*/SKILL.md` at a single level without recursing, so a variant one level down is not registered on the plugin route, while `npx skills add` resolves `--skill` by skill name across a recursive scan and does not care about depth.
+- **The five language commands read their translated skill from disk.** `/plan-ar`, `/plan-de`, `/plan-es`, `/plan-zh` and `/plan-zht` now read `$HOME/.claude/skills/planning-with-files-<lang>/SKILL.md` first, then `${CLAUDE_PLUGIN_ROOT}/skills/i18n/planning-with-files-<lang>/SKILL.md`, and fall back to the canonical skill with an explicit instruction to keep working in that language. Each one also states that the status tokens stay literal English, because `check-complete.sh` matches them with `grep -F` and a translated token silently disables the completion gate.
+
+### Fixed
+- The second candidate path in the five language commands pointed at the marketplace clone rather than the running plugin. That clone tracks the default branch while an installed plugin is version-pinned, and it does not exist at all under `CLAUDE_CONFIG_DIR` or the zip-cache route. `${CLAUDE_PLUGIN_ROOT}` is substituted by the loader and is what the repository already uses in command prose.
+- `README.md` still advertised the five variant skill ids as model-invocable, which stops being true once the plugin no longer registers them.
+- **Seven shell hooks could emit JSON with a raw control character on macOS (reported by @dylanpulver).** They build their payload by interpolating a `json.dumps` result and emitting it with `echo`. Under their own `#!/bin/bash` shebang that is correct, but run with `sh` on macOS, where `/bin/sh` is bash in POSIX mode with `xpg_echo` set, `echo` turns the escaped `
+` inside the string back into a real newline and every parser rejects the result. All seven now use `printf '%s
+'`, which never interprets backslashes. Found while rebasing #226, with the one-line repro supplied.
+
+### Added
+- **`docs/languages.md`.** The five translations had no documentation page of their own: `docs/` carried a setup guide for every supported IDE and nothing for languages, and `docs/installation.md` did not mention them at all. Six lines in the README were the entire discovery path, which mattered less while the plugin auto-registered the variants and is now the only way in. The new page covers the table of names and commands, the install command per language, the repository layout, how the language commands behave on the plugin route, and why the status tokens stay literal English. Linked from the README and from `docs/installation.md`.
+
+### Verification
+- Measured against the real Claude Code loader rather than inferred. Debug output on the merged tree: `Loaded 1 skills from plugin ... default directory`, down from 6. Component inventory 19 to 14, projected always-on cost roughly 2,254 to 1,042 tokens per session. All thirteen slash commands survive, including the five language ones.
+- The skills CLI still discovers all seven skills in the moved layout by name. `npx skills add . --skill planning-with-files-de` in an isolated home installs to the same destination as before, with the translated SKILL.md and the full 20-script surface, and pulls in nothing else.
+- The German template writes literal `**Status:** in_progress` and the German `check-complete.sh` matches that exact string, so the completion gate is intact for non-English users.
+- Full Python suite: 434 passed, 10 skipped, 497 subtests passed. `sync-ide-folders.py --verify` clean. `bump-version.py` resolves the parity set at the new paths.
+- All 120 moved files are pure renames. No translated content was altered.
+
+### Known limitations
+- An existing variant install records the old path in its skills lock file, so `npx skills update` cannot resolve it until the skill is reinstalled. The installed skill keeps working and a fresh install always works. No change to this PR can avoid it; it is inherent to moving a directory.
+
+### Thanks
+
+This one took four attempts and sixteen months of the issue tracker to answer, so credit goes to everyone who pushed on it.
+
+- Sean opened #130 in April with the analysis that framed the whole problem: the scripts and templates were identical, only the prose differed, and the six skills were costing every session five descriptions it did not need. Every later attempt is a variation on that report.
+- Dylan wrote the answer that shipped (#226). He found the one-level plugin scan, checked the install route rather than assuming it, and carried the literal English status-token warning into all five commands where a previous attempt had not. He also named the one cost he could not remove, which is what made the change reviewable.
+- Som audited the five variants against the canonical skill in #216 and proved the drift #130 predicted: twelve missing scripts, a missing Windows UTF-8 fix, and sync tooling that covered only three dispatch targets. That analysis shipped as v3.10.0 and had to land before this change was safe.
+- Abdullah asked in #151 for a single canonical source with a CI parity gate. The gate shipped in v2.37.0 and is the reason this move could be verified rather than hoped at.
+- The earliest two reports were about the same duplication from the other direction: #53 by @back1ply proposed collapsing the eight client folders into one source, and #47 by @tiptinker asked for the Anthropic skills layout. Both are why `sync-ide-folders.py` exists.
+
+**On why this took so long.** The obvious fix was to delete the five directories, and it was proposed more than once. It could not be taken. Skill listings on a public directory cannot be retracted once published, so deleting the folders would not have removed the entries; it would have left five permanent listings whose install command had started to fail, which is worse for the people using them than either keeping or removing them. The variants also have real users who chose them deliberately, and a breaking change to a working install is not a reasonable price for a packaging problem. What was needed was a route that changes nothing anyone depends on, and it took until #226 to find one. The delay was not indecision about whether the problem was real. It was refusing to fix it by breaking installs.
+
 ## [3.10.2] - 2026-08-19
 
 ### Fixed

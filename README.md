@@ -217,7 +217,7 @@ npx skills add OthmanAdi/planning-with-files --skill planning-with-files-zht -g
 
 These are real translations, not an English body with a translated description: the SKILL.md prose, the templates, and the user-facing output of `check-complete`, `init-session` and `session-catchup` are all localized. The status tokens stay literal English (`**Status:** complete`) on purpose, because `check-complete.sh` matches them with `grep -F`, so translating them would disable the completion gate.
 
-Since v3.10.0 the variants also ship the full script surface: attestation, the Stop gate, the ledger, phase status and plan-doctor used to be canonical-only, which quietly made every non-English install a subset install. See [issue #130](https://github.com/OthmanAdi/planning-with-files/issues/130) for why they stay separate skills rather than collapsing into one.
+Since v3.10.0 the variants also ship the full script surface: attestation, the Stop gate, the ledger, phase status and plan-doctor used to be canonical-only, which quietly made every non-English install a subset install. Full details, including what changed on the plugin route in v3.11.0, are in [docs/languages.md](docs/languages.md).
 
 They live under `skills/i18n/`, one directory deeper than the canonical skill. The install commands above are unchanged, because `npx skills add` resolves `--skill` by skill name across the whole repository. The Claude Code plugin scan reads `skills/*/SKILL.md` without recursing, so the plugin route registers the canonical skill alone and no longer carries five extra descriptions in every session's system prompt. On that route the `/plan-ar`, `/plan-de`, `/plan-es`, `/plan-zh` and `/plan-zht` commands read the translated skill from disk instead of invoking it by name.
 
@@ -481,7 +481,9 @@ Every release maintains 18 tracked parity targets plus the gitignored ClawHub up
 
 </details>
 
-## FAQ
+<details>
+<summary><strong>❓ FAQ</strong></summary>
+
 
 ### How do I stop my coding agent from losing its plan after /clear or a crash?
 
@@ -511,11 +513,14 @@ They are working memory, not a tracked deliverable. `task_plan.md`, `findings.md
 
 One hook fire measures 289ms wall-clock since the v3.6.0 optimization, down from 2.0 to 2.4 seconds before it, and the injected plan block is KV-cache stable by construction. The plan stays in the attention window every turn, and `/clear` stops being fatal.
 
+</details>
+
 <details>
 <summary><strong>📦 Releases</strong></summary>
 
 | Version | Highlights |
 |---------|------------|
+| **v3.11.0** | **The plugin registers one skill instead of six** (closes #130, reported by @sean3808; implemented by @dylanpulver in PR #226). The five language variants moved from `skills/planning-with-files-<lang>/` to `skills/i18n/planning-with-files-<lang>/`. Nothing deleted, nothing renamed, every `npx skills add --skill` command unchanged: Claude Code scans `skills/*/SKILL.md` one level without recursing, while the skills CLI resolves `--skill` by name across a recursive scan. Measured against the real loader, not inferred: 6 registered skills to 1, 19 components to 14, always-on cost roughly 2,254 to 1,042 tokens per session, with all thirteen slash commands intact. `/plan-de` and its four siblings read their translated skill from disk and state that the status tokens stay literal English, because `check-complete.sh` matches them with `grep -F`. Also fixes seven shell hooks that could emit JSON with a raw control character when run under a POSIX-mode shell on macOS. |
 | **v3.10.2** | **`PLANNING_DISABLED=1` had never reached the GitHub Copilot or Cursor hooks** (PRs #223, #222 and #224, by @Whxuan0701). Both routes read `task_plan.md` directly instead of dispatching to the script that carries the #195 guard, so eighteen hook entry points ignored the opt-out entirely: a one-shot task sharing a working directory with an unrelated plan had no way to detach from it. Auditing the merge found three more: the disabled `PreToolUse` branch answered `permissionDecision: allow`, so turning the skill off widened Copilot's permissions instead of staying neutral; `.cursor/hooks/stop.ps1` was the last copy the #191 zero-phase guard never reached, still auto-continuing on `0/0 phases done`; and `error-occurred.ps1` had never logged an error on Windows because it read stdin into `$input`, PowerShell's automatic pipeline variable, which does not hold the assignment under `-File`. The opt-out tests now run every hook with the variable unset as well as set, because the disabled-only versions stayed green against a fleet gutted to emit `{}`. Suite 424 to 430. |
 | **v3.10.1** | **Codex context hooks now emit valid event JSON on Linux and macOS** (fixes #220, reported by @mfehlhaber). `SessionStart`, `UserPromptSubmit`, and `PreCompact` use the same adapter as Windows, so planning output beginning with `[` is no longer misread as malformed JSON. This release also aligns the tracked npm payload with the published 20-script package, corrects the release reference, and makes the version bumper safe to run without the gitignored ClawHub stage in a fresh clone. |
 | **v3.10.0** | **Two sessions sharing one plan directory could silently destroy each other's work** (closes #217, reported by @dubes394). Both read `task_plan.md`, both write it back, and the later write discards the earlier one's phases while injection, `plan-doctor` and the Stop gate all read the result as an ordinary edit. Attestation could not cover it: it compares against a baseline a human approved once, not against what the hooks last observed, and it is a read side gate that cannot stop the stale write. The guard compares progress rather than hashes, because a hash comparison flags a single agent's own edit on its very next fire; checked items and completed phases only go up during normal work, so a decrease means work is gone. Verifying #130 alongside it exposed that every non-English install was a subset install, missing attestation, the Stop gate, the ledger, phase status and plan-doctor entirely, plus a Windows UTF-8 crash fix that never left the canonical skill. Closed additively, 60 files created and 0 overwritten, with the translator-owned scripts pinned so no future sync can English them. Also fixes a README top that showed five labels and no numbers on a phone. Suite 411 to 417. |
