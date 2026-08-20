@@ -24,7 +24,7 @@ fi
 
 if [ -n "$CATCHUP" ]; then
     ESCAPED=$($PYTHON -c "import sys,json; print(json.dumps(sys.stdin.read(), ensure_ascii=False))" <<< "$CATCHUP" 2>/dev/null || echo "\"[planning-with-files] Session recovery data available. Read task_plan.md, progress.md, and findings.md.\"")
-    echo "{\"hookSpecificOutput\":{\"additionalContext\":$ESCAPED}}"
+    printf '%s\n' "{\"hookSpecificOutput\":{\"additionalContext\":$ESCAPED}}"
 else
     echo '{"hookSpecificOutput":{"additionalContext":"[planning-with-files] Active plan detected. Read task_plan.md, progress.md, and findings.md before proceeding."}}'
 fi

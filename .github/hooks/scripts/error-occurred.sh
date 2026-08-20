@@ -34,7 +34,7 @@ except:
 if [ -n "$ERROR_MSG" ]; then
     CONTEXT="[planning-with-files] Error detected: ${ERROR_MSG}. Log this error in task_plan.md under Errors Encountered with the attempt number and resolution."
     ESCAPED=$($PYTHON -c "import sys,json; print(json.dumps(sys.stdin.read(), ensure_ascii=False))" <<< "$CONTEXT" 2>/dev/null || echo "\"\"")
-    echo "{\"hookSpecificOutput\":{\"hookEventName\":\"ErrorOccurred\",\"additionalContext\":$ESCAPED}}"
+    printf '%s\n' "{\"hookSpecificOutput\":{\"hookEventName\":\"ErrorOccurred\",\"additionalContext\":$ESCAPED}}"
 else
     echo '{}'
 fi

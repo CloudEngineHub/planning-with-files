@@ -19,7 +19,7 @@ if [ -f "$SCRIPT_DIR/check-complete.sh" ]; then
     if [ -n "$RESULT" ]; then
         PYTHON=$(command -v python3 || command -v python)
         ESCAPED=$($PYTHON -c "import sys,json; print(json.dumps(sys.stdin.read(), ensure_ascii=False))" <<< "$RESULT" 2>/dev/null || echo "\"\"")
-        echo "{\"systemMessage\":$ESCAPED}"
+        printf '%s\n' "{\"systemMessage\":$ESCAPED}"
         exit 0
     fi
 fi
