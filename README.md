@@ -5,7 +5,12 @@
 <h1 align="center">Planning with Files</h1>
 
 <p align="center">
-  <strong>Your agent's context window dies. The plan does not.</strong>
+  <strong>The planning skill your agent cannot ignore.</strong><br>
+  Not a prompt it might follow. A hook that fires every turn, a plan on disk that survives <code>/clear</code>, and 3 out of 3 blind A/B wins to show it works.
+</p>
+
+<p align="center">
+  <em>Your agent's context window dies. The plan does not.</em>
 </p>
 
 <p align="center">
@@ -26,13 +31,15 @@ Persistent file-based planning for AI coding agents and long-running agent tasks
 </p>
 
 <p align="center">
-  <a href="#before-and-after-clear">Before/After</a> ·
-  <a href="#the-solution-3-file-pattern">The 3 Files</a> ·
-  <a href="#quick-install">Install</a> ·
-  <a href="#benchmark-results">Benchmarks</a> ·
-  <a href="#works-across-18-platforms">Platforms</a> ·
-  <a href="#faq">FAQ</a> ·
-  <a href="docs/installation.md">Full install guide</a>
+  <a href="#before-and-after-clear"><strong>See it survive /clear</strong></a> ·
+  <a href="#the-solution-3-file-pattern">The 3 files</a> ·
+  <a href="#why-this-skill">Why it works</a> ·
+  <a href="#benchmark-results">The numbers</a> ·
+  <a href="#quick-install"><strong>Install</strong></a>
+</p>
+
+<p align="center">
+  <sub>Everything technical is <a href="#reference">further down</a> · <a href="docs/installation.md">Full install guide</a></sub>
 </p>
 
 ---
@@ -102,45 +109,55 @@ your-project/
 
 Parallel tasks get isolated directories instead: `.planning/YYYY-MM-DD-slug/` with the same three files, selected via `.active_plan` (v2.36.0+). Plain markdown, gitignored by default, no runtime state anywhere else.
 
-## How It Works
+## Why This Skill?
 
-The agent stops at the first rung that applies:
+On December 29, 2025, [Meta acquired Manus for $2 billion](https://techcrunch.com/2025/12/29/meta-just-bought-manus-an-ai-startup-everyone-has-been-talking-about/). In just 8 months, Manus went from launch to $100M+ revenue. Their secret? **Context engineering.**
 
-```
-1. Task needs 3+ steps or 5+ tool calls?  → create the three files first
-2. Learned something?                     → append it to findings.md
-3. Did something?                         → log it in progress.md
-4. Phase done?                            → check it off in task_plan.md
-5. Context died (/clear, crash)?          → session catchup re-reads all three
-6. Every phase complete?                  → only then does the Stop gate release (gated mode)
-```
+> "Markdown is my 'working memory' on disk. Since I process information iteratively and my active context has limits, Markdown files serve as scratch pads for notes, checkpoints for progress, building blocks for final deliverables."
+> — Manus AI
 
-Hooks make steps 2 to 6 mechanical rather than optional: 5 lifecycle hooks on Claude Code, 7 on Codex, 8 on Pi re-inject the plan each turn, remind after writes, and check completion before stopping.
+This skill packages that exact pattern for your coding agent.
 
-```mermaid
-flowchart LR
-    A["agent works"] -->|"writes decisions, findings, errors"| F["task_plan.md<br/>findings.md<br/>progress.md"]
-    F -->|"hooks re-inject the plan<br/>at the start of each turn"| A
-    K["/clear · crash · compaction"] -.->|"wipes the context window"| A
-    F ==>|"session catchup re-reads the files"| R["fresh session resumes<br/>at the current phase"]
-```
+### The Manus Principles
 
-### Session Recovery
+| Principle | Implementation |
+|-----------|----------------|
+| Filesystem as memory | Store in files, not context |
+| Attention manipulation | Re-read plan before decisions (hooks) |
+| Error persistence | Log failures in plan file |
+| Goal tracking | Checkboxes show progress |
+| Completion verification | Stop hook checks all phases |
 
-When your context fills up and you run `/clear`, the skill recovers the previous session automatically:
+## Benchmark Results
 
-1. Checks the active IDE's session store for previous session data (`~/.claude/projects/` for Claude Code, `~/.codex/sessions/` for Codex)
-2. Finds when the planning files were last updated
-3. Extracts the conversation that happened after (potentially lost context)
-4. Shows a catchup report so you can sync
+> **Methodology note:** the 96.7% figure comes from the v2.21.0 evaluation run on `claude-sonnet-4-6` (2026-03-06). It measures file-pattern fidelity (does the agent create and maintain the 3-file structure), not goal-drift over long autonomous runs. Newer models and the autonomous-mode work are not yet covered by this number. Full methodology, dataset, and assertion list: [docs/evals.md](docs/evals.md).
 
-**Pro tip:** disable auto-compact to maximize context before clearing:
+Evaluated with Anthropic's [skill-creator](https://github.com/anthropics/skills/tree/main/skills/skill-creator) framework: skill v2.21.0, model `claude-sonnet-4-6`, 2026-03-06. 10 parallel subagents, 5 task types, 30 objectively verifiable assertions, 3 blind A/B comparisons.
 
-```json
-{ "autoCompact": false }
-```
+<p align="center">
+  <img src="media/benchmark-skill-vs-baseline.svg" width="860" alt="Eval results, with skill vs without: assertions passed 29 of 30 vs 2 of 30, 3-file pattern followed 5 of 5 vs 0 of 5, blind A/B wins 3 of 3 vs 0 of 3, average rubric score 10.0 vs 6.8">
+</p>
 
-Maintainer depth (hook architecture, dispatcher layout, parity tooling) lives in [AGENTS.md](AGENTS.md) and [docs/](docs/).
+| Test | with_skill | without_skill |
+|------|-----------|---------------|
+| Pass rate (30 assertions) | **96.7%** (29/30) | 6.7% (2/30) |
+| 3-file pattern followed | 5/5 evals | 0/5 evals |
+| Blind A/B wins | **3/3 (100%)** | 0/3 |
+| Avg rubric score | **10.0/10** | 6.8/10 |
+
+### Recovery after a context wipe
+
+> **Internal benchmark, v1 (2026-07-06).** Author-run against v3.4.0, harness-authored tasks, deterministic grading, no LLM grades anything. Treat it as the project's own measurement, not an independent comparison. Full method, arms, disclosed limits, and grader validation: [docs/evals.md](docs/evals.md#test-5-competitive-benchmark-v1-seven-planning-methods-head-to-head-2026-07-06-internal).
+
+Protocol: the session is hard-stopped at roughly half done, and a fresh session is told only "Continue the work in this directory." Every graded run across every arm ended pytest-green (77/77), so the difference is re-orientation cost, not correctness.
+
+<p align="center">
+  <img src="media/recovery-turns.svg" width="860" alt="Turns to resume after a context wipe, internal benchmark v1: 5.0 with planning-with-files, 13.3 for a raw agent with no planning method">
+</p>
+
+**With the planning files on disk, a resume took 5.0 turns on average; a raw agent took 13.3.** Session catchup plus hook injection put phase state in front of the model before its first tool call, and the same run found no correctness penalty anywhere. An animated summary lives at [docs/benchmark/index.html](docs/benchmark/index.html) ([rendered view](https://htmlpreview.github.io/?https://github.com/OthmanAdi/planning-with-files/blob/master/docs/benchmark/index.html)).
+
+[Full methodology and results](docs/evals.md) · [Technical write-up](docs/article.md)
 
 ## Quick Install
 
@@ -242,6 +259,67 @@ Copy-Item -Recurse -Path "$env:USERPROFILE\.claude\plugins\cache\planning-with-f
 
 All install methods: [docs/installation.md](docs/installation.md).
 
+
+---
+
+<a id="reference"></a>
+
+## Reference
+
+Everything below is the technical half: how the hooks fire, every command, every supported platform, and the release history.
+
+| | |
+|---|---|
+| [How It Works](#how-it-works) | The hook loop, injection, and session recovery |
+| [Commands](#commands) | All 13 slash commands |
+| [Works across 18+ platforms](#works-across-18-platforms) | Per-IDE setup and discovery paths |
+| [v3 Long-Running Agent Features](#v3-long-running-agent-features) | Modes, the completion gate, attestation, env vars |
+| [Key Rules](#key-rules) · [When to Use](#when-to-use) | The four rules, and when the pattern pays off |
+| [File Structure](#file-structure) | What lands in your project, and the repository layout |
+| [FAQ](#faq) | Context rot, plan mode, agent memory tools |
+| [Releases](#releases) · [Community](#community) | Version history and community forks |
+| [Documentation](#documentation) | Every guide in `docs/` |
+
+## How It Works
+
+The agent stops at the first rung that applies:
+
+```
+1. Task needs 3+ steps or 5+ tool calls?  → create the three files first
+2. Learned something?                     → append it to findings.md
+3. Did something?                         → log it in progress.md
+4. Phase done?                            → check it off in task_plan.md
+5. Context died (/clear, crash)?          → session catchup re-reads all three
+6. Every phase complete?                  → only then does the Stop gate release (gated mode)
+```
+
+Hooks make steps 2 to 6 mechanical rather than optional: 5 lifecycle hooks on Claude Code, 7 on Codex, 8 on Pi re-inject the plan each turn, remind after writes, and check completion before stopping.
+
+```mermaid
+flowchart LR
+    A["agent works"] -->|"writes decisions, findings, errors"| F["task_plan.md<br/>findings.md<br/>progress.md"]
+    F -->|"hooks re-inject the plan<br/>at the start of each turn"| A
+    K["/clear · crash · compaction"] -.->|"wipes the context window"| A
+    F ==>|"session catchup re-reads the files"| R["fresh session resumes<br/>at the current phase"]
+```
+
+### Session Recovery
+
+When your context fills up and you run `/clear`, the skill recovers the previous session automatically:
+
+1. Checks the active IDE's session store for previous session data (`~/.claude/projects/` for Claude Code, `~/.codex/sessions/` for Codex)
+2. Finds when the planning files were last updated
+3. Extracts the conversation that happened after (potentially lost context)
+4. Shows a catchup report so you can sync
+
+**Pro tip:** disable auto-compact to maximize context before clearing:
+
+```json
+{ "autoCompact": false }
+```
+
+Maintainer depth (hook architecture, dispatcher layout, parity tooling) lives in [AGENTS.md](AGENTS.md) and [docs/](docs/).
+
 ## Commands
 
 Slash commands ship with the Claude Code plugin route (see the install matrix above).
@@ -341,56 +419,6 @@ One skill, three integration tiers. Know what your agent gets before you install
 
 </details>
 
-## Why This Skill?
-
-On December 29, 2025, [Meta acquired Manus for $2 billion](https://techcrunch.com/2025/12/29/meta-just-bought-manus-an-ai-startup-everyone-has-been-talking-about/). In just 8 months, Manus went from launch to $100M+ revenue. Their secret? **Context engineering.**
-
-> "Markdown is my 'working memory' on disk. Since I process information iteratively and my active context has limits, Markdown files serve as scratch pads for notes, checkpoints for progress, building blocks for final deliverables."
-> — Manus AI
-
-This skill packages that exact pattern for your coding agent.
-
-### The Manus Principles
-
-| Principle | Implementation |
-|-----------|----------------|
-| Filesystem as memory | Store in files, not context |
-| Attention manipulation | Re-read plan before decisions (hooks) |
-| Error persistence | Log failures in plan file |
-| Goal tracking | Checkboxes show progress |
-| Completion verification | Stop hook checks all phases |
-
-## Benchmark Results
-
-> **Methodology note:** the 96.7% figure comes from the v2.21.0 evaluation run on `claude-sonnet-4-6` (2026-03-06). It measures file-pattern fidelity (does the agent create and maintain the 3-file structure), not goal-drift over long autonomous runs. Newer models and the autonomous-mode work are not yet covered by this number. Full methodology, dataset, and assertion list: [docs/evals.md](docs/evals.md).
-
-Evaluated with Anthropic's [skill-creator](https://github.com/anthropics/skills/tree/main/skills/skill-creator) framework: skill v2.21.0, model `claude-sonnet-4-6`, 2026-03-06. 10 parallel subagents, 5 task types, 30 objectively verifiable assertions, 3 blind A/B comparisons.
-
-<p align="center">
-  <img src="media/benchmark-skill-vs-baseline.svg" width="860" alt="Eval results, with skill vs without: assertions passed 29 of 30 vs 2 of 30, 3-file pattern followed 5 of 5 vs 0 of 5, blind A/B wins 3 of 3 vs 0 of 3, average rubric score 10.0 vs 6.8">
-</p>
-
-| Test | with_skill | without_skill |
-|------|-----------|---------------|
-| Pass rate (30 assertions) | **96.7%** (29/30) | 6.7% (2/30) |
-| 3-file pattern followed | 5/5 evals | 0/5 evals |
-| Blind A/B wins | **3/3 (100%)** | 0/3 |
-| Avg rubric score | **10.0/10** | 6.8/10 |
-
-### Recovery after a context wipe
-
-> **Internal benchmark, v1 (2026-07-06).** Author-run against v3.4.0, harness-authored tasks, deterministic grading, no LLM grades anything. Treat it as the project's own measurement, not an independent comparison. Full method, arms, disclosed limits, and grader validation: [docs/evals.md](docs/evals.md#test-5-competitive-benchmark-v1-seven-planning-methods-head-to-head-2026-07-06-internal).
-
-Protocol: the session is hard-stopped at roughly half done, and a fresh session is told only "Continue the work in this directory." Every graded run across every arm ended pytest-green (77/77), so the difference is re-orientation cost, not correctness.
-
-<p align="center">
-  <img src="media/recovery-turns.svg" width="860" alt="Turns to resume after a context wipe, internal benchmark v1: 5.0 with planning-with-files, 13.3 for a raw agent with no planning method">
-</p>
-
-**With the planning files on disk, a resume took 5.0 turns on average; a raw agent took 13.3.** Session catchup plus hook injection put phase state in front of the model before its first tool call, and the same run found no correctness penalty anywhere. An animated summary lives at [docs/benchmark/index.html](docs/benchmark/index.html) ([rendered view](https://htmlpreview.github.io/?https://github.com/OthmanAdi/planning-with-files/blob/master/docs/benchmark/index.html)).
-
-[Full methodology and results](docs/evals.md) · [Technical write-up](docs/article.md)
-
 ## v3 Long-Running Agent Features
 
 The v3 line adds features aimed at long-running agentic runs. Each one is listed with the command or flag that turns it on. With no mode marker set, the hooks produce the same output as v2.43, so nothing changes for existing setups.
@@ -481,6 +509,8 @@ Every release maintains 18 tracked parity targets plus the gitignored ClawHub up
 
 </details>
 
+<a id="faq"></a>
+
 <details>
 <summary><strong>❓ FAQ</strong></summary>
 
@@ -514,6 +544,8 @@ They are working memory, not a tracked deliverable. `task_plan.md`, `findings.md
 One hook fire measures 289ms wall-clock since the v3.6.0 optimization, down from 2.0 to 2.4 seconds before it, and the injected plan block is KV-cache stable by construction. The plan stays in the attention window every turn, and `/clear` stops being fatal.
 
 </details>
+
+<a id="releases"></a>
 
 <details>
 <summary><strong>📦 Releases</strong></summary>
@@ -588,6 +620,8 @@ One hook fire measures 289ms wall-clock since the v3.6.0 optimization, down from
 > Parallel plan isolation (`.planning/YYYY-MM-DD-slug/` directories) and Codex session isolation shipped in v2.36.0. The `experimental/isolated-planning` branch was the earlier prototype; master is now the canonical location.
 
 </details>
+
+<a id="community"></a>
 
 <details>
 <summary><strong>🌍 What the community shipped</strong></summary>
