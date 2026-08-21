@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.11.1] - 2026-08-21
+
+### Fixed
+- **The Copilot error hook could not be parsed by a POSIX shell (PR #228 by @dylanpulver).** `error-occurred.sh` fed both of its Python helpers with `<<<`, a bash here-string that dash does not implement. `tests/test_planning_disabled_optout.py` invokes the shell hooks as `["sh", script]`, so the `#!/bin/bash` shebang never applied, and on ubuntu runners, where `/bin/sh` is dash, the file died at line 32 with `Syntax error: redirection unexpected`. Master CI had failed on the ubuntu leg for five consecutive runs. Both call sites now pipe with `printf '%s\n'`. The four sibling hooks pipe with `echo`, and that form was deliberately not copied: dash's builtin `echo` expands backslash escapes, so an escaped newline inside an error message would come back as a real control character and `json.load` would reject it, trading a loud parse failure for a silent one. No user was affected, because `.github/hooks/planning-with-files.json` invokes the hook under a `bash` key, which bypasses both the shebang and the exec bit. This is a CI and portability fix.
+- The v3.11.0 changelog entry warning that shell hooks must not emit JSON with `echo` contained two raw newlines of its own, inside the code spans for `\n` and `printf '%s\n'`. The escapes were expanded when the entry was written, which broke both spans across lines.
+
+### Verification
+- The failure was reproduced locally against real dash rather than taken from the report: the pre-fix hook exits 2 with `Syntax error: redirection unexpected` at line 32, matching the ubuntu log verbatim, and the post-fix hook exits 0 and emits valid JSON with the newline escaped as two characters.
+- All five scripts in `.github/hooks/scripts/` were parsed under a POSIX shell. Before the change `error-occurred.sh` was the only one that failed, and after it none do.
+- The reasoning for avoiding `echo` was checked directly. Under dash, `echo` on the raw payload produces a literal newline and `json.load` rejects it with `Invalid control character`, while `printf '%s\n'` round trips.
+- Full Python suite on Windows: 434 passed, 10 skipped, 497 subtests passed.
+
+### Known limitations
+- The four `.gemini/hooks/*.sh` still carry `<<<`. Nothing runs them through `sh`, and `.gemini/settings.json` invokes them by path so their shebang applies, so they are out of scope here. `.gemini` is on the intentionally lagging list and moving it needs its own scope decision.
+
+### Thanks
+- Dylan found this in CI rather than in a bug report, reproduced the ubuntu condition locally instead of guessing at it, and confirmed the suite actually exercises the path by reverting his own change. He also declined the obvious fix: copying the `echo` form used by the four sibling hooks would have made the syntax error disappear while introducing a silent JSON corruption, and he said so in the pull request instead of leaving it to review. The scope note on `.gemini` is accurate on every point (PR #228).
+
 ## [3.11.0] - 2026-08-20
 
 ### Changed
@@ -11,9 +29,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 - The second candidate path in the five language commands pointed at the marketplace clone rather than the running plugin. That clone tracks the default branch while an installed plugin is version-pinned, and it does not exist at all under `CLAUDE_CONFIG_DIR` or the zip-cache route. `${CLAUDE_PLUGIN_ROOT}` is substituted by the loader and is what the repository already uses in command prose.
 - `README.md` still advertised the five variant skill ids as model-invocable, which stops being true once the plugin no longer registers them.
-- **Seven shell hooks could emit JSON with a raw control character on macOS (reported by @dylanpulver).** They build their payload by interpolating a `json.dumps` result and emitting it with `echo`. Under their own `#!/bin/bash` shebang that is correct, but run with `sh` on macOS, where `/bin/sh` is bash in POSIX mode with `xpg_echo` set, `echo` turns the escaped `
-` inside the string back into a real newline and every parser rejects the result. All seven now use `printf '%s
-'`, which never interprets backslashes. Found while rebasing #226, with the one-line repro supplied.
+- **Seven shell hooks could emit JSON with a raw control character on macOS (reported by @dylanpulver).** They build their payload by interpolating a `json.dumps` result and emitting it with `echo`. Under their own `#!/bin/bash` shebang that is correct, but run with `sh` on macOS, where `/bin/sh` is bash in POSIX mode with `xpg_echo` set, `echo` turns the escaped `\n` inside the string back into a real newline and every parser rejects the result. All seven now use `printf '%s\n'`, which never interprets backslashes. Found while rebasing #226, with the one-line repro supplied.
 
 ### Added
 - **`docs/languages.md`.** The five translations had no documentation page of their own: `docs/` carried a setup guide for every supported IDE and nothing for languages, and `docs/installation.md` did not mention them at all. Six lines in the README were the entire discovery path, which mattered less while the plugin auto-registered the variants and is now the only way in. The new page covers the table of names and commands, the install command per language, the repository layout, how the language commands behave on the plugin route, and why the status tokens stay literal English. Linked from the README and from `docs/installation.md`.
