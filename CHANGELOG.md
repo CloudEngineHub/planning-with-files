@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.11.2] - 2026-08-22
+
+### Fixed
+- **The two manual skills-only install commands copied the whole `skills/` directory after the language variants moved under `skills/i18n/` (PR #229 by @dylanpulver).** The Unix and PowerShell instructions now copy only `skills/planning-with-files`, so an English install no longer creates an unusable `~/.claude/skills/i18n/` entry or places the five translations one directory below the paths their commands probe.
+- **A fresh manual install could flatten the canonical skill into `~/.claude/skills/`.** With one source directory and no existing destination, `cp` and `Copy-Item` can create the destination from the source contents, leaving `SKILL.md` directly under `skills/`. Both instructions now create `~/.claude/skills` before copying the canonical skill directory into it.
+
+### Changed
+- `tests/test_plugin_skill_surface.py` now scans tracked Markdown for `cp` or `Copy-Item` commands that copy `skills/*` wholesale. It also locks the destination-creation step before both manual copies and falls back to a filesystem scan when Git is unavailable.
+
+### Verification
+- Required baseline before integration: 434 passed, 10 skipped, and 497 subtests passed.
+- Exact contributor head before the maintainer hardening: 435 passed, 10 skipped, and 497 subtests passed.
+- Amended release candidate: 436 passed, 10 skipped, and 499 subtests passed. GitHub Actions passed on Ubuntu, macOS, and Windows, and the Pi extension Vitest job passed.
+- `sync-ide-folders.py --verify` reports every maintained mirror in sync. `bump-version.py 3.11.2 --dry-run` resolves all 19 present parity targets with zero errors.
+
+### Thanks
+- Dylan traced the regression to the v3.11.0 language-directory move, found the only two whole-directory copy commands in tracked documentation, and added the guard that keeps that install shape out of future docs (PR #229).
+
 ## [3.11.1] - 2026-08-21
 
 ### Fixed
