@@ -86,6 +86,15 @@ class InitSessionSlugTests(unittest.TestCase):
             self.assertEqual(1, len(dirs))
             self.assertTrue(re.match(rf"^{today}-untitled-[a-z0-9]+$", dirs[0].name))
 
+    def test_help_flags_print_usage_without_mutating_planning_state(self) -> None:
+        for flag in ("-h", "--help"):
+            with self.subTest(flag=flag), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                result = self.run_init(root, flag)
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertIn("Usage:", result.stdout)
+                self.assertEqual([], list(root.iterdir()))
+
     def test_template_flag_still_works_in_legacy_mode(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
