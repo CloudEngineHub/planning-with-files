@@ -70,7 +70,7 @@ class PlanRegressionGuardTests(unittest.TestCase):
         shutil.copy2(SCRIPT, self.scripts_dir / "inject-plan.sh")
         self.plan = self.tmp / "task_plan.md"
         # A private HOME keeps the progress marker inside the temp dir, so these
-        # tests never read or write the developer's real ~/.cache/pwf-sha.
+        # tests never read or write the developer's real cache directory.
         self.home = self.tmp / "home"
         self.home.mkdir()
 
@@ -114,7 +114,7 @@ class PlanRegressionGuardTests(unittest.TestCase):
         self.assertIn("lost 2 checked item(s)", warned)
         self.assertIn("2 completed phase(s)", warned)
         # The plan is still injected: the guard is advisory, not a block.
-        self.assertIn("===BEGIN PLAN DATA===", warned)
+        self.assertIn("===BEGIN-PWF-DATA kind=plan nonce=", warned)
         # Second fire against the same content has nothing new to report.
         self.assertNotIn(MARKER, self.fire())
 

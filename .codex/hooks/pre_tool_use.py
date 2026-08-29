@@ -13,7 +13,11 @@ def main() -> None:
     if not adapter.is_session_attached(root, adapter.session_id_from_payload(payload)):
         return
 
-    stdout, stderr = adapter.run_shell_script("pre-tool-use.sh", root)
+    stdout, stderr = adapter.run_shell_script(
+        "pre-tool-use.sh",
+        root,
+        session_id=adapter.session_id_from_payload(payload),
+    )
 
     result = adapter.parse_json(stdout)
     decision = result.get("decision")

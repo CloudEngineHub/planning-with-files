@@ -25,8 +25,17 @@ def main() -> None:
         return
     script_name = sys.argv[1]
     payload = adapter.load_payload()
-    root = adapter.cwd_from_payload(payload)
-    stdout, _ = adapter.run_shell_script(script_name, root)
+    root = adapter.effective_plan_root(adapter.cwd_from_payload(payload))
+    if root is None:
+        return
+    session_id = adapter.session_id_from_payload(payload)
+    if not adapter.is_session_attached(root, session_id):
+        return
+    stdout, _ = adapter.run_shell_script(
+        script_name,
+        root,
+        session_id=session_id,
+    )
     if not stdout:
         return
 

@@ -115,7 +115,7 @@ class SmartInjectionTests(unittest.TestCase):
         # past line 50 of this plan and default injection never carries it.
         result = run_inject(self.tmp)
         self.assertEqual(result.returncode, 0)
-        self.assertIn("===BEGIN PLAN DATA===", result.stdout)
+        self.assertIn("===BEGIN-PWF-DATA kind=plan nonce=", result.stdout)
         self.assertNotIn("### Phase 6: Verify", result.stdout)
 
     def test_smart_carries_active_phase_and_structure(self) -> None:
@@ -134,9 +134,9 @@ class SmartInjectionTests(unittest.TestCase):
         self.assertIn("| d3 | r3 |", out)
         self.assertIn("| d5 | r5 |", out)
         self.assertNotIn("| d1 | r1 |", out)
-        # Delimiter contract unchanged.
-        self.assertIn("===BEGIN PLAN DATA===", out)
-        self.assertIn("===END PLAN DATA===", out)
+        # Canonical data-only frame remains intact around the selected bytes.
+        self.assertIn("===BEGIN-PWF-DATA kind=plan nonce=", out)
+        self.assertIn("===END-PWF-DATA kind=plan nonce=", out)
 
     def test_smart_is_smaller_than_head50_on_late_plan(self) -> None:
         default = run_inject(self.tmp).stdout
@@ -177,7 +177,7 @@ class SmartInjectionTests(unittest.TestCase):
 
 
 @unittest.skipUnless(have_sh(), "requires a POSIX sh")
-class ShaCacheNamespacingTests(unittest.TestCase):
+class ExactSnapshotAttestationTests(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp(prefix="pwf-shakey-"))
         self.cache = self.tmp / "cache"
@@ -207,10 +207,10 @@ class ShaCacheNamespacingTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_two_projects_do_not_share_a_cache_slot(self) -> None:
+    def test_two_projects_are_verified_without_a_digest_cache(self) -> None:
         self._attest(self.proj_a)
         self._attest(self.proj_b)
-        # Force identical mtimes so a shared key would produce a stale hit.
+        # Identical mtimes must never become an attestation trust decision.
         mtime = os.stat(self.proj_a / "task_plan.md").st_mtime
         os.utime(self.proj_a / "task_plan.md", (mtime, mtime))
         os.utime(self.proj_b / "task_plan.md", (mtime, mtime))
@@ -218,14 +218,15 @@ class ShaCacheNamespacingTests(unittest.TestCase):
         env = {"XDG_CACHE_HOME": str(self.cache)}
         out_a = run_inject(self.proj_a, env_extra=env).stdout
         out_b = run_inject(self.proj_b, env_extra=env).stdout
-        self.assertIn("===BEGIN PLAN DATA===", out_a)
+        self.assertIn("===BEGIN-PWF-DATA kind=plan nonce=", out_a)
         self.assertNotIn("TAMPERED", out_a)
         self.assertIn(
-            "===BEGIN PLAN DATA===",
+            "===BEGIN-PWF-DATA kind=plan nonce=",
             out_b,
-            f"project B hit project A's cache slot: {out_b!r}",
+            f"project B failed independent snapshot verification: {out_b!r}",
         )
         self.assertNotIn("TAMPERED", out_b)
+        self.assertFalse((self.cache / "pwf-sha").exists())
 
 
 if __name__ == "__main__":

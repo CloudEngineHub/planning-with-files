@@ -253,7 +253,7 @@ class WindowsNativeCanonicalizerTests(unittest.TestCase):
             result = self.run_with_stub(INJECT_SH, root)
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertIn(
-                "===BEGIN PLAN DATA===",
+                "===BEGIN-PWF-DATA kind=plan nonce=",
                 result.stdout,
                 f"injection must survive backslash canonical paths, got {result.stdout!r}",
             )

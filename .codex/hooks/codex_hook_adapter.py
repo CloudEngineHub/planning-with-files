@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import re
 import shutil
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -11,6 +14,7 @@ from typing import Any
 
 
 HOOK_DIR = Path(__file__).resolve().parent
+_SAFE_LEGACY_SESSION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 
 
 def load_payload() -> dict[str, Any]:
@@ -39,6 +43,56 @@ def session_id_from_payload(payload: dict[str, Any]) -> str | None:
     return env_sid if env_sid else None
 
 
+def canonical_project(root: Path) -> Path | None:
+    try:
+        return root.resolve(strict=True)
+    except (OSError, RuntimeError):
+        return None
+
+
+def canonical_project_identity(root: Path) -> str | None:
+    """Stable project spelling shared with direct shell session fallback."""
+    project = canonical_project(root)
+    if project is None:
+        return None
+    return os.path.normcase(os.path.realpath(os.path.abspath(project))).replace("\\", "/")
+
+
+def state_key(host: str, root: Path, session_id: str) -> str | None:
+    """Opaque, fixed-width key scoped by host, project, and native session."""
+    project = canonical_project_identity(root)
+    if project is None or not session_id:
+        return None
+    digest = hashlib.sha256()
+    for value in (host, project, session_id):
+        encoded = value.encode("utf-8", errors="surrogatepass")
+        digest.update(len(encoded).to_bytes(8, "big"))
+        digest.update(encoded)
+    return digest.hexdigest()
+
+
+def _is_reparse_or_link(path: Path) -> bool:
+    info = path.lstat()
+    if stat.S_ISLNK(info.st_mode):
+        return True
+    attrs = getattr(info, "st_file_attributes", 0)
+    reparse = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+    return bool(attrs & reparse)
+
+
+def _has_reparse_component(path: Path) -> bool:
+    absolute = Path(os.path.abspath(path))
+    current = Path(absolute.anchor)
+    try:
+        for part in absolute.parts[1:]:
+            current /= part
+            if _is_reparse_or_link(current):
+                return True
+    except (OSError, RuntimeError):
+        return True
+    return False
+
+
 def effective_plan_root(cwd: Path) -> Path | None:
     """Resolve the plan root the hooks must read planning state from.
 
@@ -61,7 +115,17 @@ def effective_plan_root(cwd: Path) -> Path | None:
     if not pin:
         return cwd
     pin_path = Path(pin)
-    return pin_path if pin_path.is_dir() else None
+    if not pin_path.is_absolute() or str(pin_path).startswith(("\\\\", "//")):
+        return None
+    try:
+        cwd_real = cwd.resolve(strict=True)
+        pin_real = pin_path.resolve(strict=True)
+        if _has_reparse_component(pin_path) or not pin_real.is_dir():
+            return None
+        pin_real.relative_to(cwd_real)
+    except (OSError, RuntimeError, ValueError):
+        return None
+    return pin_real
 
 
 def is_session_attached(root: Path, session_id: str | None) -> bool:
@@ -74,11 +138,48 @@ def is_session_attached(root: Path, session_id: str | None) -> bool:
     if os.environ.get("PLANNING_DISABLED", "") == "1":
         return False  # issue #195: explicit per-invocation opt-out (one-shot exec/CI)
     sessions_dir = root / ".planning" / "sessions"
-    if not sessions_dir.exists():
+    try:
+        sessions_info = sessions_dir.lstat()
+    except FileNotFoundError:
         return True  # legacy — no sessions dir means single-session setup
+    except OSError:
+        return False
     if not session_id:
         return False  # sessions dir exists but caller has no ID — stay silent
-    return (sessions_dir / f"{session_id}.attached").exists()
+    try:
+        project = canonical_project(root)
+        if (
+            project is None
+            or _is_reparse_or_link(sessions_dir)
+            or not stat.S_ISDIR(sessions_info.st_mode)
+        ):
+            return False
+        sessions_real = sessions_dir.resolve(strict=True)
+        sessions_real.relative_to(project)
+        key = state_key("codex", project, session_id)
+        if key is None:
+            return False
+        candidates = [sessions_real / f"{key}.attached"]
+        if _SAFE_LEGACY_SESSION_ID.fullmatch(session_id):
+            candidates.append(sessions_real / f"{session_id}.attached")
+        for sentinel in candidates:
+            try:
+                sentinel_info = sentinel.lstat()
+                if _is_reparse_or_link(sentinel) or not stat.S_ISREG(sentinel_info.st_mode):
+                    continue
+                sentinel.resolve(strict=True).relative_to(sessions_real)
+                current = sentinel.stat()
+                if (
+                    stat.S_ISREG(current.st_mode)
+                    and (current.st_dev, current.st_ino)
+                    == (sentinel_info.st_dev, sentinel_info.st_ino)
+                ):
+                    return True
+            except (FileNotFoundError, OSError, RuntimeError, ValueError):
+                continue
+        return False
+    except (OSError, RuntimeError, ValueError):
+        return False
 
 
 def emit_json(payload: dict[str, Any]) -> None:
@@ -141,9 +242,24 @@ def _windows_git_bash() -> tuple[str | None, list[str]]:
     return None, []
 
 
-def run_shell_script(script_name: str, cwd: Path, *args: str) -> tuple[str, str]:
+def run_shell_script(
+    script_name: str,
+    cwd: Path,
+    *args: str,
+    session_id: str | None = None,
+) -> tuple[str, str]:
     sh_cmd = "sh"
-    env = None
+    env = os.environ.copy()
+    env["PWF_TRUSTED_PYTHON"] = str(Path(sys.executable).resolve())
+    if session_id:
+        # Native event JSON wins. Ambient PWF_SESSION_ID remains a fallback
+        # only when the caller passed no native session.
+        env["PWF_SESSION_ID"] = session_id
+        key = state_key("codex", cwd, session_id)
+        if key:
+            env["PWF_SESSION_KEY"] = key
+    if os.environ.get("PWF_PLAN_ROOT"):
+        env["PWF_PLAN_ROOT"] = str(cwd)
     if os.name == "nt":
         sh_path, extra_dirs = _windows_git_bash()
         if sh_path is None:
@@ -152,12 +268,11 @@ def run_shell_script(script_name: str, cwd: Path, *args: str) -> tuple[str, str]
             # Windows users to install Git for Windows to enable these hooks.
             return "", ""
         sh_cmd = sh_path
-        env = os.environ.copy()
         if extra_dirs:
             env["PATH"] = os.pathsep.join(extra_dirs) + os.pathsep + env.get("PATH", "")
         # session-catchup.py resolves via $PYTHON_BIN first; hand it the real
         # interpreter so it never falls back to the Store python3.exe stub.
-        env.setdefault("PYTHON_BIN", sys.executable)
+        env["PYTHON_BIN"] = sys.executable
 
     result = subprocess.run(
         [sh_cmd, str(HOOK_DIR / script_name), *args],
@@ -179,4 +294,3 @@ def main_guard(func) -> int:
         print(f"[planning-with-files hook] {exc}", file=sys.stderr)
         return 0
     return 0
-

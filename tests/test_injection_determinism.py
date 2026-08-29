@@ -118,6 +118,7 @@ class SlugFixtureBase(unittest.TestCase):
         self.env = scrubbed_env(
             XDG_CACHE_HOME=str(self.cache_dir),
             HOME=str(self.home_dir),
+            PYTHON_BIN=sys.executable,
         )
         self.plan_dir = self.tmp / ".planning" / self.SLUG
         self.plan_dir.mkdir(parents=True)
@@ -175,7 +176,7 @@ class InjectByteStabilityTests(SlugFixtureBase):
         # trivially equal to itself, so each context must prove it injected.
         markers = {
             "userprompt": "ACTIVE PLAN",
-            "pretool": "PLAN DATA",
+            "pretool": "===BEGIN-PWF-DATA kind=plan nonce=",
             "precompact": "PreCompact",
         }
         for context in CONTEXTS:
@@ -214,7 +215,7 @@ class InjectByteStabilityTests(SlugFixtureBase):
         (self.plan_dir / ".mode").write_text("autonomous\n", encoding="utf-8")
 
         stdout = self.assert_twice_identical("userprompt")
-        self.assertIn("=== ledger summary ===", stdout)
+        self.assertIn("===BEGIN-PWF-DATA kind=progress nonce=", stdout)
         self.assertIn("=== RUN LEDGER ===", stdout)
         # The structured summary REPLACES the raw progress tail (security A1.5).
         self.assertNotIn("RAWPROGRESS", stdout)
@@ -229,7 +230,7 @@ class InjectByteStabilityTests(SlugFixtureBase):
         # Progress churn between tool calls must not perturb it.
         first = self.inject("pretool")
         self.assertEqual(0, first.returncode, first.stderr)
-        self.assertIn("PLAN DATA", first.stdout)
+        self.assertIn("===BEGIN-PWF-DATA kind=plan nonce=", first.stdout)
 
         with (self.plan_dir / "progress.md").open("a", encoding="utf-8") as f:
             f.write("- appended between tool calls\n")
@@ -330,10 +331,10 @@ class NoRawWallClockTests(unittest.TestCase):
 
     def _assert_normalized(self, stdout: str, route: str) -> None:
         # Vacuous-pass guard: the route must actually have injected the tail.
-        self.assertIn(
-            "=== recent progress ===",
-            stdout,
-            f"{route}: expected a progress tail in the injected output",
+        self.assertTrue(
+            "=== recent progress ===" in stdout
+            or "===BEGIN-PWF-DATA kind=progress nonce=" in stdout,
+            f"{route}: expected a progress payload in the injected output",
         )
         self.assertNotIn(
             self.RAW_CLOCK,

@@ -29,6 +29,7 @@ Tree used throughout (the reporter's shape):
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import shutil
 import subprocess
@@ -44,7 +45,24 @@ HOOKS_DIR = REPO_ROOT / ".codex" / "hooks"
 PLAN_A_TITLE = "PLAN-ALPHA-PARENT-WORKSPACE"
 PLAN_B_TITLE = "PLAN-BRAVO-NESTED-PROJECT"
 
-SCRUB_VARS = ("PLAN_ID", "PWF_PLAN_ROOT", "PWF_SESSION_ID", "PWF_INJECT", "PLANNING_DISABLED")
+SCRUB_VARS = (
+    "PLAN_ID",
+    "PWF_PLAN_ROOT",
+    "PWF_SESSION_ID",
+    "PWF_SESSION_KEY",
+    "PWF_INJECT",
+    "PLANNING_DISABLED",
+)
+
+
+def session_key(root: Path, session_id: str) -> str:
+    digest = hashlib.sha256()
+    project = os.path.normcase(os.path.realpath(os.path.abspath(root))).replace("\\", "/")
+    for value in ("codex", project, session_id):
+        encoded = value.encode("utf-8", errors="surrogatepass")
+        digest.update(len(encoded).to_bytes(8, "big"))
+        digest.update(encoded)
+    return digest.hexdigest()
 
 
 def shell_and_env() -> tuple[str, dict[str, str]]:
@@ -67,7 +85,7 @@ def shell_and_env() -> tuple[str, dict[str, str]]:
         raise unittest.SkipTest("Git for Windows sh.exe is unavailable")
     if extra_path_dirs:
         env["PATH"] = os.pathsep.join([*extra_path_dirs, env.get("PATH", "")])
-    env.setdefault("PYTHON_BIN", sys.executable)
+    env["PWF_TRUSTED_PYTHON"] = sys.executable
     return shell, env
 
 
@@ -151,6 +169,18 @@ class CodexUserPromptSubmitNestedRootTests(NestedTreeMixin):
         self.assertNotIn(PLAN_A_TITLE, result.stdout, "must not fall back to cwd plan")
         self.assertNotIn(PLAN_B_TITLE, result.stdout)
 
+    def test_relative_and_sibling_shell_pins_fail_closed(self) -> None:
+        self.build_tree(nested=True)
+        sibling = self.tmp / "sibling"
+        sibling.mkdir()
+        for pin in ("project", str(sibling)):
+            with self.subTest(pin=pin):
+                result = self._run({"PWF_PLAN_ROOT": pin})
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertIn("PWF_PLAN_ROOT", result.stdout)
+                self.assertNotIn(PLAN_A_TITLE, result.stdout)
+                self.assertNotIn(PLAN_B_TITLE, result.stdout)
+
     # -- 4. explicit PLAN_ID beats the conflict check ----------------------
     def test_valid_plan_id_at_parent_still_injects_despite_nested_plan(self) -> None:
         self.build_tree(nested=True)
@@ -188,7 +218,7 @@ class CodexUserPromptSubmitNestedRootTests(NestedTreeMixin):
         self.build_tree(nested=True)
         sessions = self.workspace / ".planning" / "sessions"
         sessions.mkdir()
-        (sessions / "sess-1.attached").write_text("", encoding="utf-8")
+        (sessions / f"{session_key(self.workspace, 'sess-1')}.attached").write_text("", encoding="utf-8")
         result = self._run({"PWF_SESSION_ID": "sess-1"})
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn(PLAN_A_TITLE, result.stdout)
@@ -274,7 +304,7 @@ class CodexAdapterPlanRootPinTests(NestedTreeMixin):
                 # Valid pin: the pinned root wins.
                 os.environ["PWF_PLAN_ROOT"] = str(self.project)
                 self.assertEqual(
-                    Path(str(self.project)),
+                    self.project.resolve(),
                     adapter.effective_plan_root(self.workspace),
                 )
                 # Broken pin: fail closed.
@@ -284,6 +314,50 @@ class CodexAdapterPlanRootPinTests(NestedTreeMixin):
                 os.environ.pop("PWF_PLAN_ROOT", None)
         finally:
             sys.path.pop(0)
+
+    def test_relative_and_sibling_plan_root_pins_fail_closed(self) -> None:
+        sys.path.insert(0, str(HOOKS_DIR))
+        try:
+            import codex_hook_adapter as adapter
+
+            self.build_tree(nested=True)
+            sibling = self.tmp / "sibling"
+            sibling.mkdir()
+            try:
+                os.environ["PWF_PLAN_ROOT"] = "project"
+                self.assertIsNone(adapter.effective_plan_root(self.workspace))
+                os.environ["PWF_PLAN_ROOT"] = str(sibling)
+                self.assertIsNone(adapter.effective_plan_root(self.workspace))
+            finally:
+                os.environ.pop("PWF_PLAN_ROOT", None)
+        finally:
+            sys.path.pop(0)
+
+    def test_run_sh_valid_pin_uses_nested_effective_root(self) -> None:
+        self.build_tree(nested=True)
+        # run_sh requires the shell script name as argv[1], so exercise it
+        # directly here rather than through run_python_hook's fixed argv.
+        env = os.environ.copy()
+        for var in SCRUB_VARS:
+            env.pop(var, None)
+        env["PWF_PLAN_ROOT"] = str(self.project)
+        result = subprocess.run(
+            [sys.executable, str(HOOKS_DIR / "run_sh.py"), "user-prompt-submit.sh"],
+            input=json.dumps({"cwd": str(self.workspace), "session_id": "sess-x"}),
+            text=True,
+            encoding="utf-8",
+            capture_output=True,
+            cwd=self.workspace,
+            env=env,
+            check=False,
+        )
+        self.assertEqual(0, result.returncode, result.stderr)
+        if os.name == "nt" and not result.stdout.strip():
+            self.skipTest("Git for Windows sh.exe not resolvable on this runner")
+        payload = json.loads(result.stdout)
+        context = payload["hookSpecificOutput"]["additionalContext"]
+        self.assertIn(PLAN_B_TITLE, context)
+        self.assertNotIn(PLAN_A_TITLE, context)
 
     def test_pre_tool_use_broken_pin_is_silent(self) -> None:
         self.build_tree(nested=True)

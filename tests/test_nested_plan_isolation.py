@@ -35,6 +35,7 @@ import hashlib
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -69,11 +70,13 @@ class _WorkspaceFixtureTestCase(unittest.TestCase):
         self.env["CLAUDE_SKILL_DIR"] = str(SKILL_DIR)
         self.env["XDG_CACHE_HOME"] = str(self.cache_dir)
         self.env["HOME"] = str(self.home_dir)
+        self.env["PWF_TRUSTED_PYTHON"] = str(Path(sys.executable).resolve())
         # Scrub every knob the script reads so the host env cannot leak in.
         for var in (
             "PLAN_ID",
             "PWF_PLAN_ROOT",
             "PWF_SESSION_ID",
+            "PWF_SESSION_KEY",
             "PWF_INJECT",
             "PLANNING_DISABLED",
         ):
@@ -122,6 +125,25 @@ class _WorkspaceFixtureTestCase(unittest.TestCase):
             env=env,
             check=False,
         )
+
+    def _session_digest(self, session_id: str) -> str:
+        digest = hashlib.sha256()
+        project = os.path.normcase(os.path.realpath(os.path.abspath(self.workspace))).replace("\\", "/")
+        for value in ("portable", project, session_id):
+            encoded = value.encode("utf-8", errors="surrogatepass")
+            digest.update(len(encoded).to_bytes(8, "big"))
+            digest.update(encoded)
+        return digest.hexdigest()
+
+    def _attach(self, session_id: str) -> None:
+        sessions = self.workspace / ".planning" / "sessions"
+        sessions.mkdir(exist_ok=True)
+        (sessions / f"{self._session_digest(session_id)}.attached").write_text("", encoding="utf-8")
+
+    def _attach_raw(self, session_id: str) -> None:
+        sessions = self.workspace / ".planning" / "sessions"
+        sessions.mkdir(exist_ok=True)
+        (sessions / f"{session_id}.attached").write_text("", encoding="utf-8")
 
 
 class NestedPlanIsolationTests(_WorkspaceFixtureTestCase):
@@ -212,20 +234,121 @@ class NestedPlanIsolationTests(_WorkspaceFixtureTestCase):
     # -- 6. attached session injects ---------------------------------------
     def test_attached_session_injects_plan(self) -> None:
         self.build_tree(nested=False)
-        sessions = self.workspace / ".planning" / "sessions"
-        sessions.mkdir()
-        (sessions / "sess-1.attached").write_text("", encoding="utf-8")
+        self._attach("sess-1")
         result = self._run("userprompt", env_extra={"PWF_SESSION_ID": "sess-1"})
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn(PLAN_A_TITLE, result.stdout, "attached session must receive the plan")
+
+    def test_safe_legacy_raw_session_sentinel_remains_compatible(self) -> None:
+        self.build_tree(nested=False)
+        session_id = "Legacy_1.safe-raw"
+        self._attach_raw(session_id)
+
+        result = self._run("userprompt", env_extra={"PWF_SESSION_ID": session_id})
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn(PLAN_A_TITLE, result.stdout)
+
+    def test_legacy_raw_session_id_length_boundary_is_exact(self) -> None:
+        self.build_tree(nested=False)
+        accepted = "a" * 128
+        rejected = "b" * 129
+        self._attach_raw(accepted)
+        self._attach_raw(rejected)
+
+        accepted_result = self._run("userprompt", env_extra={"PWF_SESSION_ID": accepted})
+        rejected_result = self._run("userprompt", env_extra={"PWF_SESSION_ID": rejected})
+
+        self.assertIn(PLAN_A_TITLE, accepted_result.stdout)
+        self.assertNotIn(PLAN_A_TITLE, rejected_result.stdout)
+
+    def test_hostile_control_id_raw_sentinel_is_rejected_but_digest_works(self) -> None:
+        self.build_tree(nested=False)
+        session_id = "hostile session"
+        self._attach_raw(session_id)
+
+        raw_only = self._run("userprompt", env_extra={"PWF_SESSION_ID": session_id})
+        self.assertNotIn(PLAN_A_TITLE, raw_only.stdout)
+
+        self._attach(session_id)
+        digest_attached = self._run("userprompt", env_extra={"PWF_SESSION_ID": session_id})
+        self.assertIn(PLAN_A_TITLE, digest_attached.stdout)
+
+    def test_path_traversal_id_cannot_use_out_of_directory_raw_sentinel(self) -> None:
+        self.build_tree(nested=False)
+        sessions = self.workspace / ".planning" / "sessions"
+        sessions.mkdir(exist_ok=True)
+        (sessions.parent / "escape.attached").write_text("", encoding="utf-8")
+
+        result = self._run("userprompt", env_extra={"PWF_SESSION_ID": "../escape"})
+
+        self.assertNotIn(PLAN_A_TITLE, result.stdout)
+
+    def test_stale_ambient_session_key_cannot_attach_current_session(self) -> None:
+        self.build_tree(nested=False)
+        stale_id = "old-session"
+        current_id = "current-session"
+        self._attach(stale_id)
+
+        result = self._run(
+            "userprompt",
+            env_extra={
+                "PWF_SESSION_ID": current_id,
+                "PWF_SESSION_KEY": self._session_digest(stale_id),
+            },
+        )
+
+        self.assertNotIn(PLAN_A_TITLE, result.stdout)
+        self.assertIn("Session isolation is armed", result.stdout)
+
+    def test_raw_session_sentinel_symlink_is_rejected_when_supported(self) -> None:
+        self.build_tree(nested=False)
+        session_id = "safe-session"
+        sessions = self.workspace / ".planning" / "sessions"
+        sessions.mkdir(exist_ok=True)
+        outside = self.tmp / "outside-attached"
+        outside.write_text("", encoding="utf-8")
+        try:
+            (sessions / f"{session_id}.attached").symlink_to(outside)
+        except OSError as exc:
+            self.skipTest(f"file symlinks unavailable: {exc}")
+
+        result = self._run("userprompt", env_extra={"PWF_SESSION_ID": session_id})
+
+        self.assertNotIn(PLAN_A_TITLE, result.stdout)
+
+    @unittest.skipUnless(os.name == "nt", "Windows junction containment contract")
+    def test_sessions_directory_junction_redirection_is_rejected(self) -> None:
+        self.build_tree(nested=False)
+        session_id = "safe-session"
+        sessions = self.workspace / ".planning" / "sessions"
+        outside = self.tmp / "outside-sessions"
+        outside.mkdir()
+        (outside / f"{session_id}.attached").write_text("", encoding="utf-8")
+        created = subprocess.run(
+            ["cmd.exe", "/d", "/c", "mklink", "/J", str(sessions), str(outside)],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if created.returncode != 0:
+            self.skipTest(f"junction creation unavailable: {created.stderr}")
+        try:
+            result = self._run("userprompt", env_extra={"PWF_SESSION_ID": session_id})
+            self.assertNotIn(PLAN_A_TITLE, result.stdout)
+            self.assertIn("Session isolation is armed", result.stdout)
+        finally:
+            subprocess.run(
+                ["cmd.exe", "/d", "/c", "rmdir", str(sessions)],
+                capture_output=True,
+                check=False,
+            )
 
     def test_attached_session_is_explicit_and_beats_conflict_check(self) -> None:
         # An attached session counts as EXPLICIT resolution: the nested project
         # below does not suppress injection for a deliberately attached thread.
         self.build_tree(nested=True)
-        sessions = self.workspace / ".planning" / "sessions"
-        sessions.mkdir()
-        (sessions / "sess-1.attached").write_text("", encoding="utf-8")
+        self._attach("sess-1")
         result = self._run("userprompt", env_extra={"PWF_SESSION_ID": "sess-1"})
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn(PLAN_A_TITLE, result.stdout)
@@ -238,8 +361,8 @@ class NestedPlanIsolationTests(_WorkspaceFixtureTestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("ACTIVE PLAN", result.stdout)
         self.assertIn(PLAN_A_TITLE, result.stdout)
-        self.assertIn("===BEGIN PLAN DATA===", result.stdout)
-        self.assertIn("===END PLAN DATA===", result.stdout)
+        self.assertIn("===BEGIN-PWF-DATA kind=plan nonce=", result.stdout)
+        self.assertIn("===END-PWF-DATA kind=plan nonce=", result.stdout)
         self.assertNotIn("Ambiguous plan", result.stdout)
 
     def test_nested_planning_without_competing_plan_is_no_conflict(self) -> None:
@@ -381,7 +504,8 @@ class NestedPlanIsolationTests(_WorkspaceFixtureTestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn(PLAN_B_TITLE, result.stdout)
         self.assertNotIn(PLAN_A_TITLE, result.stdout)
-        self.assertIn("=== ledger summary ===", result.stdout)
+        self.assertIn("===BEGIN-PWF-DATA kind=progress nonce=", result.stdout)
+        self.assertIn("=== RUN LEDGER ===", result.stdout)
         self.assertIn(
             "phases: 0/1 complete",
             result.stdout,
@@ -400,10 +524,10 @@ class NestedPlanIsolationTests(_WorkspaceFixtureTestCase):
             "parent's agent events leaked into the pinned thread",
         )
 
-    # -- 12. SHA cache key under a pin: one slot per plan, not per cwd -----
-    def test_pinned_plan_shares_one_cache_slot_across_cwds(self) -> None:
-        # Under a pin PLAN_FILE is already absolute; the old "${PWD}/..." key
-        # handed the same pinned plan a different cache slot from every cwd.
+    # -- 12. Attestation has no reusable digest trust cache ----------------
+    def test_pinned_plan_uses_no_trusted_hash_cache_across_cwds(self) -> None:
+        # Attestation hashes a private snapshot on every fire. Caller cwd must
+        # not create, select, or reuse a digest cache slot.
         self.build_tree(nested=True)
         self._attest_and_arm_child()
         pin = {"PWF_PLAN_ROOT": str(self.project)}
@@ -411,13 +535,10 @@ class NestedPlanIsolationTests(_WorkspaceFixtureTestCase):
         second = self._run("userprompt", env_extra=pin, cwd=self.tmp)
         self.assertIn(PLAN_B_TITLE, first.stdout, first.stdout)
         self.assertIn(PLAN_B_TITLE, second.stdout, second.stdout)
-        slots = list((self.cache_dir / "pwf-sha").iterdir())
-        self.assertEqual(
-            1,
-            len(slots),
-            "an absolute PLAN_FILE must key the SHA cache by itself; per-cwd "
-            f"slots stop identifying the plan: {[s.name for s in slots]}",
-        )
+        self.assertFalse((self.cache_dir / "pwf-sha").exists())
+        snapshots = self.cache_dir / "pwf-snapshots"
+        self.assertTrue(snapshots.is_dir())
+        self.assertEqual([], list(snapshots.iterdir()))
 
 
 class PlanDoctorRefusalStateTests(_WorkspaceFixtureTestCase):
@@ -531,9 +652,7 @@ class TwoThreadSharedParentTests(_WorkspaceFixtureTestCase):
         # The session-attachment arm of the same scenario: two threads, one
         # cwd, distinct session ids, only one attached.
         self.build_tree(nested=False)
-        sessions = self.workspace / ".planning" / "sessions"
-        sessions.mkdir()
-        (sessions / "thread-one.attached").write_text("", encoding="utf-8")
+        self._attach("thread-one")
 
         attached = self._run("userprompt", env_extra={"PWF_SESSION_ID": "thread-one"})
         unattached = self._run("userprompt", env_extra={"PWF_SESSION_ID": "thread-two"})

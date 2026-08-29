@@ -287,14 +287,14 @@ class BsdUserlandSimTests(unittest.TestCase):
             % (result.stdout, result.stderr),
         )
 
-        # 2) Injection, unattested legacy shape: delimiters + plan body +
-        # progress tail, no attestation line, no tamper branch.
+        # 2) Injection, unattested: bounded plan and progress data frames,
+        # no attestation line, no tamper branch.
         result = self.run_script(INJECT_SH)
         self.assertEqual(0, result.returncode, result.stderr)
-        self.assertIn("===BEGIN PLAN DATA===", result.stdout)
-        self.assertIn("===END PLAN DATA===", result.stdout)
+        self.assertIn("===BEGIN-PWF-DATA kind=plan nonce=", result.stdout)
+        self.assertIn("===END-PWF-DATA kind=plan nonce=", result.stdout)
         self.assertIn("# Task: BSD userland sim fixture", result.stdout)
-        self.assertIn("=== recent progress ===", result.stdout)
+        self.assertIn("===BEGIN-PWF-DATA kind=progress nonce=", result.stdout)
         self.assertIn("created fixture", result.stdout)
         self.assertNotIn("TAMPERED", result.stdout)
         self.assertNotIn("Plan-SHA256", result.stdout)
@@ -318,7 +318,7 @@ class BsdUserlandSimTests(unittest.TestCase):
         result = self.run_script(INJECT_SH)
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("Plan-SHA256: %s" % expected, result.stdout)
-        self.assertIn("===BEGIN PLAN DATA===", result.stdout)
+        self.assertIn("===BEGIN-PWF-DATA kind=plan nonce=", result.stdout)
         self.assertNotIn("TAMPERED", result.stdout)
 
         # 5) Ledger appends: tick counter must increment without flock, the
