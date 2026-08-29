@@ -1014,7 +1014,9 @@ if [ "$CONTEXT" = "pretool" ]; then
         case "$PLAN_LINE_COUNT" in ''|*[!0-9]*) PLAN_LINE_COUNT=31 ;; esac
         PLAN_LINE_TRUNCATED=false
         [ "$PLAN_LINE_COUNT" -gt 30 ] && PLAN_LINE_TRUNCATED=true
-        [ "$SMART" = "1" ] && PLAN_LINE_TRUNCATED=true
+        if [ "$SMART" = "1" ] && smart_plan_extract "$PLAN_FILE" >/dev/null 2>&1; then
+            PLAN_LINE_TRUNCATED=true
+        fi
         bounded_view "$RAW_VIEW" 65536 "$PLAN_VIEW" "$PLAN_LINE_TRUNCATED" || exit 0
         rm -f "$RAW_VIEW" 2>/dev/null || :
         RAW_VIEW=""
@@ -1178,7 +1180,9 @@ PLAN_LINE_COUNT=$(awk 'END { print NR + 0 }' "$PLAN_FILE" 2>/dev/null)
 case "$PLAN_LINE_COUNT" in ''|*[!0-9]*) PLAN_LINE_COUNT=51 ;; esac
 PLAN_LINE_TRUNCATED=false
 [ "$PLAN_LINE_COUNT" -gt 50 ] && PLAN_LINE_TRUNCATED=true
-[ "$SMART" = "1" ] && PLAN_LINE_TRUNCATED=true
+if [ "$SMART" = "1" ] && smart_plan_extract "$PLAN_FILE" >/dev/null 2>&1; then
+    PLAN_LINE_TRUNCATED=true
+fi
 bounded_view "$RAW_VIEW" 65536 "$PLAN_VIEW" "$PLAN_LINE_TRUNCATED" || exit 0
 rm -f "$RAW_VIEW" 2>/dev/null || :
 RAW_VIEW=""

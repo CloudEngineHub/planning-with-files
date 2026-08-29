@@ -231,6 +231,30 @@ class CodexSessionIsolationTests(unittest.TestCase):
             self.assertEqual("", result.stdout.strip())
             self.assertFalse(marker.exists())
 
+    def test_no_plan_does_not_execute_supplied_interpreter(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            marker = root / "fake-python-executed"
+            fake = root / "fake-python"
+            fake.write_text(f"#!/bin/sh\nprintf touched > '{marker.as_posix()}'\n", encoding="utf-8")
+            fake.chmod(0o755)
+            env = {
+                **self.shell_env("sess-A"),
+                "PWF_TRUSTED_PYTHON": str(fake),
+            }
+            result = subprocess.run(
+                ["sh", str(HOOKS_DIR / "user-prompt-submit.sh")],
+                cwd=root,
+                text=True,
+                encoding="utf-8",
+                capture_output=True,
+                env=env,
+                check=False,
+            )
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual("", result.stdout.strip())
+            self.assertFalse(marker.exists())
+
     def test_windows_drive_relative_and_unc_interpreters_are_rejected(self) -> None:
         if os.name != "nt":
             self.skipTest("Windows path classification")

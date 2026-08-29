@@ -7,8 +7,8 @@
 
 HOOK_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
 
-trusted_python() {
-    _tp_candidate="${PWF_TRUSTED_PYTHON:-${PYTHON_BIN:-}}"
+validate_python_candidate() {
+    _tp_candidate="$1"
     case "$_tp_candidate" in
         //*) return 1 ;;
         [A-Za-z]:[\\/]*)
@@ -19,7 +19,27 @@ trusted_python() {
         *) return 1 ;;
     esac
     [ -f "$_tp_candidate" ] || return 1
+    _tp_lower=$(printf '%s' "$_tp_candidate" | tr '[:upper:]' '[:lower:]')
+    case "$_tp_lower" in
+        */microsoft/windowsapps/*) return 1 ;;
+    esac
+    "$_tp_candidate" -c 'import sys' >/dev/null 2>&1 || return 1
     printf '%s\n' "$_tp_candidate"
+}
+
+trusted_python() {
+    _tp_explicit="${PWF_TRUSTED_PYTHON:-${PYTHON_BIN:-}}"
+    if [ -n "$_tp_explicit" ]; then
+        validate_python_candidate "$_tp_explicit"
+        return $?
+    fi
+    [ "${1:-}" = "explicit" ] && return 1
+    for _tp_name in python3 python; do
+        _tp_found=$(command -v "$_tp_name" 2>/dev/null) || _tp_found=""
+        [ -n "$_tp_found" ] || continue
+        validate_python_candidate "$_tp_found" && return 0
+    done
+    return 1
 }
 
 # --- PWF_PLAN_ROOT: absolute plan-root binding (issue #212). ---
@@ -39,7 +59,7 @@ if [ -n "${PWF_PLAN_ROOT:-}" ]; then
         /*|[A-Za-z]:[\\/]*) ;;
         *) echo "[planning-with-files] PWF_PLAN_ROOT must be an absolute local path; nothing injected."; exit 0 ;;
     esac
-    PIN_PYTHON="$(trusted_python 2>/dev/null)" || PIN_PYTHON=""
+    PIN_PYTHON="$(trusted_python explicit 2>/dev/null)" || PIN_PYTHON=""
     [ -n "$PIN_PYTHON" ] || { echo "[planning-with-files] PWF_PLAN_ROOT could not be validated; nothing injected."; exit 0; }
     PIN_REAL=$("$PIN_PYTHON" -c 'import sys; from pathlib import Path; sys.path.insert(0, sys.argv[1]); import codex_hook_adapter as a; root=a.effective_plan_root(Path.cwd()); print(root or "")' "$HOOK_DIR" 2>/dev/null) || PIN_REAL=""
     [ -n "$PIN_REAL" ] || { echo "[planning-with-files] PWF_PLAN_ROOT must stay within the current workspace; nothing injected."; exit 0; }
@@ -53,6 +73,18 @@ if [ -n "${PWF_PLAN_ROOT:-}" ]; then
     fi
 fi
 
+# Resolve and confirm a contained plan before probing or executing any Python
+# candidate. No-plan hook fires remain shell-only and silent.
+PLAN_DIR="$(sh "${HOOK_DIR}/resolve-plan-dir.sh" 2>/dev/null)"
+if [ -n "$PLAN_DIR" ]; then
+    PLAN_FILE="${PLAN_DIR}/task_plan.md"
+    PROGRESS_FILE="${PLAN_DIR}/progress.md"
+else
+    PLAN_FILE="${PLAN_PREFIX}task_plan.md"
+    PROGRESS_FILE="${PLAN_PREFIX}progress.md"
+fi
+[ -f "$PLAN_FILE" ] || exit 0
+
 # Session isolation: if .planning/sessions/ exists, only attached sessions see
 # plan context. Absence of the sessions dir means legacy single-session mode —
 # all sessions in the cwd receive context to preserve backward compatibility.
@@ -62,12 +94,14 @@ fi
 # three routes say the same thing.
 SESSION_ATTACHED=0
 SESSION_ID="${PWF_SESSION_ID:-}"
-PWF_PYTHON="$(trusted_python 2>/dev/null)" || PWF_PYTHON=""
-if [ -z "$PWF_PYTHON" ]; then
-    [ -e "${PLAN_PREFIX}.planning/sessions" ] || [ -L "${PLAN_PREFIX}.planning/sessions" ] || PWF_SESSION_ADMISSION="legacy"
-    PWF_SESSION_ADMISSION="${PWF_SESSION_ADMISSION:-refused}"
+if [ ! -e "${PLAN_PREFIX}.planning/sessions" ] && [ ! -L "${PLAN_PREFIX}.planning/sessions" ]; then
+    PWF_SESSION_ADMISSION="legacy"
 else
-    PWF_SESSION_ADMISSION=$("$PWF_PYTHON" -c 'import sys; from pathlib import Path; sys.path.insert(0, sys.argv[1]); import codex_hook_adapter as a; root=a.effective_plan_root(Path.cwd());
+    PWF_PYTHON="$(trusted_python 2>/dev/null)" || PWF_PYTHON=""
+    if [ -z "$PWF_PYTHON" ]; then
+        PWF_SESSION_ADMISSION="refused"
+    else
+        PWF_SESSION_ADMISSION=$("$PWF_PYTHON" -c 'import sys; from pathlib import Path; sys.path.insert(0, sys.argv[1]); import codex_hook_adapter as a; root=a.effective_plan_root(Path.cwd());
 if root is None: print("refused")
 else:
     try: (root / ".planning" / "sessions").lstat(); armed=True
@@ -75,6 +109,7 @@ else:
     except OSError: armed=True
     admitted=a.is_session_attached(root, sys.argv[2] or None)
     print("attached" if admitted and armed else ("legacy" if admitted else "refused"))' "$HOOK_DIR" "$SESSION_ID" 2>/dev/null) || PWF_SESSION_ADMISSION="refused"
+    fi
 fi
 case "$PWF_SESSION_ADMISSION" in
     attached) SESSION_ATTACHED=1 ;;
@@ -84,17 +119,6 @@ case "$PWF_SESSION_ADMISSION" in
         exit 0
         ;;
 esac
-
-PLAN_DIR="$(sh "${HOOK_DIR}/resolve-plan-dir.sh" 2>/dev/null)"
-if [ -n "$PLAN_DIR" ]; then
-    PLAN_FILE="${PLAN_DIR}/task_plan.md"
-    PROGRESS_FILE="${PLAN_DIR}/progress.md"
-else
-    # ${PLAN_PREFIX} is empty in the legacy case, so these strings stay
-    # byte-identical to the historical relative shape ("task_plan.md").
-    PLAN_FILE="${PLAN_PREFIX}task_plan.md"
-    PROGRESS_FILE="${PLAN_PREFIX}progress.md"
-fi
 
 # Plan-id safe-identifier check. Pure-sh case patterns; shared shape with
 # resolve-plan-dir.sh, needed below to decide whether PLAN_ID named the plan.
