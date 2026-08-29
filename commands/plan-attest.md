@@ -14,7 +14,8 @@ Steps:
 
 Implementation:
 - On Linux/macOS/Git Bash: `sh ${CLAUDE_PLUGIN_ROOT}/scripts/attest-plan.sh`
-- On Windows PowerShell: `& "$env:USERPROFILE\.claude\skills\planning-with-files\scripts\attest-plan.ps1"`
+- On Windows PowerShell plugin installs: `& "$env:CLAUDE_PLUGIN_ROOT\scripts\attest-plan.ps1"`
+- On Windows PowerShell standalone installs: `& "$env:USERPROFILE\.claude\skills\planning-with-files\scripts\attest-plan.ps1"`
 
 Flags:
 - `--show` — print the currently stored hash and where it lives.
