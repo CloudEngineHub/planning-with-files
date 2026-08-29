@@ -44,6 +44,7 @@ SHARED_SCRIPTS = (
     "set-active-plan.ps1",
     "attest-plan.sh",
     "attest-plan.ps1",
+    "inject-plan.sh",
 )
 
 
@@ -91,6 +92,16 @@ class CanonicalScriptSyncTests(unittest.TestCase):
             "sync-ide-folders.py --verify reported drift. "
             "Run `python scripts/sync-ide-folders.py` from the repo root to fix.\n"
             f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}",
+        )
+
+    def test_codex_and_hermes_context_frames_match(self) -> None:
+        codex = REPO_ROOT / ".codex" / "hooks" / "context_frame.py"
+        hermes = REPO_ROOT / ".hermes" / "plugins" / "planning-with-files" / "context_frame.py"
+        self.assertTrue(codex.is_file(), f"missing Codex framing helper: {codex}")
+        self.assertTrue(hermes.is_file(), f"missing Hermes framing helper: {hermes}")
+        self.assertTrue(
+            filecmp.cmp(codex, hermes, shallow=False),
+            "Codex and Hermes must consume the same bounded framing contract",
         )
 
 

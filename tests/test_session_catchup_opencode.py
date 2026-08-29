@@ -150,7 +150,8 @@ class OpenCodeCatchupTests(unittest.TestCase):
             self.module.opencode_catchup(str(self.project_dir))
         output = buf.getvalue()
         self.assertIn("SESSION CATCHUP DETECTED (IDE: opencode)", output)
-        self.assertIn("ses_old"[:8], output)
+        self.assertIn(self.module.safe_session_label("ses_old"), output)
+        self.assertNotIn("ses_old", output)
         self.assertIn("Tool edit", output, "follow-up edit after plan write should appear in catchup")
 
     def test_catchup_silent_when_no_plan_edit(self) -> None:
