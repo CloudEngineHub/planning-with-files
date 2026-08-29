@@ -1,0 +1,13 @@
+{
+  "name": "planning-with-files",
+  "version": "3.11.2",
+  "description": "Persistent file-based planning for Codex with opt-in lifecycle hooks that survive context loss and compaction.",
+  "author": {
+    "name": "OthmanAdi",
+    "url": "https://github.com/OthmanAdi"
+  },
+  "repository": "https://github.com/OthmanAdi/planning-with-files",
+  "license": "MIT",
+  "skills": "./.agents/skills/",
+  "hooks": "./hooks/codex-hooks.json"
+}

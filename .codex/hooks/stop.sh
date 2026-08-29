@@ -12,6 +12,22 @@ if [ ! -f "$PLAN_FILE" ]; then
     exit 0
 fi
 
+# Codex supports a native Stop continuation decision. Delegate the decision to
+# the existing v3 gate oracle so Codex and skill-frontmatter installs share the
+# same opt-in mode, in_progress, recursion, cap, and stall guards. Outside a
+# gated block the oracle is advisory, and the legacy message below remains the
+# public output for backward compatibility.
+CHECK_COMPLETE="${HOOK_DIR}/../skills/planning-with-files/scripts/check-complete.sh"
+if [ "${1:-}" != "--stop-hook-active" ] && [ -f "${CHECK_COMPLETE}" ]; then
+    GATE_OUTPUT="$(sh "${CHECK_COMPLETE}" --gate "${PLAN_FILE}")"
+    case "${GATE_OUTPUT}" in
+        '{"decision":"block"'*)
+            printf '%s\n' "${GATE_OUTPUT}"
+            exit 0
+            ;;
+    esac
+fi
+
 TOTAL=$(grep -c "### Phase" "$PLAN_FILE" || true)
 COMPLETE=$(grep -cF "**Status:** complete" "$PLAN_FILE" || true)
 IN_PROGRESS=$(grep -cF "**Status:** in_progress" "$PLAN_FILE" || true)

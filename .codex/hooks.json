@@ -26,13 +26,13 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Bash|apply_patch|Edit|Write",
         "hooks": [
           {
             "type": "command",
             "command": "python3 .codex/hooks/pre_tool_use.py 2>/dev/null || python3 \"$HOME/.codex/hooks/pre_tool_use.py\" 2>/dev/null || true",
             "commandWindows": "cmd /c .codex\\hooks\\pwf-hook.cmd pre_tool_use.py",
-            "statusMessage": "Checking plan before Bash"
+            "statusMessage": "Checking plan before tool use"
           }
         ]
       }
@@ -50,13 +50,13 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Bash|apply_patch|Edit|Write",
         "hooks": [
           {
             "type": "command",
             "command": "python3 .codex/hooks/post_tool_use.py 2>/dev/null || python3 \"$HOME/.codex/hooks/post_tool_use.py\" 2>/dev/null || true",
             "commandWindows": "cmd /c .codex\\hooks\\pwf-hook.cmd post_tool_use.py",
-            "statusMessage": "Reviewing Bash against plan"
+            "statusMessage": "Reviewing changes against plan"
           }
         ]
       }
