@@ -32,7 +32,7 @@ Plain markdown, gitignored by default, no runtime state anywhere else. Parallel 
 
 ## The re-injection loop
 
-Files on disk only help if the model actually reads them, so that step is mechanical rather than left to model discipline. A `UserPromptSubmit` hook re-injects the active plan from disk at the start of every turn, wrapped in `===BEGIN PLAN DATA===` and `===END PLAN DATA===` markers. Companion hooks remind the agent to update `progress.md` after writes and check phase completion before stopping. On Claude Code that is 5 lifecycle hooks; Codex runs 7 and Pi runs 8.
+Files on disk only help if the model actually reads them, so that step is mechanical rather than left to model discipline. A `UserPromptSubmit` hook re-injects the active plan from disk at the start of every turn, wrapped in `===BEGIN PLAN DATA===` and `===END PLAN DATA===` markers. Companion hooks remind the agent to update `progress.md` after writes and check phase completion before stopping. The Claude Code plugin runs 6 lifecycle hooks, while its activation-scoped standalone skill runs 5. Codex runs 7 and Pi runs 8.
 
 The loop means the plan is in front of the model by construction, not by hoping the model remembers to re-read it.
 

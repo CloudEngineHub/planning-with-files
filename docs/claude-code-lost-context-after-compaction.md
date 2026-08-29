@@ -20,11 +20,11 @@ findings.md       → research notes and decisions
 progress.md       → session log and test results
 ```
 
-Plain markdown, gitignored by default. Because the files live on the filesystem and not in the transcript, compaction cannot touch them. Claude Code runs 5 lifecycle hooks around them: UserPromptSubmit, PreToolUse, PostToolUse, Stop, and PreCompact.
+Plain markdown, gitignored by default. Because the files live on the filesystem and not in the transcript, compaction cannot touch them. The Claude Code plugin route runs six lifecycle hooks around them: SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop, and PreCompact. A standalone skill install activates the latter five only after the skill is invoked for that session.
 
 ## The PreCompact flush hook
 
-The skill registers a `PreCompact` hook with matcher `*`, so it fires on both manual `/compact` and autoCompact. When `task_plan.md` is present, the hook:
+Both supported routes register a `PreCompact` hook with matcher `*`, so it fires for manual and automatic compaction after the relevant hook route is active. When an active plan is present, the hook:
 
 - reminds the agent to flush in-context progress to `progress.md` before compaction completes
 - prints the active `Plan-SHA256` when the plan is attested, so the post-compaction session can verify it resumes the approved plan
@@ -42,15 +42,9 @@ If the planning files were on disk before the wipe, recovery is mechanical rathe
 
 Scope note: session catchup replays transcript and points at the files; the durable phase state itself comes from reading `task_plan.md`. In the project's internal recovery benchmark (v1, author-run), a fresh session with the files on disk resumed in 5.0 turns on average against 13.3 for a raw agent. Method and disclosed limits: [docs/evals.md](evals.md).
 
-## Can I reduce how often compaction happens?
+## Should I disable automatic compaction?
 
-Yes. Disable auto-compact in Claude Code settings and compact or `/clear` on your own schedule:
-
-```json
-{ "autoCompact": false }
-```
-
-With the planning files on disk this is a safe default, because clearing stops being fatal.
+Keep automatic compaction enabled. `PreCompact` gives the agent a final planning-state reminder, and the plugin route restores the active plan on the post-compaction `SessionStart` event. You can still run `/compact` or `/clear` manually when you want an explicit boundary.
 
 ## Related pages
 

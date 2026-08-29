@@ -6,16 +6,17 @@ Using planning-with-files with [OpenAI Codex](https://developers.openai.com/code
 
 ## Overview
 
-Codex discovers skills from `.codex/skills/` and hooks from `.codex/hooks.json` or `~/.codex/hooks.json`.
+Codex discovers repository skills from `.agents/skills/` and personal skills from `~/.agents/skills/`. It discovers standalone hooks from `.codex/hooks.json` or `~/.codex/hooks.json`.
 
 This integration includes both:
 
-- `.codex/skills/planning-with-files/` for the skill itself
+- `.agents/skills/planning-with-files/` for the canonical standalone skill
 - `.codex/hooks.json` plus `.codex/hooks/` for lifecycle automation
+- `.codex-plugin/plugin.json` plus `hooks/codex-hooks.json` for a cache-safe plugin package
 
 The hook behavior reuses the same shell scripts as the Cursor integration, with a thin Codex adapter layer for the differences in hook protocol. The three shell-backed context events run through `run_sh.py` on every platform so their output is serialized as event-appropriate JSON. On Windows the adapter also resolves Git Bash automatically (see [Windows Support](#windows-support)).
 
-> **Important:** Codex hooks require `hooks = true` in `~/.codex/config.toml`. The older `codex_hooks = true` still works as a deprecated alias.
+Hooks are enabled by default in current Codex. A user or administrator can explicitly disable them with `[features] hooks = false`. New or changed non-managed hooks must still be reviewed and trusted through `/hooks`.
 
 ---
 
@@ -23,17 +24,23 @@ The hook behavior reuses the same shell scripts as the Cursor integration, with 
 
 ### Method 1: Workspace Installation (Recommended)
 
-Share the skill and hooks with your whole team by committing `.codex/` to your repository:
+Share the canonical skill and standalone hooks with your team by committing `.agents/skills/planning-with-files/`, `.codex/hooks.json`, and `.codex/hooks/` to your repository:
 
 ```bash
 # In your project repository
 git clone https://github.com/OthmanAdi/planning-with-files.git /tmp/planning-with-files
 
-# Copy the Codex integration to your repo
-cp -r /tmp/planning-with-files/.codex .
+# Copy the canonical skill
+mkdir -p .agents/skills
+cp -r /tmp/planning-with-files/.agents/skills/planning-with-files .agents/skills/
+
+# Copy the standalone hook integration
+mkdir -p .codex
+cp /tmp/planning-with-files/.codex/hooks.json .codex/hooks.json
+cp -r /tmp/planning-with-files/.codex/hooks .codex/hooks
 
 # Commit to share with team
-git add .codex/
+git add .agents/skills/planning-with-files .codex/hooks.json .codex/hooks
 git commit -m "Add planning-with-files skill for Codex"
 git push
 
@@ -49,9 +56,9 @@ Install just for yourself:
 # Clone the repo
 git clone https://github.com/OthmanAdi/planning-with-files.git /tmp/planning-with-files
 
-# Copy the skill
-mkdir -p ~/.codex/skills
-cp -r /tmp/planning-with-files/.codex/skills/planning-with-files ~/.codex/skills/
+# Copy the canonical skill
+mkdir -p ~/.agents/skills
+cp -r /tmp/planning-with-files/.agents/skills/planning-with-files ~/.agents/skills/
 
 # Copy the hook scripts
 mkdir -p ~/.codex/hooks
@@ -65,29 +72,21 @@ cp /tmp/planning-with-files/.codex/hooks.json ~/.codex/hooks.json
 rm -rf /tmp/planning-with-files
 ```
 
-> **Note:** If you already have a `~/.codex/hooks.json`, do not overwrite it blindly. Merge the `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, and `Stop` entries into your existing file.
+> **Note:** If you already have a `~/.codex/hooks.json`, do not overwrite it blindly. Merge all seven entries: `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PermissionRequest`, `PostToolUse`, `PreCompact`, and `Stop`.
 
-### Enable Hooks in `config.toml`
+### Plugin Package
 
-Ensure your `~/.codex/config.toml` contains:
-
-```toml
-[features]
-hooks = true
-```
-
-If you already have a `[features]` section, add `hooks = true` under it instead of creating a duplicate section. `codex_hooks = true` is still accepted as a deprecated alias for users on older configs.
+The repository also ships a Codex plugin package. Its manifest selects `hooks/codex-hooks.json`, so cached plugin commands resolve only through `${PLUGIN_ROOT}`. Plugin mode and standalone `.codex/hooks.json` mode are alternatives. Do not enable both for the same installation because Codex runs every matching hook from every active source.
 
 ### Verification
 
 ```bash
 codex --version
-codex features list | rg '^(hooks|codex_hooks)\s'
-ls -la ~/.codex/skills/planning-with-files/SKILL.md
+ls -la ~/.agents/skills/planning-with-files/SKILL.md
 ls -la ~/.codex/hooks.json ~/.codex/hooks/
 ```
 
-If neither `hooks` nor the deprecated alias `codex_hooks` appears in `codex features list`, upgrade Codex before troubleshooting the skill.
+Use `/hooks` to review the source, matcher, and resolved command for each loaded hook.
 
 ---
 
@@ -106,10 +105,11 @@ This integration includes the Codex lifecycle hooks used by the adapter:
 |------|--------------|
 | **SessionStart** | Runs `session-catchup.py`, then injects active plan context |
 | **UserPromptSubmit** | Re-injects plan and recent progress on every user message |
-| **PreToolUse** | Re-reads the first 30 lines of `task_plan.md` before Bash |
-| **PostToolUse** | Reminds the agent to update `progress.md` after Bash activity |
+| **PreToolUse** | Refreshes plan context before Bash and direct edit paths |
+| **PermissionRequest** | Adds bounded plan context when Codex is about to request approval |
+| **PostToolUse** | Reminds the agent to update `progress.md` after Bash or direct edits |
 | **PreCompact** | Reminds the agent to flush `progress.md` and `task_plan.md` before compaction |
-| **Stop** | Emits an advisory progress-sync reminder when phases are incomplete (non-blocking since v3.1.0) |
+| **Stop** | Continues once when every opt-in gated-mode condition passes; otherwise emits advisory status and allows the stop |
 
 ### The Three Files
 
@@ -138,7 +138,7 @@ PLANNING_DISABLED=1 codex exec -C <repo> -s read-only '<research prompt>'
 ```
 
 With the variable set, every hook (SessionStart, UserPromptSubmit, PreToolUse,
-PostToolUse, PreCompact, Stop) exits before reading the plan: no context
+PermissionRequest, PostToolUse, PreCompact, Stop) exits before reading the plan: no context
 injection, no follow-up messages, no plan-file writes. PreToolUse still emits
 its `allow` decision so tool calls proceed normally. Interactive sessions in
 the same directory are unaffected. The same variable is honored by the
@@ -172,10 +172,10 @@ With personal installation (`~/.codex/`):
 
 ### Hooks Not Running?
 
-1. Check that `hooks = true` (or the deprecated alias `codex_hooks = true`) is present in `~/.codex/config.toml`
-2. Verify `.codex/hooks.json` or `~/.codex/hooks.json` exists
-3. Restart Codex after adding or changing hooks
-4. Run `codex features list | rg '^(hooks|codex_hooks)\s'`
+1. Check that neither user nor managed configuration explicitly sets `[features] hooks = false`.
+2. Verify `.codex/hooks.json`, `~/.codex/hooks.json`, or an enabled plugin descriptor exists.
+3. Restart Codex after adding or changing hooks.
+4. Review and trust new or changed definitions through `/hooks`.
 
 ### Already Using Other Global Hooks?
 
@@ -187,6 +187,7 @@ Avoid installing the same planning-with-files hooks in both places at once:
 
 - workspace `.codex/hooks.json`
 - global `~/.codex/hooks.json`
+- the planning-with-files Codex plugin
 
 If you enable both, Codex may run both sets of hooks and duplicate the reminders.
 
@@ -200,11 +201,11 @@ Upgrading from v3.10.0 or earlier changes three command definitions in `.codex/h
 
 Hooks run on Windows. Codex reads a per-hook `commandWindows` override from `.codex/hooks.json` on Windows and the POSIX `command` everywhere else. The three shell-backed context events use `run_sh.py` on every platform so Codex receives event-appropriate JSON.
 
-On Windows every hook routes through `.codex\hooks\pwf-hook.cmd`, which finds a real Python (`py -3`, falling back to `python`) and never the Microsoft Store `python3` alias. The four Python hooks run their `.py` entry point directly. The three shell hooks (SessionStart, UserPromptSubmit, PreCompact) route through `run_sh.py`, which locates the Git for Windows `sh.exe` and runs the same shell scripts the macOS/Linux hooks use.
+On Windows every hook routes through `.codex\hooks\pwf-hook.cmd`, which finds a real Python (`py -3`, falling back to `python`) and never the Microsoft Store `python3` alias. Plugin installs use a quote-free PowerShell entry command before that launcher so cache paths containing spaces work with Codex's Windows hook runner. The four Python hooks run their `.py` entry point directly. The three shell hooks (SessionStart, UserPromptSubmit, PreCompact) route through `run_sh.py`, which locates the Git for Windows `sh.exe` and runs the same shell scripts the macOS/Linux hooks use.
 
 Requirements on Windows:
 
-- `hooks = true` in `~/.codex/config.toml` (same as every platform).
+- Hooks must not be explicitly disabled in user or managed configuration.
 - Python reachable through the `py` launcher (installed by the python.org installer) or on PATH as `python`. If you only have `python`, the launcher falls back to it automatically. The Microsoft Store `python3` alias is skipped on purpose.
 - Git for Windows installed, for the three shell-backed hooks. The launcher finds `sh.exe` even when Git's `usr\bin` is not on your PATH, which is the default install layout. Without Git for Windows those three hooks stay silent and the four Python hooks still work.
 

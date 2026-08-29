@@ -134,10 +134,12 @@ A completion-triggered archive step (move `.planning/<slug>/` into an archive di
 
 | Hook | When It Fires | What It Does |
 |------|---------------|--------------|
-| **SessionStart** | When Claude Code session begins | Notifies skill is ready |
-| **PreToolUse** | Before Write/Edit/Bash operations | Reads `task_plan.md` to refresh goals |
-| **PostToolUse** | After Write/Edit operations | Reminds to update phase status |
-| **Stop** | When Claude tries to stop | Verifies all phases are complete |
+| **SessionStart** | When a Claude Code plugin session begins | Quietly restores the active plan; emits nothing when no plan is active |
+| **PreToolUse** | Before matched tool operations | Refreshes the active plan context |
+| **PostToolUse** | After matched write operations | Reminds the agent to update phase status |
+| **Stop** | When the host tries to stop | Applies the opt-in gate only when every gate condition is satisfied |
+
+The Claude plugin registers these lifecycle hooks at startup. A standalone Claude skill install has no `SessionStart`; its frontmatter hooks become active only after the skill is invoked for that session.
 
 ### The 2-Action Rule
 

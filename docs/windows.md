@@ -21,15 +21,14 @@ Then install the skill:
 /plugin install planning-with-files@planning-with-files
 ```
 
-### Manual Installation
+### Local Plugin Development
 
 ```powershell
-# Create plugins directory
-mkdir -p $env:USERPROFILE\.claude\plugins
-
-# Clone the repository
-git clone https://github.com/OthmanAdi/planning-with-files.git $env:USERPROFILE\.claude\plugins\planning-with-files
+git clone https://github.com/OthmanAdi/planning-with-files.git
+claude --plugin-dir .\planning-with-files
 ```
+
+`--plugin-dir` is session-only. Marketplace installs are managed by Claude Code under `%USERPROFILE%\.claude\plugins\cache\`; do not clone into or edit that cache.
 
 ### Skills Only
 
@@ -46,8 +45,8 @@ Copy-Item -Recurse planning-with-files\skills\planning-with-files $env:USERPROFI
 | Unix/macOS | Windows |
 |------------|---------|
 | `~/.claude/skills/` | `%USERPROFILE%\.claude\skills\` |
-| `~/.claude/plugins/` | `%USERPROFILE%\.claude\plugins\` |
-| `.claude/plugins/` | `.claude\plugins\` |
+| `~/.claude/plugins/cache/` | `%USERPROFILE%\.claude\plugins\cache\` |
+| Local checkout passed to `--plugin-dir` | Any explicit Windows path, including paths with spaces |
 
 ---
 
@@ -84,7 +83,7 @@ Copy-Item templates\progress.md .
 
 ## Hook Commands
 
-The hooks use Unix-style commands. On Windows with Claude Code:
+Claude Code plugin hooks use the cache-safe `${CLAUDE_PLUGIN_ROOT}` and a Unix-compatible shell. On Windows:
 
 - Hooks run in a Unix-compatible shell environment
 - Commands like `cat`, `head`, `echo` work automatically

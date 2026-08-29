@@ -293,7 +293,7 @@ The agent stops at the first rung that applies:
 6. Every phase complete?                  → only then does the Stop gate release (gated mode)
 ```
 
-Hooks make steps 2 to 6 mechanical rather than optional: 5 lifecycle hooks on Claude Code, 7 on Codex, 8 on Pi re-inject the plan each turn, remind after writes, and check completion before stopping.
+Hooks make steps 2 to 6 mechanical rather than optional: the Claude Code plugin runs 6 lifecycle hooks, its activation-scoped standalone skill runs 5, Codex runs 7, and Pi runs 8. Together they re-inject the plan each turn, remind after writes, and check completion before stopping.
 
 ```mermaid
 flowchart LR
@@ -305,18 +305,14 @@ flowchart LR
 
 ### Session Recovery
 
-When your context fills up and you run `/clear`, the skill recovers the previous session automatically:
+On the Claude plugin route, startup, resume, clear, and post-compaction lifecycle events restore the active plan automatically. Standalone skill installs recover after the skill is invoked for that session:
 
 1. Checks the active IDE's session store for previous session data (`~/.claude/projects/` for Claude Code, `~/.codex/sessions/` for Codex)
 2. Finds when the planning files were last updated
 3. Extracts the conversation that happened after (potentially lost context)
 4. Shows a catchup report so you can sync
 
-**Pro tip:** disable auto-compact to maximize context before clearing:
-
-```json
-{ "autoCompact": false }
-```
+Keep automatic compaction enabled. The `PreCompact` hook flushes the planning reminder before compaction, and the plugin `SessionStart` path restores the active plan for the continuation.
 
 Maintainer depth (hook architecture, dispatcher layout, parity tooling) lives in [AGENTS.md](AGENTS.md) and [docs/](docs/).
 
@@ -452,8 +448,8 @@ The v3 line adds features aimed at long-running agentic runs. Each one is listed
 
 | Platform | Lifecycle hooks | Where registered |
 |----------|-----------------|------------------|
-| Claude Code | 5: UserPromptSubmit, PreToolUse, PostToolUse, Stop, PreCompact | The skill's `SKILL.md` frontmatter (not `plugin.json`), so they ship with the bundled skill |
-| Codex CLI | 7: SessionStart, UserPromptSubmit, PreToolUse, PermissionRequest, PostToolUse, PreCompact, Stop | `.codex/hooks.json`, with event-aware adapters on every platform and `commandWindows` on Windows |
+| Claude Code | 6: SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, PreCompact, Stop | Plugin installs use `hooks/hooks.json` with cache-safe `${CLAUDE_PLUGIN_ROOT}` paths. Standalone skill hooks are activation-scoped and have no SessionStart. |
+| Codex CLI | 7: SessionStart, UserPromptSubmit, PreToolUse, PermissionRequest, PostToolUse, PreCompact, Stop | Workspace installs use `.codex/hooks.json`; the Codex plugin selects `hooks/codex-hooks.json` and resolves through `${PLUGIN_ROOT}`. Both routes use `commandWindows` on Windows. |
 | Pi | 8 lifecycle handlers in the bundled extension | The injection and recitation handlers stay passive until `/plan-execute` |
 
 Pi runtime modes:
