@@ -24,6 +24,9 @@
       "extensions/planning-with-files/index.ts"
     ]
   },
+  "scripts": {
+    "prepack": "node scripts/verify-shell-line-endings.mjs"
+  },
   "files": [
     "README.md",
     "SKILL.md",
