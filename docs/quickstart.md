@@ -18,6 +18,9 @@ If you invoke the skill without a task description, the AI will ask you what you
 
 **Manual alternative:** If you prefer to create files yourself:
 ```bash
+# List the available options without creating files or changing the active plan
+./scripts/init-session.sh --help
+
 # Use the init script
 ./scripts/init-session.sh
 # Then fill in the Goal section in task_plan.md

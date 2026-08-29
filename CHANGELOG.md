@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- **Direct `-h` and `--help` queries created and activated plans (PR #233 by @lowmiaq-gmail, fixes #232).** `init-session.sh` had no help branch, so both flags fell through to `PROJECT_NAME`, enabled slug mode, created three planning files, and replaced `.planning/.active_plan`. Both direct flags now print usage and return successfully before any filesystem initialization.
+- **The npm release path could pack CRLF shell scripts from a stale Windows working tree (fixes #231, reported by @mfehlhaber).** Source attributes and repository tests protected Git bytes but did not inspect the tarball that npm actually publishes. The package now runs a dependency-free `prepack` verifier that fails on any carriage-return byte instead of rewriting files, and a regression builds the real archive and checks the complete shell-script inventory. The current npm `3.11.2` artifact is LF-clean; the new gate prevents the `3.10.2` failure from recurring.
+
+### Changed
+- `docs/quickstart.md` now shows how to inspect the initialization options without creating files or changing the active plan.
+- The npm archive includes the verifier referenced by its own `prepack` lifecycle, so repacking an installed package retains the same fail-closed check.
+
+### Thanks
+- @lowmiaq-gmail supplied the minimal state-mutation reproduction, the direct POSIX-shell fix, and regression coverage for both help flags in PR #233.
+- @mfehlhaber separated clean repository source from the broken npm artifact, identified the exact six CRLF scripts, and traced Pi's generic attestation failure back to the swallowed shell error in issue #231.
+
 ## [3.11.2] - 2026-08-22
 
 ### Fixed

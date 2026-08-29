@@ -106,6 +106,10 @@ These amazing people have contributed code, documentation, or significant improv
 
 ### Other Contributors
 
+- **[@lowmiaq-gmail](https://github.com/lowmiaq-gmail)** - [PR #233](https://github.com/OthmanAdi/planning-with-files/pull/233) / [Issue #232](https://github.com/OthmanAdi/planning-with-files/issues/232)
+  - Reported that direct help flags were parsed as project names, then supplied a focused POSIX-shell fix and regression covering both `-h` and `--help` against an empty working directory
+  - **Impact:** Direct help queries print usage and return successfully without creating planning files or replacing `.planning/.active_plan`
+
 - **[@webwww123](https://github.com/webwww123)** - [Issue #212](https://github.com/OthmanAdi/planning-with-files/issues/212)
   - Reported that a Codex thread whose cwd is a shared parent injects an unrelated nested project's plan on every hook fire, with a working reproduction, a correct trace of the `PLAN_ID` to `.active_plan` to newest-by-mtime chain, and the observation that the Agent Skills route never received the session-attachment mechanism the `.codex` hooks got in #146
   - **Impact:** v3.9.0 adds `PWF_PLAN_ROOT` for an absolute plan root binding that a cwd relative slug could not express, refuses to inject on an ambiguous cwd instead of guessing, and moves all eleven stale hook bearing SKILL.md variants onto the hardened dispatcher. Verifying the report also exposed that `PLANNING_DISABLED=1` was inoperative on those eleven routes, that the Stop hook could never find its script on six hosts, and that eight shipped PowerShell scripts could not be parsed by Windows PowerShell 5.1 at all
@@ -370,7 +374,7 @@ Thank you to everyone who reported issues, provided feedback, and helped test fi
 - [@popey](https://github.com/popey) (Alan Pope) - [PR #215](https://github.com/OthmanAdi/planning-with-files/pull/215) (bumped the pinned Tessl action SHA past a migration that had silently stopped reviews from running; the range it moves across also closes a marker-spoofing hole in the commit this repo had been pinned to)
 - [@SomSamantray](https://github.com/SomSamantray) (Som Samantray) - [PR #216](https://github.com/OthmanAdi/planning-with-files/pull/216) (audited the language variants against the canonical skill and proved the drift issue #130 predicted: 12 missing scripts, a missing Windows UTF-8 fix, and sync tooling that covered only 3 dispatch targets; that analysis is what v3.10.0 acted on, closing the gap additively instead of by deletion)
 - [@marcmuon](https://github.com/marcmuon) (Marc Kelechava) - Issue #195 (one-shot `codex exec` sessions sharing a cwd with an incomplete plan got hijacked and mutated orchestrator-owned plan files; the report's reproductions, root-cause file list, and acceptance criteria shipped directly as the `PLANNING_DISABLED=1` opt-out in v3.4.0)
-- [@mfehlhaber](https://github.com/mfehlhaber): Issue #220 (identified that the Codex POSIX `SessionStart` and `UserPromptSubmit` routes bypassed the JSON adapter, causing planning context beginning with `[` to be rejected as invalid event JSON; fixed in v3.10.1)
+- [@mfehlhaber](https://github.com/mfehlhaber): Issue #220 (identified that the Codex POSIX `SessionStart` and `UserPromptSubmit` routes bypassed the JSON adapter, causing planning context beginning with `[` to be rejected as invalid event JSON; fixed in v3.10.1), Issue #231 (traced Pi's generic attestation failure to six CRLF shell scripts in the npm `3.10.2` tarball, separated the clean repository source from the broken package artifact, and identified the missing package-time validation boundary)
 
 - [@Whxuan0701](https://github.com/Whxuan0701) (WeiHaoxuan) - [PR #223](https://github.com/OthmanAdi/planning-with-files/pull/223), [PR #222](https://github.com/OthmanAdi/planning-with-files/pull/222), [PR #224](https://github.com/OthmanAdi/planning-with-files/pull/224) (found that the `PLANNING_DISABLED=1` opt-out from #195 had never reached any of the ten GitHub Copilot hook entry points, that the #191 zero-phase guard was missing from the Copilot PowerShell stop hook, and that the Hermes determinism probe hardcoded `python` so it could not run where only `python3` exists; three single-commit PRs, each with a test that executes the real script. Auditing them surfaced three further defects fixed in the same release: the Cursor route had the same opt-out gap across all eight of its hooks, the disabled `PreToolUse` branch was widening Copilot's permissions rather than staying neutral, and `error-occurred.ps1` had never logged an error on Windows because it read stdin into PowerShell's automatic `$input` variable)
 
@@ -403,6 +407,6 @@ If you've contributed and don't see your name here, please open an issue! We wan
 
 ---
 
-**Total Contributors:** 54+ and growing!
+**Total Contributors:** 55+ and growing!
 
-*Last updated: August 22, 2026*
+*Last updated: August 29, 2026*
