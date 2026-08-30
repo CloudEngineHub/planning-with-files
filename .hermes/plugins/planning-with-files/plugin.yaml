@@ -1,5 +1,5 @@
 name: planning-with-files
-version: 0.1.0
+version: 0.1.1
 description: Hermes adapter for persistent project planning and selected context injection. Explicit catchup modes read same-project local session records for aggregate counts or bounded replay. Status controls are advisory. No network upload path.
 author: planning-with-files contributors
 provides_tools:

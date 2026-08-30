@@ -4,13 +4,36 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [3.12.0] - 2026-08-30
+
+### Security
+- **Automatic catchup no longer reads host transcript or session stores.** SessionStart and other automatic callers now pass `--no-history` explicitly. A user must select `--metadata` to obtain same-project aggregate counts or `--replay` to obtain bounded same-project excerpts. Metadata output excludes transcript text, tool commands, errors, raw paths, and raw session identifiers. Replay remains nonce-framed as untrusted data and quarantines records that cannot be bound to the current project.
+- **Phase status updates no longer proceed after lock acquisition fails.** Shell and PowerShell writers use the same stable directory lock, retry for a bounded interval, perform phase checks while holding the lock, and return nonzero without reading or writing status when the lock remains unavailable. Lock cleanup is limited to the owner that created it.
+- Project context resolution preserves direct-hook compatibility while refusing cross-project recovery data and ambiguous project identity. These protections now apply across the Claude, Codex, Copilot, Gemini, Pi, Agent Skills, custom-adapter, and translated catchup paths.
+- Install-facing planning templates contain no hidden HTML instructions. Operational guidance is visible, and Markdown content is treated as user-controlled project data rather than executable authority.
+
+### Added
+- First-class Claude and Codex plugin lifecycle surfaces, including cache-safe hook activation and complete Codex plugin operations.
+- `scripts/build-clawhub-upload.py` rebuilds the complete gitignored ClawHub stage from the tracked canonical inventory and verifies exact file, byte, line-ending, and containment parity before manual upload.
+
 ### Fixed
+- The Codex plugin manifest is now part of the release version parity set, bringing the maintained set to 19 tracked targets plus the optional local ClawHub stage.
 - **Direct `-h` and `--help` queries created and activated plans (PR #233 by @lowmiaq-gmail, fixes #232).** `init-session.sh` had no help branch, so both flags fell through to `PROJECT_NAME`, enabled slug mode, created three planning files, and replaced `.planning/.active_plan`. Both direct flags now print usage and return successfully before any filesystem initialization.
 - **The npm release path could pack CRLF shell scripts from a stale Windows working tree (fixes #231, reported by @mfehlhaber).** Source attributes and repository tests protected Git bytes but did not inspect the tarball that npm actually publishes. The package now runs a dependency-free `prepack` verifier that fails on any carriage-return byte instead of rewriting files, and a regression builds the real archive and checks the complete shell-script inventory. The current npm `3.11.2` artifact is LF-clean; the new gate prevents the `3.10.2` failure from recurring.
 
 ### Changed
+- Capability descriptions now disclose selected project-context injection, explicit same-project local-record modes, optional completion gating where the host supports it, and the absence of a network upload path. Adapter-specific descriptions do not claim capabilities their host does not provide.
+- Planning templates use visible guidance and describe the executable gate accurately. The gate reads mode, phase state, stop state, and ledger progress; it does not execute commands or treat `AcceptanceCheck`, `DependsOn`, ownership, or model-routing fields as runtime authority.
+- The bundled Pi extension moves to 1.2.4, the Kiro adapter moves to 3.0.1-kiro, and the Hermes plugin moves to 0.1.1 for their changed runtime or distribution surfaces.
 - `docs/quickstart.md` now shows how to inspect the initialization options without creating files or changing the active plan.
 - The npm archive includes the verifier referenced by its own `prepack` lifecycle, so repacking an installed package retains the same fail-closed check.
+
+### Verification
+- Full Python suite: 592 passed, 24 skipped, and 766 subtests passed.
+- Security and distribution integration suite: 210 passed, 4 skipped, and 656 subtests passed.
+- Pi extension 1.2.4: 48 Vitest tests passed across 3 files.
+- Version parity, frontmatter, and ClawHub builder suite: 24 tests passed. The complete ClawHub stage contains 29 canonical files with no hidden HTML instructions, stale scanner phrases, cache artifacts, or carriage-return bytes in shipped scripts.
+- `sync-ide-folders.py --verify`, `build-clawhub-upload.py --verify`, `bump-version.py 3.12.0 --dry-run`, the npm package dry run, and repository diff checks passed.
 
 ### Thanks
 - @lowmiaq-gmail supplied the minimal state-mutation reproduction, the direct POSIX-shell fix, and regression coverage for both help flags in PR #233.
