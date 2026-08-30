@@ -67,7 +67,7 @@ emit_session_start() {
     # discoverable yet non-functional. Unix hosts fall through to python3.
     _python=$(command -v python 2>/dev/null || command -v python3 2>/dev/null || true)
     if [ -n "$_python" ] && [ -f "$SESSION_CATCHUP" ]; then
-        _catchup=$("$_python" "$SESSION_CATCHUP" "$PWD" 2>/dev/null) || _catchup=""
+        _catchup=$("$_python" "$SESSION_CATCHUP" --no-history "$PWD" 2>/dev/null) || _catchup=""
     fi
     _context=$(sh "$INJECT_PLAN" --context=userprompt 2>/dev/null) || exit 0
     if [ -n "$_catchup" ] && [ -n "$_context" ]; then

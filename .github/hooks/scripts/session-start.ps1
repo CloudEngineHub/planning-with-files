@@ -1,5 +1,5 @@
 ﻿# planning-with-files: Session start hook for GitHub Copilot (PowerShell)
-# When task_plan.md exists: runs session-catchup or reads plan header.
+# When task_plan.md exists: uses zero-history catchup, then reads the plan header.
 # When task_plan.md doesn't exist: injects SKILL.md so Copilot knows the planning workflow.
 # Always exits 0 — outputs JSON to stdout.
 
@@ -17,12 +17,12 @@ $PlanFile = "task_plan.md"
 $SkillDir = ".github/skills/planning-with-files"
 
 if (Test-Path $PlanFile) {
-    # Plan exists — try session catchup, fall back to reading plan header
+    # Plan exists: keep catchup zero-history, then read the plan header.
     $Catchup = ""
     if (Test-Path "$SkillDir/scripts/session-catchup.py") {
         try {
             $PythonCmd = if (Get-Command python3 -ErrorAction SilentlyContinue) { "python3" } else { "python" }
-            $Catchup = & $PythonCmd "$SkillDir/scripts/session-catchup.py" (Get-Location).Path 2>$null
+            $Catchup = & $PythonCmd "$SkillDir/scripts/session-catchup.py" --no-history (Get-Location).Path 2>$null
         } catch {
             $Catchup = ""
         }

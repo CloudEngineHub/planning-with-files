@@ -121,14 +121,21 @@ class ClaudePluginLauncherTests(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual("", result.stdout)
 
-    def test_session_start_runs_catchup_before_injection_and_escapes_json(self) -> None:
+    def test_session_start_uses_no_history_catchup_before_injection(self) -> None:
         (self.project / "task_plan.md").write_text("# Claude plan\n", encoding="utf-8")
         self._write_script("resolve-plan-dir.sh", "#!/bin/sh\npwd\n")
         self._write_script(
             "inject-plan.sh",
             "#!/bin/sh\nprintf 'Windows C:\\\\Users\\\\name\\tbad\\rvalue\\nsecond'\n",
         )
-        self._write_script("session-catchup.py", "print('CATCHUP FIRST')\n")
+        self._write_script(
+            "session-catchup.py",
+            "import sys\n"
+            "assert '--no-history' in sys.argv\n"
+            "assert '--metadata' not in sys.argv\n"
+            "assert '--replay' not in sys.argv\n"
+            "print('CATCHUP FIRST')\n",
+        )
 
         result = self._run("session-start")
 

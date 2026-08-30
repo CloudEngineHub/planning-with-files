@@ -22,7 +22,9 @@ import sys
 import tempfile
 import time
 import unittest
+from contextlib import ExitStack
 from pathlib import Path
+from unittest import mock
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ROOT_SCRIPT = REPO_ROOT / "scripts" / "session-catchup.py"
@@ -178,14 +180,18 @@ class CrossProjectGuardTests(unittest.TestCase):
 class CrossProjectGuardEndToEndTests(unittest.TestCase):
     """Run the real script against a store shared by two projects."""
 
-    def _run(self, home: Path, project: str) -> str:
+    def _run(self, home: Path, project: str, *, mode: str | None = None) -> str:
         env = dict(os.environ)
         env["HOME"] = str(home)
         env["USERPROFILE"] = str(home)
         env["PYTHONIOENCODING"] = "utf-8"
         env.pop("OPENCODE_DATA_DIR", None)
+        args = [sys.executable, str(ROOT_SCRIPT)]
+        if mode:
+            args.append(f"--{mode}")
+        args.append(project)
         proc = subprocess.run(
-            [sys.executable, str(ROOT_SCRIPT), project],
+            args,
             capture_output=True, text=True, env=env, timeout=60,
         )
         return proc.stdout + proc.stderr
@@ -200,7 +206,7 @@ class CrossProjectGuardEndToEndTests(unittest.TestCase):
             write_session(store, "a.jsonl", DONOR, CANARY)
             write_session(store, "b.jsonl", DONOR, CANARY + "_SECOND")
 
-            output = self._run(home, VICTIM)
+            output = self._run(home, VICTIM, mode="replay")
             self.assertNotIn(
                 CANARY, output,
                 "catchup disclosed another project's conversation",
@@ -223,7 +229,7 @@ class CrossProjectGuardEndToEndTests(unittest.TestCase):
             time.sleep(0.05)
             write_session(store, "c.jsonl", VICTIM, "MY_LATEST_TURN")
 
-            output = self._run(home, VICTIM)
+            output = self._run(home, VICTIM, mode="replay")
             self.assertNotIn(CANARY, output)
             self.assertIn(
                 "MY_OWN_PLANNING_NOTE", output,
@@ -243,12 +249,39 @@ class CrossProjectGuardEndToEndTests(unittest.TestCase):
             write_session(store, "b.jsonl", VICTIM, hostile)
             time.sleep(0.05)
             write_session(store, "c.jsonl", VICTIM, "latest turn")
-            output = self._run(home, VICTIM)
+            output = self._run(home, VICTIM, mode="replay")
             self.assertIn(hostile, output)
             begins = output.count("===BEGIN-PWF-DATA kind=transcript nonce=")
             ends = output.count("===END-PWF-DATA kind=transcript nonce=")
             self.assertGreater(begins, 0)
             self.assertEqual(begins + 1, ends, "the one extra END is the hostile data marker")
+
+    def test_root_default_and_no_history_modes_do_not_probe_home_stores(self):
+        module = load_module(ROOT_SCRIPT, "root_zero_history")
+        for argv in (
+            ["session-catchup.py", VICTIM],
+            ["session-catchup.py", "--no-history", VICTIM],
+        ):
+            with self.subTest(argv=argv):
+                forbidden = AssertionError("host session stores were probed")
+                with ExitStack() as stack:
+                    stack.enter_context(mock.patch.object(module.sys, "argv", argv))
+                    for name in (
+                        "detect_ide",
+                        "get_project_dir_claude",
+                        "get_opencode_db_path",
+                        "get_sessions_sorted",
+                    ):
+                        stack.enter_context(
+                            mock.patch.object(module, name, side_effect=forbidden)
+                        )
+                    stack.enter_context(
+                        mock.patch.object(module.Path, "home", side_effect=forbidden)
+                    )
+                    stack.enter_context(
+                        mock.patch.object(module.Path, "glob", side_effect=forbidden)
+                    )
+                    module.main()
 
 
 if __name__ == "__main__":

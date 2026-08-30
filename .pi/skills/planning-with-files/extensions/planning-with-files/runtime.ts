@@ -178,10 +178,10 @@ function runSessionCatchup(cwd: string): ExecResult {
 
 	return runFirstSuccessful(
 		[
-			["uv", ["run", CATCHUP_SCRIPT, cwd]],
-			["python3", [CATCHUP_SCRIPT, cwd]],
-			["python", [CATCHUP_SCRIPT, cwd]],
-			["py", ["-3", CATCHUP_SCRIPT, cwd]],
+			["uv", ["run", CATCHUP_SCRIPT, "--no-history", cwd]],
+			["python3", [CATCHUP_SCRIPT, "--no-history", cwd]],
+			["python", [CATCHUP_SCRIPT, "--no-history", cwd]],
+			["py", ["-3", CATCHUP_SCRIPT, "--no-history", cwd]],
 		],
 		cwd,
 	);

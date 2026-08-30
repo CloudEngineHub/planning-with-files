@@ -48,6 +48,12 @@ class PiExtensionCapabilitiesTests(unittest.TestCase):
         for event_name in required_events:
             self.assertIn(f'pi.on("{event_name}"', text)
 
+    def test_session_start_catchup_is_no_history(self) -> None:
+        text = self._read(RUNTIME_TS)
+        self.assertIn('[CATCHUP_SCRIPT, "--no-history", cwd]', text)
+        self.assertNotIn('[CATCHUP_SCRIPT, "--metadata", cwd]', text)
+        self.assertNotIn('[CATCHUP_SCRIPT, "--replay", cwd]', text)
+
     def test_auto_continue_limit_is_three(self) -> None:
         text = self._read(CONSTANTS_TS)
         self.assertRegex(text, r"AUTO_CONTINUE_LIMIT\s*=\s*3")

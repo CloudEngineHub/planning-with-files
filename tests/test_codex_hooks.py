@@ -172,6 +172,12 @@ class CodexHooksTests(unittest.TestCase):
         self.assertIn("Ship Codex hooks", result.stdout)
         self.assertIn("Finished adapter draft", result.stdout)
 
+    def test_session_start_catchup_is_explicitly_no_history(self) -> None:
+        text = HOOKS_DIR.joinpath("session-start.sh").read_text(encoding="utf-8")
+        self.assertIn('session-catchup.py" --no-history', text)
+        self.assertNotIn('session-catchup.py" --metadata', text)
+        self.assertNotIn('session-catchup.py" --replay', text)
+
     def test_pre_tool_use_adapter_emits_additional_context(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)

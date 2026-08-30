@@ -147,12 +147,24 @@ class OpenCodeCatchupTests(unittest.TestCase):
     def test_catchup_reports_unsynced_edits(self) -> None:
         buf = StringIO()
         with redirect_stdout(buf):
-            self.module.opencode_catchup(str(self.project_dir))
+            self.module.opencode_catchup(str(self.project_dir), mode="replay")
         output = buf.getvalue()
         self.assertIn("SESSION CATCHUP DETECTED (IDE: opencode)", output)
         self.assertIn(self.module.safe_session_label("ses_old"), output)
         self.assertNotIn("ses_old", output)
         self.assertIn("Tool edit", output, "follow-up edit after plan write should appear in catchup")
+
+    def test_metadata_mode_excludes_session_tool_and_path_bytes(self) -> None:
+        buf = StringIO()
+        with redirect_stdout(buf):
+            self.module.opencode_catchup(str(self.project_dir), mode="metadata")
+        output = buf.getvalue()
+
+        self.assertIn("SESSION CATCHUP AVAILABLE", output)
+        self.assertIn("Unsynced entries: 1", output)
+        for leaked in ("ses_old", "Tool edit", "src/lib.py", str(self.project_dir)):
+            self.assertNotIn(leaked, output)
+        self.assertNotIn("BEGIN-PWF-DATA", output)
 
     def test_catchup_silent_when_no_plan_edit(self) -> None:
         # Replace DB with one that has no planning-file edits.
@@ -171,7 +183,7 @@ class OpenCodeCatchupTests(unittest.TestCase):
 
         buf = StringIO()
         with redirect_stdout(buf):
-            self.module.opencode_catchup(str(self.project_dir))
+            self.module.opencode_catchup(str(self.project_dir), mode="metadata")
         self.assertEqual("", buf.getvalue().strip())
 
     def test_catchup_silent_when_db_missing(self) -> None:
@@ -180,8 +192,25 @@ class OpenCodeCatchupTests(unittest.TestCase):
         mod = load_module()
         buf = StringIO()
         with redirect_stdout(buf):
-            mod.opencode_catchup(str(self.project_dir))
+            mod.opencode_catchup(str(self.project_dir), mode="metadata")
         self.assertEqual("", buf.getvalue().strip())
+
+    def test_no_history_mode_does_not_resolve_or_open_database(self) -> None:
+        original = self.module.get_opencode_db_path
+
+        def forbidden():
+            raise AssertionError("OpenCode session database was inspected")
+
+        self.module.get_opencode_db_path = forbidden
+        try:
+            buf = StringIO()
+            with redirect_stdout(buf):
+                self.module.opencode_catchup(
+                    str(self.project_dir), mode="no-history"
+                )
+            self.assertEqual("", buf.getvalue())
+        finally:
+            self.module.get_opencode_db_path = original
 
 
 if __name__ == "__main__":

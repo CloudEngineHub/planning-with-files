@@ -5,7 +5,10 @@ Session Catchup Script for planning-with-files
 Analyzes the previous session to find unsynced context after the last
 planning file update. Designed to run on SessionStart.
 
-Usage: python3 session-catchup.py [project-path]
+Automatic callers use no-history mode and never inspect host session stores.
+Aggregate metadata and transcript excerpts require explicit requests.
+
+Usage: python3 session-catchup.py [--no-history|--metadata|--replay] [project-path]
 """
 
 import hashlib
@@ -187,6 +190,35 @@ def safe_project_label(value: object) -> str:
     return safe_opaque_label('project', value)
 
 
+def emit_metadata_report(runtime_name: str, unsynced_count: int) -> None:
+    """Report availability without disclosing transcript-derived bytes."""
+    print("\n[planning-with-files] SESSION CATCHUP AVAILABLE")
+    print(f"Runtime: {runtime_name}")
+    print(f"Unsynced entries: {unsynced_count}")
+    print("Transcript excerpts are excluded from metadata mode.")
+    print("Run session-catchup.py --replay to inspect bounded same-project excerpts.")
+
+
+def parse_cli_args(argv: List[str]) -> Tuple[str, str]:
+    """Return (mode, project_path), defaulting to zero host-history access."""
+    mode = 'no-history'
+    project_path: Optional[str] = None
+    for arg in argv[1:]:
+        if arg == '--no-history':
+            mode = 'no-history'
+        elif arg == '--metadata':
+            mode = 'metadata'
+        elif arg == '--replay':
+            mode = 'replay'
+        elif arg.startswith('-'):
+            raise SystemExit(f"unknown option: {arg}")
+        elif project_path is None:
+            project_path = arg
+        else:
+            raise SystemExit("only one project path may be provided")
+    return mode, project_path or os.getcwd()
+
+
 
 def filter_sessions_by_cwd(sessions: List[Path], project_path: str) -> Tuple[List[Path], Optional[str]]:
     """Drop transcripts that positively belong to a different project.
@@ -344,7 +376,13 @@ def extract_messages_after(messages: List[Dict], after_line: int) -> List[Dict]:
 
 
 def main():
-    project_path = sys.argv[1] if len(sys.argv) > 1 else os.getcwd()
+    mode, project_path = parse_cli_args(sys.argv)
+
+    # SessionStart and bare CLI execution are deliberately zero-access. Keep
+    # this before planning-file checks, home-directory probes, and transcript
+    # discovery.
+    if mode == 'no-history':
+        return
 
     # Check if planning files exist (indicates active task)
     has_planning_files = any(
@@ -356,7 +394,8 @@ def main():
 
     project_dir, skip_reason = get_project_dir(project_path)
     if skip_reason:
-        print(skip_reason)
+        if mode == 'replay':
+            print(skip_reason)
         return
 
     if not project_dir.exists():
@@ -366,7 +405,7 @@ def main():
     sessions, cwd_notice = filter_sessions_by_cwd(
         get_sessions_sorted(project_dir), project_path
     )
-    if cwd_notice:
+    if cwd_notice and mode == 'replay':
         print(cwd_notice)
     if len(sessions) < 1:
         return
@@ -392,6 +431,10 @@ def main():
     messages_after = extract_messages_after(messages, last_update_line)
 
     if not messages_after:
+        return
+
+    if mode != 'replay':
+        emit_metadata_report('claude', len(messages_after))
         return
 
     # Output catchup report

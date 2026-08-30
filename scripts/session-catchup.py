@@ -10,7 +10,10 @@ Supports multiple AI IDEs:
 - Claude Code (.claude/projects/)
 - OpenCode (.local/share/opencode/storage/)
 
-Usage: python3 session-catchup.py [project-path]
+Automatic callers use no-history mode and never inspect host session stores.
+Aggregate metadata and transcript excerpts require explicit requests.
+
+Usage: python3 session-catchup.py [--no-history|--metadata|--replay] [project-path]
 """
 
 import hashlib
@@ -480,7 +483,36 @@ def _format_opencode_part(data: Dict, session_id: str) -> Optional[Dict]:
     return None
 
 
-def opencode_catchup(project_path: str) -> None:
+def emit_metadata_report(runtime_name: str, unsynced_count: int) -> None:
+    """Report availability without disclosing transcript-derived bytes."""
+    print("\n[planning-with-files] SESSION CATCHUP AVAILABLE")
+    print(f"Runtime: {runtime_name}")
+    print(f"Unsynced entries: {unsynced_count}")
+    print("Transcript excerpts are excluded from metadata mode.")
+    print("Run session-catchup.py --replay to inspect bounded same-project excerpts.")
+
+
+def parse_cli_args(argv: List[str]) -> Tuple[str, str]:
+    """Return (mode, project_path), defaulting to zero host-history access."""
+    mode = 'no-history'
+    project_path: Optional[str] = None
+    for arg in argv[1:]:
+        if arg == '--no-history':
+            mode = 'no-history'
+        elif arg == '--metadata':
+            mode = 'metadata'
+        elif arg == '--replay':
+            mode = 'replay'
+        elif arg.startswith('-'):
+            raise SystemExit(f"unknown option: {arg}")
+        elif project_path is None:
+            project_path = arg
+        else:
+            raise SystemExit("only one project path may be provided")
+    return mode, project_path or os.getcwd()
+
+
+def opencode_catchup(project_path: str, mode: str = 'no-history') -> None:
     """Session catchup for OpenCode (SQLite at ~/.local/share/opencode/opencode.db).
 
     Schema reference (sst/opencode dev @ 2026-05-14):
@@ -490,6 +522,9 @@ def opencode_catchup(project_path: str) -> None:
     Tool calls are stored as part rows where data.type='tool',
     data.tool='write'|'edit'|'patch', data.state.input.filePath=<abs path>.
     """
+    if mode == 'no-history':
+        return
+
     import sqlite3
 
     db_path = get_opencode_db_path()
@@ -499,7 +534,8 @@ def opencode_catchup(project_path: str) -> None:
     try:
         conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     except sqlite3.OperationalError as exc:
-        print(f"\n[planning-with-files] Could not open OpenCode DB read-only: {exc}")
+        if mode == 'replay':
+            print(f"\n[planning-with-files] Could not open OpenCode DB read-only: {exc}")
         return
 
     cur = conn.cursor()
@@ -598,6 +634,10 @@ def opencode_catchup(project_path: str) -> None:
     if not all_messages:
         return
 
+    if mode != 'replay':
+        emit_metadata_report('opencode', len(all_messages))
+        return
+
     print(f"\n[planning-with-files] SESSION CATCHUP DETECTED (IDE: opencode)")
     print(f"Last planning update in {safe_session_label(update_sid)}")
     if update_idx + 1 > 1:
@@ -627,12 +667,18 @@ def opencode_catchup(project_path: str) -> None:
 
 
 def main():
-    project_path = sys.argv[1] if len(sys.argv) > 1 else os.getcwd()
+    mode, project_path = parse_cli_args(sys.argv)
+
+    # SessionStart and bare CLI execution are deliberately zero-access. Keep
+    # this before IDE detection, home-directory probes, and transcript
+    # database discovery.
+    if mode == 'no-history':
+        return
 
     ide = detect_ide()
 
     if ide == 'opencode':
-        opencode_catchup(project_path)
+        opencode_catchup(project_path, mode=mode)
         return
 
     # Claude Code path
@@ -644,7 +690,7 @@ def main():
     sessions, cwd_notice = filter_sessions_by_cwd(
         get_sessions_sorted(project_dir), project_path
     )
-    if cwd_notice:
+    if cwd_notice and mode == 'replay':
         print(cwd_notice)
     if len(sessions) < 2:
         return
@@ -689,6 +735,10 @@ def main():
         all_messages.extend(messages)
 
     if not all_messages:
+        return
+
+    if mode != 'replay':
+        emit_metadata_report(ide, len(all_messages))
         return
 
     # Output catchup report
