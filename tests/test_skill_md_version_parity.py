@@ -1,6 +1,6 @@
 """Regression test: parity-locked SKILL.md and plugin manifests must share a version (v2.37.0+).
 
-Background — the repo ships 14 SKILL.md variants plus plugin.json, marketplace.json
+Background: the repo ships 14 SKILL.md variants plus plugin.json, marketplace.json
 and CITATION.cff. Past releases (v2.34.1, v2.36.0, v2.36.2, v2.36.3) repeatedly
 shipped with one or more variants stuck on the old version because the bump was
 done by hand across 19 files. This test fails the build the moment that drifts.
@@ -48,6 +48,7 @@ PARITY_SKILL_MD = [
 PARITY_JSON_LIKE = [
     ".claude-plugin/plugin.json",
     ".claude-plugin/marketplace.json",
+    ".codex-plugin/plugin.json",
     # npm package for the Pi channel (issue #213: stayed at a third-party
     # 1.1.0 for 15 releases because no test locked it to the release version)
     ".pi/skills/planning-with-files/package.json",

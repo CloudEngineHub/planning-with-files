@@ -63,7 +63,7 @@ IDE adapter variants live under these directories:
 .pi/
 ```
 
-The `clawhub-upload/` directory is gitignored and handled manually. Do not rely on it as the source of truth for repository changes.
+The `clawhub-upload/` directory is gitignored and handled manually. Do not rely on it as the source of truth for repository changes. For a release, run `python scripts/build-clawhub-upload.py`, then run `python scripts/build-clawhub-upload.py --verify` and require the complete folder to match the canonical tracked inventory. Manually upload the entire `clawhub-upload/` folder at clawhub.io.
 
 ## Submitting a PR
 
