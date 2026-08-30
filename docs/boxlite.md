@@ -120,12 +120,12 @@ The hook scripts need to be injected alongside SKILL.md. See the full example in
 
 ## Session Recovery
 
-When your context fills up and you run `/clear`, the skill recovers the previous session automatically on next activation. Inside a ClaudeBox session, run manually:
+When your context fills up and you run `/clear`, the skill automatically restores selected context from project planning files on next activation. It does not inspect host transcript stores automatically. To explicitly inspect aggregate same-project local-session activity inside a ClaudeBox session, run:
 
 ```python
 async with ClaudeBox.reconnect("my-project") as box:
     await box.code(
-        "Run session catchup: python3 ~/.claude/skills/planning-with-files/scripts/session-catchup.py $(pwd)"
+        "Read the project planning files. To explicitly aggregate same-project local session records, run: python3 ~/.claude/skills/planning-with-files/scripts/session-catchup.py --metadata $(pwd)"
     )
 ```
 

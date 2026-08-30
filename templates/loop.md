@@ -1,15 +1,13 @@
 # Planning-aware loop tick
 
-<!--
-  This is the default loop prompt shipped by planning-with-files v2.38.0+.
+This is the default loop prompt shipped by planning-with-files v2.38.0 and later.
 
-  Install:
-    cp templates/loop.md ~/.claude/loop.md       # user-wide default
-    cp templates/loop.md .claude/loop.md         # project-specific default
+## Setup reference
 
-  Bare `/loop <interval>` then reads this file and runs the prompt below.
-  Override per call with `/loop 5m "your prompt"`.
--->
+- User-wide default: `cp templates/loop.md ~/.claude/loop.md`
+- Project-specific default: `cp templates/loop.md .claude/loop.md`
+
+A bare `/loop <interval>` reads this file and runs the prompt below. Override it for one call with `/loop 5m "your prompt"`.
 
 Re-read `task_plan.md`, `progress.md`, and the most recent 20 lines of `findings.md`.
 

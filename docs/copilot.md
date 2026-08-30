@@ -43,10 +43,12 @@ Hooks will auto-activate for all team members. This works across Copilot CLI, VS
 
 | Hook | Purpose | Behavior |
 |------|---------|----------|
-| `sessionStart` | Initialization | Recovers previous context via session-catchup |
+| `sessionStart` | Initialization | Recovers selected context from project planning files without reading agent session stores |
 | `preToolUse` | Context injection | Reads `task_plan.md` before tool operations |
 | `postToolUse` | Update reminders | Prompts to update plan after file edits |
 | `agentStop` | Completion check | Verifies if all phases are complete before stopping |
+
+Local agent session history is not part of automatic startup. Explicit `session-catchup.py --metadata <project>` reads same-project local session records and emits aggregate counts only. Use `--replay` for bounded nonce-framed excerpts. The catchup path contains no network request or upload operation.
 
 ---
 
@@ -71,7 +73,7 @@ Hooks will auto-activate for all team members. This works across Copilot CLI, VS
 
 ## How It Works
 
-1. **Session starts**: The `session-catchup` script runs. This recovers previous context if you cleared your session.
+1. **Session starts**: The hooks recover selected context from project planning files. Automatic startup does not inspect agent session stores.
 2. **Before tool use**: The `pre-tool-use` hook injects `task_plan.md` into the context. This keeps goals visible to the agent.
 3. **After file edits**: A reminder appears after any write or edit operations. This helps ensure the plan stays updated.
 4. **Agent tries to stop**: The `agent-stop` hook checks the phase status in `task_plan.md`. It prevents stopping if tasks remain.

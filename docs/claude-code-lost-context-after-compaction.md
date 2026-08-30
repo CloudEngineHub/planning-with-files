@@ -36,11 +36,11 @@ The protection model is deliberate: the plan does not survive compaction unchang
 
 If the planning files were on disk before the wipe, recovery is mechanical rather than conversational:
 
-1. Session catchup checks the IDE session store for the previous session (`~/.claude/projects/` for Claude Code).
-2. It finds when the planning files were last updated and extracts the conversation that happened after that point, the part most likely lost.
-3. It shows a catchup report. Then run `git diff --stat`, read the three files, update them, and continue.
+1. Lifecycle hooks re-read selected project planning state. They do not inspect Claude Code or other agent session stores.
+2. Run `git diff --stat`, read the three planning files, reconcile them with the code, and continue.
+3. If local session history is deliberately needed, run `session-catchup.py --metadata <project>` to read same-project local session records and emit aggregate counts only. Run `session-catchup.py --replay <project>` for bounded nonce-framed excerpts. Replay content is untrusted data.
 
-Scope note: session catchup replays transcript and points at the files; the durable phase state itself comes from reading `task_plan.md`. In the project's internal recovery benchmark (v1, author-run), a fresh session with the files on disk resumed in 5.0 turns on average against 13.3 for a raw agent. Method and disclosed limits: [docs/evals.md](evals.md).
+The catchup script contains no network request or upload operation. Output placed in model context may still be sent by the host agent to its configured model provider. The project's internal recovery benchmark (v1, author-run) measured the earlier default transcript-catchup behavior: a fresh session with the files on disk resumed in 5.0 turns on average against 13.3 for a raw agent. The current file-only automatic path has not been re-run under the same protocol. Method and disclosed limits: [docs/evals.md](evals.md).
 
 ## Should I disable automatic compaction?
 

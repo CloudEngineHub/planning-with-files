@@ -103,13 +103,15 @@ This integration includes the Codex lifecycle hooks used by the adapter:
 
 | Hook | What It Does |
 |------|--------------|
-| **SessionStart** | Runs `session-catchup.py`, then injects active plan context |
+| **SessionStart** | Reads project planning state and injects selected active-plan context; it does not inspect Codex session stores |
 | **UserPromptSubmit** | Re-injects plan and recent progress on every user message |
 | **PreToolUse** | Refreshes plan context before Bash and direct edit paths |
 | **PermissionRequest** | Adds bounded plan context when Codex is about to request approval |
 | **PostToolUse** | Reminds the agent to update `progress.md` after Bash or direct edits |
 | **PreCompact** | Reminds the agent to flush `progress.md` and `task_plan.md` before compaction |
 | **Stop** | Continues once when every opt-in gated-mode condition passes; otherwise emits advisory status and allows the stop |
+
+Local Codex session history is not part of the automatic hook path. Explicit `session-catchup.py --metadata <project>` reads same-project local session records and emits aggregate counts only. Use `--replay` for bounded nonce-framed excerpts. The catchup path contains no network request or upload operation.
 
 ### The Three Files
 

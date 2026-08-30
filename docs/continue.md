@@ -62,9 +62,11 @@ bash .continue/skills/planning-with-files/scripts/init-session.sh
 # Verify all phases marked complete (expects task_plan.md format)
 bash .continue/skills/planning-with-files/scripts/check-complete.sh
 
-# Recover unsynced context from last Claude Code session (if you also use Claude Code)
-python3 .continue/skills/planning-with-files/scripts/session-catchup.py "$(pwd)"
+# Explicit same-project record aggregation (if you also use Claude Code)
+python3 .continue/skills/planning-with-files/scripts/session-catchup.py --metadata "$(pwd)"
 ```
+
+Use `--replay` only for a deliberate bounded nonce-framed replay. Bare invocation and automatic hooks do not inspect agent session stores.
 
 ---
 

@@ -134,6 +134,12 @@ recitation), gated mode (a deliberate completion gate), a structured run-ledger,
 coordination fields. None of this changes how v2 behaves. With no new flags and no `.mode`
 marker, v3 runs exactly like v2.43.0.
 
+Current recovery behavior is stricter than the original v3.0.0 path. Automatic hooks and bare
+`session-catchup.py` recover from project planning files without inspecting host session stores.
+Reading same-project local session records and emitting aggregate counts requires explicit
+`--metadata`; bounded nonce-framed excerpts require explicit `--replay`. The catchup path has no
+network upload operation.
+
 ## What changes by default
 
 Nothing. The default path is byte-for-byte v2.43 behavior. The hooks stay advisory, the Stop
@@ -171,20 +177,18 @@ stable for the host's prompt cache and removes a raw-text injection surface.
 
 ### Phase coordination fields
 
-`task_plan_autonomous.md` adds optional per-phase lines: `**DependsOn:**` (phases that must
-finish first), `**Owner:**` (which agent runs the phase), and `**AcceptanceCheck:**` (a command
-the gate may run to confirm the phase is done). These sit next to the existing `**Status:**`
-line, so the completion check counts phases and statuses exactly as in v2. The gate runs an
-AcceptanceCheck command only when it is allowlisted at attest time, and never runs a command
-from an unattested plan.
+`task_plan_autonomous.md` originally documented optional per-phase `DependsOn`, `Owner`, and
+`AcceptanceCheck` fields. These fields are coordination notes for people and agents; the runtime
+gate does not parse them, enforce dependencies, route work, or execute commands from Markdown.
+Only the existing `**Status:**` markers participate in phase completion checks.
 
 ### Attestation default-on in the new modes
 
 In autonomous and gated modes, `task_plan.md` is hashed at init and the hooks refuse to inject
 plan content that diverges from the attested hash. Re-run `scripts/attest-plan.sh` after any
 intentional edit. In multi-agent runs the orchestrator re-attests at phase boundaries, since a
-worker editing the plan would break the hash by design. This is what makes the AcceptanceCheck
-command safe to run.
+worker editing the plan would break the hash by design. Attestation controls plan injection; it
+does not authorize or execute commands written in the plan.
 
 ### SHA cache location moved
 

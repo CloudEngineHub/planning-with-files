@@ -113,19 +113,21 @@ Mastra Code reads from `.claude/skills/` as a fallback. If you already have plan
 
 ## Session Recovery
 
-When your context fills up and you run `/clear`, the skill can recover your previous session.
+When your context fills up and you run `/clear`, the skill restores selected context from project planning files. Automatic recovery does not inspect Mastra or other host transcript stores. Local session records are available only through the explicit commands below.
 
 Run manually:
 
 ```bash
 # Linux/macOS
-python3 ~/.mastracode/skills/planning-with-files/scripts/session-catchup.py "$(pwd)"
+python3 ~/.mastracode/skills/planning-with-files/scripts/session-catchup.py --metadata "$(pwd)"
 ```
 
 ```powershell
 # Windows PowerShell
-python "$env:USERPROFILE\.mastracode\skills\planning-with-files\scripts\session-catchup.py" (Get-Location)
+python "$env:USERPROFILE\.mastracode\skills\planning-with-files\scripts\session-catchup.py" --metadata (Get-Location)
 ```
+
+These explicit commands read same-project local session records and emit aggregate counts only. Use `--replay` only for a deliberate bounded nonce-framed replay. Bare invocation and automatic hooks do not inspect agent session stores.
 
 ---
 

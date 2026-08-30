@@ -76,7 +76,7 @@ Phase 1
 
 ## Notes
 - Update phase status as you progress: pending → in_progress → complete
-- Re-read this plan before major decisions (attention manipulation)
+- Re-read this plan before major decisions (plan recitation)
 - Log ALL errors - they help avoid repetition
 ```
 
@@ -234,7 +234,7 @@ Phase 2
 
 ## Notes
 - Update phase status as you progress: pending → in_progress → complete
-- Re-read this plan before major decisions (attention manipulation)
+- Re-read this plan before major decisions (plan recitation)
 - Log ALL errors - they help avoid repetition
 ```
 
@@ -418,7 +418,7 @@ Phase 3
 
 ## Notes
 - Update phase status as you progress: pending → in_progress → complete
-- Re-read this plan before major decisions (attention manipulation)
+- Re-read this plan before major decisions (plan recitation)
 - Log ALL errors - they help avoid repetition
 ```
 
@@ -564,7 +564,7 @@ Phase 5 (Complete)
 
 ## Notes
 - Update phase status as you progress: pending → in_progress → complete
-- Re-read this plan before major decisions (attention manipulation)
+- Re-read this plan before major decisions (plan recitation)
 - Log ALL errors - they help avoid repetition
 ```
 

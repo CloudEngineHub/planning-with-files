@@ -155,8 +155,10 @@ bash ~/.adal/skills/planning-with-files/scripts/init-session.sh
 bash ~/.adal/skills/planning-with-files/scripts/check-complete.sh
 
 # Session recovery
-python ~/.adal/skills/planning-with-files/scripts/session-catchup.py $(pwd)
+python ~/.adal/skills/planning-with-files/scripts/session-catchup.py --metadata $(pwd)
 ```
+
+This explicit mode reads same-project local session records and emits aggregate counts only. Use `--replay` only for a deliberate bounded replay. Bare invocation and automatic hooks do not inspect agent session stores.
 
 Windows PowerShell:
 ```powershell

@@ -106,12 +106,12 @@ If the agent forgets the planning rules:
 
 ### Session Catchup
 
-The `session-catchup.py` script currently has limited support for OpenCode due to different session storage formats:
+Automatic recovery reads project planning files only and does not open OpenCode's session database. Optional explicit catchup supports these local stores:
 
 - **Claude Code**: Uses `.jsonl` files at `~/.claude/projects/`
 - **OpenCode**: Uses the SQLite store at `${XDG_DATA_HOME:-~/.local/share}/opencode/opencode.db` (v2.38.0+)
 
-When you run `/clear` in OpenCode, session catchup will detect OpenCode and read the SQLite store. If the query fails, **workaround**: manually read `task_plan.md`, `progress.md`, and `findings.md` to catch up after clearing context.
+Run `session-catchup.py --metadata <project>` to open OpenCode's SQLite database read-only, read same-project local session records, and emit aggregate counts only without transcript bytes. Run `session-catchup.py --replay <project>` only for a deliberate bounded nonce-framed replay. If the query fails, read `task_plan.md`, `progress.md`, and `findings.md` directly. The catchup path contains no network request or upload operation.
 
 ## Verification
 

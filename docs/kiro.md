@@ -72,7 +72,7 @@ All paths are relative to the **project root** after you have copied `.kiro/skil
 | Script | Purpose |
 |--------|---------|
 | `assets/scripts/bootstrap.sh` / `bootstrap.ps1` | Create `.kiro/plan/*` and `planning-context.md` (idempotent) |
-| `assets/scripts/session-catchup.py` | Print mtime + short summary of planning files |
+| `assets/scripts/session-catchup.py` | Print mtime and a short summary of Kiro planning files; it does not read agent transcript stores |
 | `assets/scripts/check-complete.sh` / `check-complete.ps1` | Report phase completion vs `.kiro/plan/task_plan.md` |
 
 Examples:

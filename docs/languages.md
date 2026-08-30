@@ -2,6 +2,8 @@
 
 `planning-with-files` ships the planning workflow in six languages. The English skill is the canonical one. Arabic, German, Spanish, Simplified Chinese and Traditional Chinese are full translations: the SKILL.md body, the three templates, and the user-facing output of `check-complete`, `init-session` and `session-catchup` are all translated, and each variant carries the same 20 scripts as the canonical skill.
 
+All language variants use the same recovery consent boundary. Automatic recovery reads project planning files only. Explicit `session-catchup.py --metadata` reads same-project local session records and emits aggregate counts only, without transcript bytes; explicit `--replay` may emit bounded nonce-framed excerpts. The catchup path contains no network upload operation.
+
 | Language | Skill name | Command |
 |---|---|---|
 | English | `planning-with-files` | `/plan` |

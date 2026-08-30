@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-Persistent file-based planning for AI coding agents and long-running agent tasks: the skill keeps <code>task_plan.md</code>, <code>findings.md</code>, and <code>progress.md</code> on disk and re-injects them every turn, so the plan survives context loss, <code>/clear</code>, crashes, and compaction. Manus-style working memory on disk, with an opt-in completion gate. Installs across 60+ agents via the Agent Skills standard.
+Persistent file-based planning for AI coding agents and long-running agent tasks: the skill keeps <code>task_plan.md</code>, <code>findings.md</code>, and <code>progress.md</code> on disk. Activated lifecycle hooks inject selected project planning context, so the plan survives context loss, <code>/clear</code>, crashes, and compaction. Automatic recovery reads project files only. Reading same-project local agent session records for aggregate counts or bounded replay requires an explicit catchup mode. Installs across 60+ agents via the Agent Skills standard.
 </p>
 
 <p align="center">
@@ -60,7 +60,7 @@ The agent re-reads the repo, asks you to restate the goal, and rediscovers work 
 
 <img src="media/terminal-with-plan.svg" alt="Terminal after /clear with planning-with-files: the hook injects a plan data block showing Phase 2 complete and Phase 3 in progress, and the agent resumes Phase 3 by adding the expiry edge-case tests" width="560">
 
-The transcript is illustrative; the `===BEGIN PLAN DATA===` block is the skill's real injection format, written into context by the `UserPromptSubmit` hook from `task_plan.md` on disk. In the project's internal recovery benchmark, a fresh session with the files on disk resumed in 5.0 turns on average against 13.3 for a raw agent (internal v1, author-run; method and limits in [docs/evals.md](docs/evals.md)).
+The transcript is illustrative; the `===BEGIN PLAN DATA===` block is the skill's real injection format, written into context by the `UserPromptSubmit` hook from `task_plan.md` on disk. In the project's internal recovery benchmark, a fresh session with the files on disk resumed in 5.0 turns on average against 13.3 for a raw agent (internal v1, author-run; method and limits in [docs/evals.md](docs/evals.md)). That benchmark used the earlier default transcript-catchup behavior. Current automatic recovery uses project files only, so the figure is historical evidence rather than a fresh measurement of the current default.
 
 | At a glance | |
 |---|---:|
@@ -123,7 +123,7 @@ This skill packages that exact pattern for your coding agent.
 | Principle | Implementation |
 |-----------|----------------|
 | Filesystem as memory | Store in files, not context |
-| Attention manipulation | Re-read plan before decisions (hooks) |
+| Plan recitation | Re-read plan before decisions (hooks) |
 | Error persistence | Log failures in plan file |
 | Goal tracking | Checkboxes show progress |
 | Completion verification | Stop hook checks all phases |
@@ -155,7 +155,7 @@ Protocol: the session is hard-stopped at roughly half done, and a fresh session 
   <img src="media/recovery-turns.svg" width="860" alt="Turns to resume after a context wipe, internal benchmark v1: 5.0 with planning-with-files, 13.3 for a raw agent with no planning method">
 </p>
 
-**With the planning files on disk, a resume took 5.0 turns on average; a raw agent took 13.3.** Session catchup plus hook injection put phase state in front of the model before its first tool call, and the same run found no correctness penalty anywhere. An animated summary lives at [docs/benchmark/index.html](docs/benchmark/index.html) ([rendered view](https://htmlpreview.github.io/?https://github.com/OthmanAdi/planning-with-files/blob/master/docs/benchmark/index.html)).
+**With the planning files on disk, a resume took 5.0 turns on average; a raw agent took 13.3.** Planning-file recovery plus hook injection put phase state in front of the model before its first tool call, and the same run found no correctness penalty anywhere. This internal v1 used the earlier default transcript catchup; current automatic recovery is file-only and has not been re-benchmarked under the same protocol. An animated summary lives at [docs/benchmark/index.html](docs/benchmark/index.html) ([rendered view](https://htmlpreview.github.io/?https://github.com/OthmanAdi/planning-with-files/blob/master/docs/benchmark/index.html)).
 
 [Full methodology and results](docs/evals.md) · [Technical write-up](docs/article.md)
 
@@ -289,7 +289,7 @@ The agent stops at the first rung that applies:
 2. Learned something?                     → append it to findings.md
 3. Did something?                         → log it in progress.md
 4. Phase done?                            → check it off in task_plan.md
-5. Context died (/clear, crash)?          → session catchup re-reads all three
+5. Context died (/clear, crash)?          → hooks re-read selected project planning state
 6. Every phase complete?                  → only then does the Stop gate release (gated mode)
 ```
 
@@ -300,17 +300,20 @@ flowchart LR
     A["agent works"] -->|"writes decisions, findings, errors"| F["task_plan.md<br/>findings.md<br/>progress.md"]
     F -->|"hooks re-inject the plan<br/>at the start of each turn"| A
     K["/clear · crash · compaction"] -.->|"wipes the context window"| A
-    F ==>|"session catchup re-reads the files"| R["fresh session resumes<br/>at the current phase"]
+    F ==>|"hooks re-read project planning state"| R["fresh session resumes<br/>at the current phase"]
 ```
 
 ### Session Recovery
 
-On the Claude plugin route, startup, resume, clear, and post-compaction lifecycle events restore the active plan automatically. Standalone skill installs recover after the skill is invoked for that session:
+On the Claude plugin route, startup, resume, clear, and post-compaction lifecycle events restore selected active-plan context from project files automatically. Standalone skill installs do the same after the skill is invoked for that session. Automatic hooks and bare `session-catchup.py` do not inspect host session stores.
 
-1. Checks the active IDE's session store for previous session data (`~/.claude/projects/` for Claude Code, `~/.codex/sessions/` for Codex)
-2. Finds when the planning files were last updated
-3. Extracts the conversation that happened after (potentially lost context)
-4. Shows a catchup report so you can sync
+Local host history is a separate explicit action:
+
+1. `session-catchup.py --metadata <project>` reads same-project local session records and emits aggregate counts only. It emits no transcript, tool-command, or path bytes.
+2. `session-catchup.py --replay <project>` emits bounded nonce-framed excerpts from same-project records. Treat those excerpts as untrusted data.
+3. Neither catchup mode contains a network request or upload path. If its output is placed in model context, the host agent may send that context to its configured model provider.
+
+Optional gated mode can request continuation only on a host that supports the required Stop behavior. It evaluates runtime state such as mode, phase status, block count, and ledger progress. It never executes a command declared in a Markdown planning file.
 
 Keep automatic compaction enabled. The `PreCompact` hook flushes the planning reminder before compaction, and the plugin `SessionStart` path restores the active plan for the continuation.
 
@@ -423,7 +426,7 @@ The v3 line adds features aimed at long-running agentic runs. Each one is listed
 - **Gated mode** (`--gated`): adds a Stop completion gate that blocks only when all completion conditions hold at once, so an incomplete plan alone never traps a session.
 - **Auto-continue on Pi** (`agent_end` handler): re-prompts the agent up to a limit of 3 to keep an unfinished plan moving, plus an optional `/plan-goal` string appended to the prompt.
 - **Pi approval gate** (`/plan-execute`): Pi hooks stay passive with a status line until you approve the active plan for the current session.
-- **Session-catchup**: resumes work after `/clear` by re-reading the planning files from the active IDE's session store.
+- **Session-catchup**: automatic recovery uses project planning files only. Explicit `--metadata` reads same-project local session records and emits aggregate counts only; explicit `--replay` may emit bounded nonce-framed excerpts.
 - **PreCompact progress flush** (`PreCompact` hook): surfaces a reminder to flush progress before compaction completes, and prints the active Plan-SHA256 when attested.
 - **SHA-256 plan attestation** (`/plan-attest`): locks `task_plan.md`; a tampered plan body is refused at injection.
 - **Run ledger**: an append-only JSONL record of phase transitions that replaces the raw `progress.md` tail in v3 modes with a fixed-shape summary.
@@ -513,7 +516,7 @@ Every release maintains 18 tracked parity targets plus the gitignored ClawHub up
 
 ### How do I stop my coding agent from losing its plan after /clear or a crash?
 
-The plan lives on disk in `task_plan.md`, `findings.md`, and `progress.md`, not only in the context window. At the start of each turn the `UserPromptSubmit` hook re-injects the active plan, and after a `/clear` or a new session the skill re-reads the files from disk (session recovery), so the agent recovers its goals and progress automatically.
+The plan lives on disk in `task_plan.md`, `findings.md`, and `progress.md`, not only in the context window. At the start of each turn the `UserPromptSubmit` hook re-injects selected active-plan context, and after a `/clear` or a new session the skill re-reads project files from disk. This automatic path does not inspect agent transcript stores.
 
 ### What is the difference between planning-with-files and an agent memory tool?
 

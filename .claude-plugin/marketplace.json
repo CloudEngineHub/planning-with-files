@@ -1,6 +1,6 @@
 {
   "name": "planning-with-files",
-  "description": "Marketplace for the planning-with-files plugin: persistent Manus-style markdown planning for AI coding agents, with session recovery, plan attestation, and an opt-in completion gate.",
+  "description": "Persistent project planning with lifecycle context injection and file-based automatic recovery. Explicit catchup modes read same-project local session records for aggregate counts or bounded replay. Includes plan attestation and an optional host-aware completion gate. No network upload path.",
   "owner": {
     "name": "Ahmad Othman Ammar Adi",
     "url": "https://github.com/OthmanAdi"
@@ -9,7 +9,7 @@
     {
       "name": "planning-with-files",
       "source": "./",
-      "description": "Persistent file-based planning for AI coding agents. Crash-proof markdown plans that survive context loss, /clear, and crashes, with an opt-in completion gate and multi-agent shared state on disk. Manus-style, installs across 60+ agents via the SKILL.md standard.",
+      "description": "Persistent project planning files with lifecycle hooks that inject selected plan context. Automatic recovery uses project files only. Explicit catchup modes may read same-project local session records to emit aggregate counts or bounded nonce-framed excerpts. Optional gated mode can request continuation on capable hosts and never runs commands declared in Markdown. No network upload path. Installs across 60+ agents.",
       "version": "3.11.2"
     }
   ]

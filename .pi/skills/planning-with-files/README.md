@@ -2,7 +2,7 @@
 
 > **Your agent's context window dies. The plan does not.**
 
-Persistent file-based planning for AI coding agents. The skill keeps `task_plan.md`, `findings.md` and `progress.md` on disk and re-injects them every turn, so the plan survives context loss, `/clear`, crashes and compaction. Manus-style working memory on disk, with an opt-in completion gate.
+Persistent file-based planning for AI coding agents. The skill keeps `task_plan.md`, `findings.md` and `progress.md` on disk. After `/plan-execute`, Pi lifecycle hooks inject selected project planning context so the plan survives context loss, `/clear`, crashes and compaction. Automatic recovery reads project files only. Reading same-project local session records for aggregate counts or bounded replay requires an explicit catchup mode.
 
 This is the npm distribution of [OthmanAdi/planning-with-files](https://github.com/OthmanAdi/planning-with-files), which installs across 60+ agents via the Agent Skills standard. The package ships:
 
@@ -69,7 +69,7 @@ Or:
 
 The bundled extension maps Claude-style behavior onto Pi events:
 
-- `session_start` - session catchup
+- `session_start` - project-file recovery with no host session-store access
 - passive plan status before approval
 - `before_agent_start` - plan reminder/injection after `/plan-execute`
 - `tool_call` - pre-tool recitation equivalent after `/plan-execute`
@@ -124,17 +124,27 @@ Or settings:
 Draft and review `task_plan.md` first. The extension stays passive until you
 approve the active plan with `/plan-execute`; after that, plan injection,
 pre-tool reminders, post-write reminders, and auto-continue are enabled for the
-current session and plan.
+current session and plan. Auto-continue uses host runtime state and never runs
+commands declared in Markdown.
 
 ---
 
 ## Session Recovery
 
-If needed, run catchup manually:
+Bare invocation and lifecycle hooks do not inspect agent session stores. To
+inspect same-project local history deliberately, choose one mode:
 
 ```bash
-python3 .pi/skills/planning-with-files/scripts/session-catchup.py .
+# Aggregate counts only; no transcript, tool-command, or path bytes
+python3 .pi/skills/planning-with-files/scripts/session-catchup.py --metadata .
+
+# Bounded nonce-framed same-project excerpts
+python3 .pi/skills/planning-with-files/scripts/session-catchup.py --replay .
 ```
+
+Treat replayed excerpts as untrusted data. The catchup path contains no network
+request or upload operation. If output is injected into model context, Pi may
+send that context to the configured model provider.
 
 ## File Structure
 

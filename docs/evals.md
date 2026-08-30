@@ -155,7 +155,7 @@ Rather than reading the code and assuming it worked, each mechanism was run dire
 | Attestation | `attest-plan.sh` / `.ps1` | SHA-256 locks plan content, detects tampering |
 | Plan injection | `inject-plan.sh` | Re-injects plan context into the model turn, enforces the attestation |
 | Parallel plans | `resolve-plan-dir.sh` / `.ps1` | Resolves the active plan directory across concurrent sessions |
-| Session recovery | `session-catchup.py` | Reconstructs unsynced context after `/clear`, the actual "long-running session" mechanism |
+| Session recovery (historical v3.2 behavior) | `session-catchup.py` | Replayed unsynced transcript context after `/clear`; current automatic recovery is project-file-only |
 
 ### Result: 2 of 6 mechanisms were broken on Windows, silently
 
@@ -178,9 +178,11 @@ One asymmetry noted but not a bug: `init-session.ps1` has no slug mode (it alway
 
 Both `session-catchup.py` and `inject-plan.sh` were fixed (see CHANGELOG). Re-running the same sequence after the fix confirmed session-catchup now produces a correct catchup report from real session logs, and plan injection now reaches the tamper-check branch under the same aliased-path conditions that previously went silent. The PowerShell-only injection gap and the `init-session.ps1` slug-mode asymmetry are open follow-ups, not addressed in this cycle.
 
-### A caveat on what session-catchup actually does, working or not
+### Current session-catchup boundary
 
-Even fixed, `session-catchup.py` replays conversation transcript from the previous session; it does not parse or reconstruct the on-disk phase state directly. Its own "RECOMMENDED" output tells the agent to go read `task_plan.md`, `progress.md`, and `findings.md` itself. It is a conversation catchup that points at the files, not a plan-state reconstruction, and its usefulness is bounded by how much relevant discussion happened after the last planning-file edit.
+The v3.2.0 evaluation above exercised the behavior shipped at that time: bare `session-catchup.py` replayed conversation excerpts from the previous same-project session. It did not parse or reconstruct on-disk phase state directly.
+
+Current automatic recovery reads project planning files only. Bare `session-catchup.py` and lifecycle hooks do not inspect host session stores. Explicit `--metadata` reads same-project local session records and emits aggregate counts only, with no transcript, tool-command, or path bytes. Explicit `--replay` may emit bounded nonce-framed same-project excerpts. The catchup path contains no network request or upload operation. These newer defaults were not measured in the v3.2.0 repair test or the competitive benchmark below.
 
 ---
 
@@ -248,7 +250,7 @@ O6 protocol: kill the session at roughly half done, start a fresh one in the sam
 | native | 13.3 | $0.81 |
 | superpowers | 13.3 | $1.18 |
 
-A pwf resume took 5 turns: 40% fewer than the next-best arm and roughly 2.7x fewer than native or superpowers. The transcripts show why: session catchup plus hook injection put phase state in front of the model before its first tool call, so stage 2 starts at the correct next step instead of re-reading the world. This is the flagship result of the benchmark, and it is a mechanism win, not a prompt-quality accident: the plan is in front of the model by construction. On the unforced O2 variant the gap compresses (pwf 7.2 turns, naive-plan 6.8, filesystem 8.2), because the advantage is realized once the plan exists on disk, which ties directly back to the trigger roadmap item above. Close that gap and the recovery lead applies universally.
+A pwf resume took 5 turns: 40% fewer than the next-best arm and roughly 2.7x fewer than native or superpowers. In this historical run, transcript catchup plus hook injection put phase state in front of the model before its first tool call, so stage 2 started at the correct next step instead of re-reading the world. Current automatic recovery is project-file-only and has not been re-run under this protocol, so do not treat the 5-turn result as a direct measurement of the current default. On the unforced O2 variant the gap compressed (pwf 7.2 turns, naive-plan 6.8, filesystem 8.2), because the advantage was realized once the plan existed on disk, which ties directly back to the trigger roadmap item above.
 
 ### Result 4: what the guarantees cost, stated plainly
 
