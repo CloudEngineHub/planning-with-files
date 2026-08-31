@@ -49,10 +49,21 @@ class PlanAttestationTests(unittest.TestCase):
     def tearDown(self) -> None:
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def _run(self, *args: str) -> subprocess.CompletedProcess:
+    def _run(
+        self,
+        *args: str,
+        cwd: Path | None = None,
+        env: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess:
+        run_env = os.environ.copy()
+        run_env.pop("PLAN_ID", None)
+        run_env.pop("PWF_PLAN_ROOT", None)
+        if env:
+            run_env.update(env)
         return subprocess.run(
             ["sh", str(self.scripts_dir / "attest-plan.sh"), *args],
-            cwd=str(self.tmp),
+            cwd=str(cwd or self.tmp),
+            env=run_env,
             text=True,
             encoding="utf-8",
             capture_output=True,
@@ -121,6 +132,51 @@ class PlanAttestationTests(unittest.TestCase):
             (self.tmp / ".plan-attestation").exists(),
             "must not write the legacy file when an active plan dir exists",
         )
+
+    def test_attest_from_inside_plan_dir_updates_slug_attestation(self) -> None:
+        plan_dir = self.tmp / ".planning" / "2026-05-05-feature-x"
+        plan_dir.mkdir(parents=True)
+        plan = plan_dir / "task_plan.md"
+        plan.write_text("phase A\n", encoding="utf-8")
+        (self.tmp / ".planning" / ".active_plan").write_text(
+            "2026-05-05-feature-x", encoding="utf-8"
+        )
+
+        initial = self._run()
+        self.assertEqual(0, initial.returncode, initial.stderr)
+        attest = plan_dir / ".attestation"
+        initial_hash = attest.read_text(encoding="utf-8").strip()
+
+        plan.write_text("phase A\nphase B\n", encoding="utf-8")
+        nested = self._run(cwd=plan_dir)
+
+        self.assertEqual(0, nested.returncode, nested.stderr)
+        self.assertNotEqual(initial_hash, sha256_of(plan))
+        self.assertEqual(sha256_of(plan), attest.read_text(encoding="utf-8").strip())
+        self.assertFalse(
+            (plan_dir / ".plan-attestation").exists(),
+            "nested slug invocation must not create a legacy attestation",
+        )
+
+    def test_failed_explicit_selector_does_not_fallback_inside_slug(self) -> None:
+        plan_dir = self.tmp / ".planning" / "2026-05-05-feature-x"
+        plan_dir.mkdir(parents=True)
+        (plan_dir / "task_plan.md").write_text("phase A\n", encoding="utf-8")
+
+        selectors = {
+            "PLAN_ID": "missing-plan",
+            "PWF_PLAN_ROOT": str(self.tmp / "missing-project"),
+        }
+        for name, value in selectors.items():
+            with self.subTest(selector=name):
+                (plan_dir / ".attestation").unlink(missing_ok=True)
+                (plan_dir / ".plan-attestation").unlink(missing_ok=True)
+
+                result = self._run(cwd=plan_dir, env={name: value})
+
+                self.assertNotEqual(0, result.returncode)
+                self.assertFalse((plan_dir / ".attestation").exists())
+                self.assertFalse((plan_dir / ".plan-attestation").exists())
 
     def test_no_plan_exits_nonzero(self) -> None:
         result = self._run()

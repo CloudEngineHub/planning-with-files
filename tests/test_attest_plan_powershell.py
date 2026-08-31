@@ -182,6 +182,39 @@ class PowerShellAttestationContainmentTests(unittest.TestCase):
             self.assertEqual(0, cleared.returncode, cleared.stderr)
             self.assertFalse((plan_dir / ".attestation").exists())
 
+    def test_attest_from_inside_plan_dir_uses_slug_attestation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plan_dir = root / ".planning" / "safe-plan"
+            plan_dir.mkdir(parents=True)
+            plan = plan_dir / "task_plan.md"
+            plan.write_text("# First\n", encoding="utf-8")
+            (root / ".planning" / ".active_plan").write_text(
+                "safe-plan\n", encoding="utf-8"
+            )
+
+            initial = self._run(root)
+            self.assertEqual(0, initial.returncode, initial.stderr)
+            attestation = plan_dir / ".attestation"
+            initial_hash = attestation.read_text(encoding="ascii").strip()
+
+            plan.write_text("# Second\n", encoding="utf-8")
+            nested = self._run(plan_dir)
+
+            self.assertEqual(0, nested.returncode, nested.stderr)
+            self.assertNotEqual(
+                initial_hash, attestation.read_text(encoding="ascii").strip()
+            )
+            self.assertFalse((plan_dir / ".plan-attestation").exists())
+
+            shown = self._run(plan_dir, None, "-Show")
+            self.assertEqual(0, shown.returncode, shown.stderr)
+            self.assertIn("SHA-256:", shown.stdout)
+
+            cleared = self._run(plan_dir, None, "-Clear")
+            self.assertEqual(0, cleared.returncode, cleared.stderr)
+            self.assertFalse(attestation.exists())
+
     def test_traversal_plan_id_cannot_attest_legacy_fallback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -14,6 +14,15 @@ When you run `sh scripts/attest-plan.sh`, the script:
 4. Renames the temporary file into place.
 5. Uses `flock -w 5` around the rename when `flock` is available.
 
+The shell and PowerShell helpers can run from the project root or directly from
+a valid `.planning/<slug>/` directory. A direct slug-directory invocation
+targets that directory's `task_plan.md` and stores the hash in its `.attestation`
+file. It does not create the legacy `.plan-attestation` file beside a slug plan.
+
+`PLAN_ID` and `PWF_PLAN_ROOT` are explicit selectors. If an explicit selector
+does not resolve, the helper exits with an error instead of attesting a different
+plan through the current-directory fallback.
+
 The atomic rename is the correctness guarantee. It prevents readers from seeing
 a partially written attestation file. The `flock` call is only a cooperative
 gate for concurrent writers on systems that provide it.

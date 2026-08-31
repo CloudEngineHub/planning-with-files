@@ -7,10 +7,12 @@ allowed-tools: "Bash"
 Run the plan attestation helper for the active plan.
 
 Steps:
-1. Resolve the active plan: prefer `${PLAN_ID}` env var, then `.planning/.active_plan`, then newest `.planning/<dir>/`, then legacy `./task_plan.md`.
+1. Resolve the active plan: prefer `${PLAN_ID}` env var, then `.planning/.active_plan`, then newest `.planning/<dir>/`. If the current directory is itself a valid `.planning/<slug>/` directory, use its `task_plan.md`. Otherwise use legacy `./task_plan.md`.
 2. Compute the SHA-256 of the resolved `task_plan.md`.
 3. Write the hex digest to `.planning/<active-plan>/.attestation` (parallel-plan mode) or `./.plan-attestation` (legacy mode).
 4. Confirm to the user with the short hash (first 12 hex chars) and the storage path.
+
+An explicit `${PLAN_ID}` or `${PWF_PLAN_ROOT}` that does not resolve exits with an error. It never falls back to another plan.
 
 Implementation:
 - On Linux/macOS/Git Bash: `sh ${CLAUDE_PLUGIN_ROOT}/scripts/attest-plan.sh`
