@@ -260,5 +260,76 @@ class WindowsNativeCanonicalizerTests(unittest.TestCase):
             self.assertIn("# real plan body", result.stdout)
 
 
+@unittest.skipIf(os.name == "nt", "native POSIX PATH containment contract")
+@unittest.skipUnless(have_sh(), "sh not available on this platform")
+class InjectorInterpreterContainmentTests(unittest.TestCase):
+    def make_python_canaries(self, root: Path, marker: Path) -> Path:
+        bin_dir = root / "fake-bin"
+        bin_dir.mkdir()
+        for name in ("python3", "python"):
+            candidate = bin_dir / name
+            candidate.write_text(
+                "#!/bin/sh\n"
+                f"printf touched > '{marker.as_posix()}'\n"
+                "exit 1\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+            candidate.chmod(0o755)
+        return bin_dir
+
+    def run_with_canaries(
+        self, root: Path, bin_dir: Path
+    ) -> subprocess.CompletedProcess[str]:
+        env = os.environ.copy()
+        for name in ("PWF_TRUSTED_PYTHON", "PYTHON_BIN", "PLAN_ID"):
+            env.pop(name, None)
+        env["PATH"] = os.pathsep.join((str(bin_dir), env.get("PATH", "")))
+        return subprocess.run(
+            ["sh", str(INJECT_SH)],
+            cwd=str(root),
+            text=True,
+            encoding="utf-8",
+            capture_output=True,
+            env=env,
+            check=False,
+        )
+
+    def test_no_plan_does_not_execute_path_python(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            marker = root / "path-python-executed"
+            bin_dir = self.make_python_canaries(root, marker)
+
+            result = self.run_with_canaries(root, bin_dir)
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual("", result.stdout)
+            self.assertFalse(marker.exists())
+
+    @unittest.skipUnless(SYMLINK_OK, "platform cannot create an escaping dir symlink")
+    def test_escaping_plan_does_not_execute_path_python(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as outside:
+            root = Path(tmp)
+            planning = root / ".planning"
+            planning.mkdir()
+            target = Path(outside) / "escape"
+            target.mkdir()
+            (target / "task_plan.md").write_text("# outside\n", encoding="utf-8")
+            os.symlink(target, planning / "escape", target_is_directory=True)
+            (planning / ".active_plan").write_text("escape\n", encoding="utf-8")
+            marker = root / "path-python-executed"
+            bin_dir = self.make_python_canaries(root, marker)
+
+            result = self.run_with_canaries(root, bin_dir)
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual("", result.stdout)
+            self.assertFalse(
+                marker.exists(),
+                "PATH Python must remain unexecuted until containment succeeds",
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
