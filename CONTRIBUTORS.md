@@ -106,6 +106,10 @@ These amazing people have contributed code, documentation, or significant improv
 
 ### Other Contributors
 
+- **[Raymond Manaloto](https://github.com/sortakool)** - [Issue #234](https://github.com/OthmanAdi/planning-with-files/issues/234)
+  - Reproduced the nested attestation failure and traced it to the fallback from slug mode to legacy mode when the helper runs inside `.planning/<slug>/`
+  - **Impact:** The shell and PowerShell helpers now update the slug's `.attestation` from either the project root or the slug directory, so the next root injection does not report a false tamper event
+
 - **[@lowmiaq-gmail](https://github.com/lowmiaq-gmail)** - [PR #233](https://github.com/OthmanAdi/planning-with-files/pull/233) / [Issue #232](https://github.com/OthmanAdi/planning-with-files/issues/232)
   - Reported that direct help flags were parsed as project names, then supplied a focused POSIX-shell fix and regression covering both `-h` and `--help` against an empty working directory
   - **Impact:** Direct help queries print usage and return successfully without creating planning files or replacing `.planning/.active_plan`
@@ -407,6 +411,6 @@ If you've contributed and don't see your name here, please open an issue! We wan
 
 ---
 
-**Total Contributors:** 55+ and growing!
+**Total Contributors:** 56+ and growing!
 
-*Last updated: August 29, 2026*
+*Last updated: August 31, 2026*

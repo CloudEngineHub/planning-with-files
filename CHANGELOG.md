@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [3.12.1] - 2026-08-31
+
+### Fixed
+- **Running an attestation helper from inside `.planning/<slug>/` wrote a legacy `.plan-attestation` file and left the slug's real `.attestation` stale (fixes #234, reported by @sortakool).** The shell and PowerShell helpers now recognize a valid direct slug directory, update its `.attestation`, and preserve the same target for show and clear operations. An explicit `PLAN_ID` or `PWF_PLAN_ROOT` that does not resolve now stops without attesting another local plan through the current-directory fallback.
+- **Cross-platform hook and resolver checks failed on macOS and Windows.** The Codex and Hermes context readers now admit only verified macOS system aliases (`/var`, `/tmp`, and `/etc`) to their fixed `/private/...` targets, while other links remain rejected. The PowerShell attester now refuses to run on Unix where its safe no-follow operation is unavailable, and malformed or dangling `.planning/.active_plan` entries stop resolution instead of selecting a legacy plan. When native canonicalization tools are unavailable, the shell resolver now uses only an explicitly trusted absolute Python path instead of selecting Python or Perl from `PATH`.
+
+### Verification
+- The v3.12.0 failure was reproduced from both invocation locations: the first call from the project root created the slug attestation, while the second call from inside the slug directory exited successfully, created the legacy file, and left the real attestation stale.
+- The clean issue regression and mirror-sync suite passed with 24 tests, 5 platform skips, and 13 subtests. Focused resolver, containment, hook integration, command contract, and line-ending suites passed with 74 tests and 6 platform skips.
+- All 15 maintained shell copies passed syntax checks, and the 15 shell copies and 15 PowerShell copies are byte-identical within their respective sets.
+- The exact detached v3.12.1 candidate passed the complete Python 3.12 suite with 598 tests, 29 platform skips, and 785 subtests.
+
+### Thanks
+- Raymond Manaloto (@sortakool) supplied a minimal reproduction, identified the split between the resolver and attestation path, and explained why the next root invocation reports a false tamper event in issue #234.
+
 ## [3.12.0] - 2026-08-30
 
 ### Security
