@@ -32,11 +32,14 @@ import json
 import hashlib
 import os
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -68,6 +71,7 @@ def session_key(root: Path, session_id: str) -> str:
 def shell_and_env() -> tuple[str, dict[str, str]]:
     """POSIX sh, or the real Git-for-Windows sh plus its coreutils PATH."""
     env = os.environ.copy()
+    env["PWF_TRUSTED_PYTHON"] = str(Path(sys.executable).resolve())
     if os.name != "nt":
         shell = shutil.which("sh")
         if shell is None:
@@ -85,7 +89,6 @@ def shell_and_env() -> tuple[str, dict[str, str]]:
         raise unittest.SkipTest("Git for Windows sh.exe is unavailable")
     if extra_path_dirs:
         env["PATH"] = os.pathsep.join([*extra_path_dirs, env.get("PATH", "")])
-    env["PWF_TRUSTED_PYTHON"] = sys.executable
     return shell, env
 
 
@@ -312,6 +315,59 @@ class CodexAdapterPlanRootPinTests(NestedTreeMixin):
                 self.assertIsNone(adapter.effective_plan_root(self.workspace))
             finally:
                 os.environ.pop("PWF_PLAN_ROOT", None)
+        finally:
+            sys.path.pop(0)
+
+    def test_only_verified_darwin_system_aliases_are_trusted(self) -> None:
+        sys.path.insert(0, str(HOOKS_DIR))
+        try:
+            import codex_hook_adapter as adapter
+
+            alias_info = SimpleNamespace(st_mode=stat.S_IFLNK)
+            directory_info = SimpleNamespace(st_mode=stat.S_IFDIR)
+            mappings = {
+                "/var": ("private/var", "/private/var"),
+                "/tmp": ("private/tmp", "/private/tmp"),
+                "/etc": ("private/etc", "/private/etc"),
+            }
+            for alias, (link_text, target) in mappings.items():
+                with self.subTest(alias=alias):
+                    with (
+                        mock.patch.object(adapter.sys, "platform", "darwin"),
+                        mock.patch.object(adapter.os.path, "abspath", return_value=alias),
+                        mock.patch.object(adapter.os, "readlink", return_value=link_text),
+                        mock.patch.object(adapter.os.path, "realpath", return_value=target),
+                        mock.patch.object(
+                            adapter.Path,
+                            "lstat",
+                            side_effect=[alias_info, directory_info, directory_info],
+                        ),
+                    ):
+                        self.assertTrue(
+                            adapter._is_trusted_darwin_system_alias(Path(alias))
+                        )
+
+            with self.subTest(case="wrong-target"):
+                with (
+                    mock.patch.object(adapter.sys, "platform", "darwin"),
+                    mock.patch.object(adapter.os.path, "abspath", return_value="/var"),
+                    mock.patch.object(adapter.os, "readlink", return_value="private/evil"),
+                    mock.patch.object(adapter.os.path, "realpath", return_value="/private/var"),
+                    mock.patch.object(
+                        adapter.Path,
+                        "lstat",
+                        side_effect=[alias_info],
+                    ),
+                ):
+                    self.assertFalse(
+                        adapter._is_trusted_darwin_system_alias(Path("/var"))
+                    )
+
+            with self.subTest(case="unlisted-alias"):
+                with mock.patch.object(adapter.sys, "platform", "darwin"):
+                    self.assertFalse(
+                        adapter._is_trusted_darwin_system_alias(Path("/usr/local"))
+                    )
         finally:
             sys.path.pop(0)
 

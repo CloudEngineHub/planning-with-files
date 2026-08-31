@@ -5,10 +5,14 @@ import hashlib
 import importlib.util
 import os
 import re
+import stat
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -49,6 +53,67 @@ class ContextFrameSecurityTests(unittest.TestCase):
                     self.assertIn(f"bytes={len(payload)} sha256={digest}", framed)
                     self.assertIn(f"nonce={nonce}", framed)
                     self.assertIn("truncated=false", framed)
+
+    def test_only_verified_darwin_system_aliases_are_trusted(self) -> None:
+        alias_info = SimpleNamespace(st_mode=stat.S_IFLNK)
+        directory_info = SimpleNamespace(st_mode=stat.S_IFDIR)
+        mappings = {
+            "/var": ("private/var", "/private/var"),
+            "/tmp": ("private/tmp", "/private/tmp"),
+            "/etc": ("private/etc", "/private/etc"),
+        }
+        for module in MODULES:
+            for alias, (link_text, target) in mappings.items():
+                with self.subTest(module=module.__name__, alias=alias):
+                    with (
+                        mock.patch.object(module.sys, "platform", "darwin"),
+                        mock.patch.object(module.os.path, "abspath", return_value=alias),
+                        mock.patch.object(module.os, "readlink", return_value=link_text),
+                        mock.patch.object(module.os.path, "realpath", return_value=target),
+                        mock.patch.object(module.Path, "lstat", return_value=directory_info),
+                    ):
+                        self.assertTrue(
+                            module._is_trusted_darwin_system_alias(Path(alias), alias_info)
+                        )
+
+            with self.subTest(module=module.__name__, case="wrong-target"):
+                with (
+                    mock.patch.object(module.sys, "platform", "darwin"),
+                    mock.patch.object(module.os.path, "abspath", return_value="/var"),
+                    mock.patch.object(module.os, "readlink", return_value="private/evil"),
+                    mock.patch.object(module.os.path, "realpath", return_value="/private/var"),
+                    mock.patch.object(module.Path, "lstat", return_value=directory_info),
+                ):
+                    self.assertFalse(
+                        module._is_trusted_darwin_system_alias(Path("/var"), alias_info)
+                    )
+
+            with self.subTest(module=module.__name__, case="unlisted-alias"):
+                with mock.patch.object(module.sys, "platform", "darwin"):
+                    self.assertFalse(
+                        module._is_trusted_darwin_system_alias(
+                            Path("/usr/local"), alias_info
+                        )
+                    )
+
+            with self.subTest(module=module.__name__, case="non-darwin"):
+                with mock.patch.object(module.sys, "platform", "linux"):
+                    self.assertFalse(
+                        module._is_trusted_darwin_system_alias(Path("/var"), alias_info)
+                    )
+
+    @unittest.skipUnless(sys.platform == "darwin", "Darwin system alias regression")
+    def test_darwin_var_temp_path_reads_regular_file(self) -> None:
+        if not Path("/var").is_symlink():
+            self.skipTest("/var is not a system alias on this Darwin host")
+        with tempfile.TemporaryDirectory(dir="/var/tmp") as tmp:
+            source = Path(tmp) / "plan.md"
+            source.write_bytes(b"darwin alias is valid\n")
+            for module in MODULES:
+                with self.subTest(module=module.__name__):
+                    self.assertEqual(
+                        b"darwin alias is valid\n", module.read_regular_bytes(source)
+                    )
 
     @unittest.skipUnless(os.name == "nt", "Windows 8.3 alias regression")
     def test_windows_short_temp_alias_matches_long_handle_path(self) -> None:

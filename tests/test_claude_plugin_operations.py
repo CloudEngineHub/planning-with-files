@@ -82,14 +82,17 @@ class ClaudePluginLauncherTests(unittest.TestCase):
         for name in ("PLAN_ID", "PWF_PLAN_ROOT", "PWF_SESSION_ID"):
             self.env.pop(name, None)
         sh_usr_bin = str(Path(SH).parent)
-        sh_git_bin = str(Path(SH).parents[2] / "bin")
+        path_entries = [sh_usr_bin]
+        if os.name == "nt":
+            path_entries.insert(0, str(Path(SH).parents[2] / "bin"))
+        path_entries.append(self.env.get("PATH", ""))
         self.env.update(
             {
                 "CLAUDE_PLUGIN_ROOT": str(self.plugin),
                 "HOME": str(self.base / "isolated-home"),
                 "USERPROFILE": str(self.base / "isolated-home"),
                 "XDG_CACHE_HOME": str(self.base / "isolated-cache"),
-                "PATH": os.pathsep.join((sh_git_bin, sh_usr_bin, self.env.get("PATH", ""))),
+                "PATH": os.pathsep.join(path_entries),
             }
         )
 

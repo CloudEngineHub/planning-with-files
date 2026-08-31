@@ -21,6 +21,11 @@ _WALL_CLOCK_UTC = re.compile(rb"T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?Z")
 _WALL_CLOCK_OFFSET = re.compile(
     rb"T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?([+-][0-9]{2}:[0-9]{2})"
 )
+_DARWIN_SYSTEM_ALIASES = {
+    Path("/var"): Path("/private/var"),
+    Path("/tmp"): Path("/private/tmp"),
+    Path("/etc"): Path("/private/etc"),
+}
 
 for _stream in (sys.stdout, sys.stderr):
     _reconfigure = getattr(_stream, "reconfigure", None)
@@ -38,13 +43,37 @@ def _is_reparse_or_link_stat(info: os.stat_result) -> bool:
     return bool(attrs & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400))
 
 
+def _is_trusted_darwin_system_alias(path: Path, info: os.stat_result) -> bool:
+    """Admit only macOS's fixed root aliases after verifying their targets."""
+    if sys.platform != "darwin" or not stat.S_ISLNK(info.st_mode):
+        return False
+    absolute = Path(os.path.abspath(path))
+    expected = _DARWIN_SYSTEM_ALIASES.get(absolute)
+    if expected is None:
+        return False
+    try:
+        link_target = Path(os.readlink(absolute))
+        if not link_target.is_absolute():
+            link_target = absolute.parent / link_target
+        if Path(os.path.normpath(link_target)) != expected:
+            return False
+        if Path(os.path.realpath(absolute)) != expected:
+            return False
+        target_info = expected.lstat()
+    except (OSError, RuntimeError):
+        return False
+    return stat.S_ISDIR(target_info.st_mode) and not _is_reparse_or_link_stat(target_info)
+
+
 def _assert_no_reparse_components(path: Path) -> Path:
     absolute = Path(os.path.abspath(path))
     current = Path(absolute.anchor)
     for part in absolute.parts[1:]:
         current /= part
         info = current.lstat()
-        if _is_reparse_or_link_stat(info):
+        if _is_reparse_or_link_stat(info) and not _is_trusted_darwin_system_alias(
+            current, info
+        ):
             raise ValueError("refusing symlink or reparse-point context path")
     return absolute
 

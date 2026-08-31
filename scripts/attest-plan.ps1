@@ -32,6 +32,9 @@ param(
 $ErrorActionPreference = "Stop"
 
 $script:IsWindowsHost = [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT
+if (-not $script:IsWindowsHost) {
+    throw "Safe no-follow descriptor operations are unavailable in this PowerShell script on Unix. Use scripts/attest-plan.sh instead."
+}
 if ($script:IsWindowsHost -and -not ("PwfAttestationNative" -as [type])) {
     Add-Type -TypeDefinition @'
 using System;
@@ -410,7 +413,8 @@ function Resolve-PlanFile {
     # fall through and attest an unrelated legacy-root plan.
     if ($env:PWF_PLAN_ROOT -or $env:PLAN_ID) { return $null }
     $activePointer = Join-Path (Join-Path (Get-Location) ".planning") ".active_plan"
-    if (Test-Path -LiteralPath $activePointer) { return $null }
+    $activePointerItem = Get-Item -LiteralPath $activePointer -Force -ErrorAction SilentlyContinue
+    if ($activePointerItem) { return $null }
 
     $currentDirectory = (Get-Location).Path
     if (Test-SlugPlanDirectory $currentDirectory) {

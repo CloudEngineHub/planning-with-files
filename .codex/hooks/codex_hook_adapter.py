@@ -15,6 +15,11 @@ from typing import Any
 
 HOOK_DIR = Path(__file__).resolve().parent
 _SAFE_LEGACY_SESSION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
+_DARWIN_SYSTEM_ALIASES = {
+    Path("/var"): Path("/private/var"),
+    Path("/tmp"): Path("/private/tmp"),
+    Path("/etc"): Path("/private/etc"),
+}
 
 
 def load_payload() -> dict[str, Any]:
@@ -80,13 +85,40 @@ def _is_reparse_or_link(path: Path) -> bool:
     return bool(attrs & reparse)
 
 
+def _is_trusted_darwin_system_alias(path: Path) -> bool:
+    """Admit only macOS's fixed root aliases after verifying their targets."""
+    if sys.platform != "darwin":
+        return False
+    absolute = Path(os.path.abspath(path))
+    expected = _DARWIN_SYSTEM_ALIASES.get(absolute)
+    if expected is None:
+        return False
+    try:
+        info = absolute.lstat()
+        if not stat.S_ISLNK(info.st_mode):
+            return False
+        link_target = Path(os.readlink(absolute))
+        if not link_target.is_absolute():
+            link_target = absolute.parent / link_target
+        if Path(os.path.normpath(link_target)) != expected:
+            return False
+        if Path(os.path.realpath(absolute)) != expected:
+            return False
+        target_info = expected.lstat()
+    except (OSError, RuntimeError):
+        return False
+    return stat.S_ISDIR(target_info.st_mode) and not _is_reparse_or_link(expected)
+
+
 def _has_reparse_component(path: Path) -> bool:
     absolute = Path(os.path.abspath(path))
     current = Path(absolute.anchor)
     try:
         for part in absolute.parts[1:]:
             current /= part
-            if _is_reparse_or_link(current):
+            if _is_reparse_or_link(current) and not _is_trusted_darwin_system_alias(
+                current
+            ):
                 return True
     except (OSError, RuntimeError):
         return True

@@ -22,6 +22,7 @@ HOOKS_DIR = REPO_ROOT / ".codex" / "hooks"
 
 def shell_and_env() -> tuple[str, dict[str, str]]:
     env = os.environ.copy()
+    env["PWF_TRUSTED_PYTHON"] = str(Path(sys.executable).resolve())
     if os.name != "nt":
         shell = shutil.which("sh")
         if shell is None:
@@ -39,7 +40,6 @@ def shell_and_env() -> tuple[str, dict[str, str]]:
         raise unittest.SkipTest("Git for Windows sh.exe is unavailable")
     if extra_path_dirs:
         env["PATH"] = os.pathsep.join([*extra_path_dirs, env.get("PATH", "")])
-    env.setdefault("PYTHON_BIN", sys.executable)
     return shell, env
 
 
@@ -70,6 +70,191 @@ def write_plan_in_dir(plan_dir: Path, goal: str = "Ship the feature") -> None:
 
 
 class HookResolverIntegrationTests(unittest.TestCase):
+
+    @unittest.skipIf(os.name == "nt", "POSIX PATH poisoning contract")
+    def test_security_sensitive_hooks_do_not_execute_path_python(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plan_dir = root / ".planning" / "safe-plan"
+            write_plan_in_dir(plan_dir, goal="Trusted plan goal")
+            (root / ".planning" / ".active_plan").write_text(
+                "safe-plan\n", encoding="utf-8"
+            )
+            marker = root / "path-python-executed"
+            fake_bin = root / "fake-bin"
+            fake_bin.mkdir()
+            for name in ("python3", "python"):
+                fake_python = fake_bin / name
+                fake_python.write_text(
+                    f"#!/bin/sh\nprintf touched > '{marker.as_posix()}'\nexit 1\n",
+                    encoding="utf-8",
+                )
+                fake_python.chmod(0o755)
+            # Force canonicalize() past both ordinary command fallbacks. The
+            # resolver must fail closed without consulting PATH for Python.
+            for name in ("realpath", "readlink"):
+                fake_tool = fake_bin / name
+                fake_tool.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+                fake_tool.chmod(0o755)
+
+            shell, env = shell_and_env()
+            for name in ("PWF_TRUSTED_PYTHON", "PYTHON_BIN", "PLAN_ID"):
+                env.pop(name, None)
+            env.pop("PWF_PLAN_ROOT", None)
+            env["PATH"] = os.pathsep.join((str(fake_bin), env.get("PATH", "")))
+
+            for script in ("user-prompt-submit.sh", "pre-tool-use.sh"):
+                with self.subTest(script=script):
+                    result = subprocess.run(
+                        [shell, str(HOOKS_DIR / script)],
+                        cwd=root,
+                        text=True,
+                        encoding="utf-8",
+                        capture_output=True,
+                        env=env,
+                        check=False,
+                    )
+                    self.assertEqual(0, result.returncode, result.stderr)
+                    self.assertNotIn("Trusted plan goal", result.stdout + result.stderr)
+                    self.assertFalse(marker.exists())
+
+    def test_resolver_uses_explicit_legacy_python_when_path_tools_fail(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plan_dir = root / ".planning" / "safe-plan"
+            write_plan_in_dir(plan_dir)
+            (root / ".planning" / ".active_plan").write_text(
+                "safe-plan\n", encoding="utf-8"
+            )
+            fake_bin = root / "fake-bin"
+            fake_bin.mkdir()
+            for name in ("realpath", "readlink"):
+                fake_tool = fake_bin / name
+                fake_tool.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+                fake_tool.chmod(0o755)
+
+            shell, env = shell_and_env()
+            env.pop("PWF_TRUSTED_PYTHON", None)
+            env["PYTHON_BIN"] = str(Path(sys.executable).resolve())
+            env["PATH"] = os.pathsep.join((str(fake_bin), env.get("PATH", "")))
+
+            result = subprocess.run(
+                [shell, str(HOOKS_DIR / "resolve-plan-dir.sh")],
+                cwd=root,
+                text=True,
+                encoding="utf-8",
+                capture_output=True,
+                env=env,
+                check=False,
+            )
+            self.assertEqual(0, result.returncode, result.stderr)
+            resolved = result.stdout.strip().replace("\\", "/")
+            self.assertTrue(
+                resolved.endswith("/.planning/safe-plan"),
+                f"unexpected resolved path: {result.stdout!r}",
+            )
+
+    @unittest.skipIf(os.name == "nt", "POSIX rejection harness")
+    def test_resolver_rejects_unsafe_explicit_python_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plan_dir = root / ".planning" / "safe-plan"
+            write_plan_in_dir(plan_dir)
+            (root / ".planning" / ".active_plan").write_text(
+                "safe-plan\n", encoding="utf-8"
+            )
+            marker = root / "unsafe-python-executed"
+            fake_bin = root / "fake-bin"
+            fake_bin.mkdir()
+            for name in ("realpath", "readlink"):
+                fake_tool = fake_bin / name
+                fake_tool.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+                fake_tool.chmod(0o755)
+
+            for candidate in (
+                root / "relative-python",
+                root / "C:drive-relative-python",
+                root / "WindowsApps" / "python3",
+            ):
+                candidate.parent.mkdir(parents=True, exist_ok=True)
+                candidate.write_text(
+                    f"#!/bin/sh\nprintf touched > '{marker.as_posix()}'\nexit 1\n",
+                    encoding="utf-8",
+                )
+                candidate.chmod(0o755)
+
+            shell = shutil.which("sh")
+            if shell is None:
+                self.skipTest("POSIX sh is unavailable")
+            base_env = os.environ.copy()
+            base_env.pop("PYTHON_BIN", None)
+            base_env["PATH"] = os.pathsep.join(
+                (str(fake_bin), base_env.get("PATH", ""))
+            )
+            supplied = (
+                "./relative-python",
+                "C:drive-relative-python",
+                str(root / "WindowsApps" / "python3"),
+                "//server/share/python3",
+                r"\\server\share\python3.exe",
+            )
+            for candidate in supplied:
+                with self.subTest(candidate=candidate):
+                    marker.unlink(missing_ok=True)
+                    env = {**base_env, "PWF_TRUSTED_PYTHON": candidate}
+                    result = subprocess.run(
+                        [shell, str(HOOKS_DIR / "resolve-plan-dir.sh")],
+                        cwd=root,
+                        text=True,
+                        encoding="utf-8",
+                        capture_output=True,
+                        env=env,
+                        check=False,
+                    )
+                    self.assertEqual(0, result.returncode, result.stderr)
+                    self.assertEqual("", result.stdout)
+                    self.assertFalse(marker.exists())
+
+    @unittest.skipIf(os.name == "nt", "POSIX PATH poisoning contract")
+    def test_resolver_mtime_fallback_does_not_execute_path_python(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_plan_in_dir(root / ".planning" / "safe-plan")
+            marker = root / "path-python-executed"
+            fake_bin = root / "fake-bin"
+            fake_bin.mkdir()
+            for name in ("python3", "python"):
+                fake_python = fake_bin / name
+                fake_python.write_text(
+                    f"#!/bin/sh\nprintf touched > '{marker.as_posix()}'\nexit 1\n",
+                    encoding="utf-8",
+                )
+                fake_python.chmod(0o755)
+            for name in ("stat", "date"):
+                fake_tool = fake_bin / name
+                fake_tool.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+                fake_tool.chmod(0o755)
+
+            shell = shutil.which("sh")
+            if shell is None:
+                self.skipTest("POSIX sh is unavailable")
+            env = os.environ.copy()
+            for name in ("PWF_TRUSTED_PYTHON", "PYTHON_BIN", "PLAN_ID"):
+                env.pop(name, None)
+            env["PATH"] = os.pathsep.join((str(fake_bin), env.get("PATH", "")))
+
+            result = subprocess.run(
+                [shell, str(HOOKS_DIR / "resolve-plan-dir.sh")],
+                cwd=root,
+                text=True,
+                encoding="utf-8",
+                capture_output=True,
+                env=env,
+                check=False,
+            )
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual("", result.stdout)
+            self.assertFalse(marker.exists())
 
     def test_global_resolver_is_a_thin_canonical_forwarder(self) -> None:
         resolver = (HOOKS_DIR / "resolve-plan-dir.sh").read_text(encoding="utf-8")

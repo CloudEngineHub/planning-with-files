@@ -16,8 +16,9 @@ each script with PATH pointing at that dir alone:
            the 'shasum -a 256' call form and output shape), stat rejecting
            -c and serving -f '%m' (translated to GNU stat -c '%Y' first,
            native BSD stat -f '%m' second, python mtime last), date passed
-           through, python3 (the canonicalize fallback target), and the
-           POSIX text tools the scripts use.
+           through, and the POSIX text tools the scripts use. Canonicalization
+           receives an exact interpreter through PWF_TRUSTED_PYTHON instead
+           of exposing Python on PATH.
 
 Absence is real absence, not a failing shadow: PATH is replaced, not
 prepended, so `command -v flock` and friends take the no-tool branch exactly
@@ -67,9 +68,12 @@ PASSTHROUGH_TOOLS = (
     "tail",
     "cut",
     "cat",
+    "chmod",
     "mkdir",
+    "mktemp",
     "mv",
     "rm",
+    "wc",
     "date",
 )
 
@@ -170,11 +174,6 @@ def build_bsd_stub_bin(bin_dir: Path) -> None:
             raise unittest.SkipTest("host lacks both shasum and sha256sum")
         write_stub(bin_dir, "shasum", SHASUM_TEMPLATE % {"real_sha256sum": real_sha256sum})
 
-    # canonicalize() in the scripts falls realpath -> readlink -> python3;
-    # with the first two absent this wrapper is the one that must answer.
-    write_passthrough(bin_dir, "python3", sys.executable)
-
-
 @unittest.skipIf(
     sys.platform == "win32",
     "BSD userland simulation replaces PATH wholesale; MSYS sh cannot run "
@@ -208,8 +207,10 @@ class BsdUserlandSimTests(unittest.TestCase):
         # or HOME) and strip vars that change script behavior.
         env["HOME"] = str(home)
         env["XDG_CACHE_HOME"] = str(home / ".cache")
+        env["PWF_TRUSTED_PYTHON"] = str(Path(sys.executable).resolve())
         for var in ("PLAN_ID", "PLANNING_DISABLED"):
             env.pop(var, None)
+        env.pop("PYTHON_BIN", None)
         self.env = env
 
     def run_script(self, script: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -237,7 +238,7 @@ class BsdUserlandSimTests(unittest.TestCase):
     def test_simulated_userland_shape(self) -> None:
         # Self-check of the harness: if a runner image change or a stub bug
         # lets a GNU tool leak in, coverage would silently weaken. Fail loud.
-        for absent in ("realpath", "readlink", "flock", "sha256sum"):
+        for absent in ("realpath", "readlink", "flock", "sha256sum", "python3", "python"):
             result = self.run_sh("command -v %s" % absent)
             self.assertNotEqual(
                 0,
@@ -245,7 +246,7 @@ class BsdUserlandSimTests(unittest.TestCase):
                 "%s must be absent from the stub PATH, found %r"
                 % (absent, result.stdout.strip()),
             )
-        for present in ("shasum", "python3", "stat", "date", "sh"):
+        for present in ("shasum", "stat", "date", "sh"):
             result = self.run_sh("command -v %s" % present)
             self.assertEqual(
                 0, result.returncode, "%s must be present in the stub PATH" % present
@@ -276,8 +277,9 @@ class BsdUserlandSimTests(unittest.TestCase):
 
     def test_full_flow_resolve_inject_attest_ledger(self) -> None:
         # 1) Resolver: .active_plan slug fixture must resolve. canonicalize()
-        # has only the python3 fallback available; an empty stdout here is the
-        # signature of a GNU-only-flag regression (fail-closed containment).
+        # has only the exact PWF_TRUSTED_PYTHON fallback available; an empty
+        # stdout here is the signature of a GNU-only-flag regression
+        # (fail-closed containment).
         result = self.run_script(RESOLVE_SH)
         self.assertEqual(0, result.returncode, result.stderr)
         resolved = result.stdout.strip()
