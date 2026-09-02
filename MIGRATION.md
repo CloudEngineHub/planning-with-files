@@ -223,7 +223,7 @@ durable state; only the gate's enforcement strength differs.
 | Tier | Mechanism | Hosts |
 |------|-----------|-------|
 | Hard block | `decision:block` / exit 2 holds the turn | Claude Code, Codex CLI, OpenAI Codex API, Continue.dev |
-| Follow-up inject | continuation via an injected follow-up message plus the host's own counter | Cursor, Pi, Kiro |
+| Follow-up inject | continuation via an injected follow-up message plus the host's own counter | Cursor, Pi, Kiro, Hermes Agent |
 | Notify only | a system message is shown, no enforcement | OpenCode, Gemini CLI, and the remaining adapters |
 
 On hard-block hosts, gated mode enforces the gate. On follow-up hosts, the gate becomes a
