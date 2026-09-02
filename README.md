@@ -68,7 +68,7 @@ The transcript is illustrative; the `===BEGIN PLAN DATA===` block is the skill's
 | Plan files | **3** |
 | Agents covered | **60+** |
 | Pass rate (with skill) | **96.7%** |
-| Test suite | **620 green** |
+| Test suite | **653 tests** |
 | Survives `/clear` | **yes** |
 
 ## Built for long-running agent tasks
