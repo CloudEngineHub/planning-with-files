@@ -338,6 +338,123 @@ One hook fire measures 289ms wall-clock since the v3.6.0 optimization, down from
 
 </details>
 
+<a id="releases"></a>
+
+<details>
+<summary><strong>📦 Releases</strong></summary>
+
+| Version | Highlights |
+|---------|------------|
+| **v3.13.0** | **Hermes Agent becomes a first-class host, CLI and Desktop.** The native plugin now resolves `.planning/<slug>/` plans (the old adapter only saw a root `task_plan.md`), honours `PLAN_ID`, `PWF_PLAN_ROOT` and `PLANNING_DISABLED`, registers `/pwf`, `/pwf-status` and `/plan-status` (the shipped Markdown command files were never loaded by Hermes), bundles the skill, creates gated and autonomous plans with attestation from `/pwf --gated <name>`, and answers Hermes' `pre_verify` hook with the completion gate. Verified in a live Hermes 0.19.1 plugin manager; the Hermes `skills-guard` scanner rates the bundle `SAFE`. Native Windows path fix (`%LOCALAPPDATA%\hermes`). README reorganized: install and platforms first, proof and reference at the bottom, nothing removed. |
+| **v3.12.1** | **Attestation now stays in slug mode when the helper runs inside `.planning/<slug>/`** (fixes #234, reported by @sortakool). The shell and PowerShell helpers update the slug's `.attestation` instead of creating a legacy `.plan-attestation`, and invalid explicit selectors stop without falling back to another local plan. PowerShell regression coverage exercises attest, show, and clear from the nested directory. The release also restores macOS system-alias handling for the Codex and Hermes context readers and keeps unsafe active-plan pointers from falling back to an unrelated legacy plan. |
+| **v3.12.0** | **Session recovery is now consent-bound and the published planning surface is fully auditable.** Automatic hooks read project planning files only. Same-project session metadata and bounded replay require explicit CLI modes, cross-project records remain quarantined, and phase-status writers fail closed when their shared lock is unavailable. Hidden template instructions were replaced with visible guidance, capability descriptions now disclose actual context and gate behavior, and the complete 29-file ClawHub stage is rebuilt and verified from canonical tracked source. |
+| **v3.11.2** | **Skills-only manual installs now copy one skill at the documented depth** (PR #229 by @dylanpulver). The Unix and PowerShell commands name `skills/planning-with-files` instead of copying `skills/*`, so the `skills/i18n/` subtree no longer lands below the loader path. Both instructions create `~/.claude/skills` first, which keeps a fresh install from placing `SKILL.md` directly under `skills/`. A tracked-Markdown test rejects the old whole-directory copy shape and locks the destination-creation step. |
+| **v3.11.1** | **The Copilot error hook could not be parsed by a POSIX shell** (PR #228 by @dylanpulver). `error-occurred.sh` fed its two Python helpers with `<<<`, a bash here-string that dash does not implement, and the suite invokes the shell hooks as `sh script`, so the `#!/bin/bash` shebang never applied. On ubuntu runners the file died at line 32 with `Syntax error: redirection unexpected`, and master CI had failed on that leg for five consecutive runs. Both call sites now pipe with `printf '%s\n'`. The sibling `echo` form was deliberately not copied: dash expands backslash escapes, which would have traded a loud syntax error for silent JSON corruption. No user was affected, because Copilot invokes the hook under a `bash` key that bypasses the shebang. |
+| **v3.11.0** | **The plugin registers one skill instead of six** (closes #130, reported by @sean3808; implemented by @dylanpulver in PR #226). The five language variants moved from `skills/planning-with-files-<lang>/` to `skills/i18n/planning-with-files-<lang>/`. Nothing deleted, nothing renamed, every `npx skills add --skill` command unchanged: Claude Code scans `skills/*/SKILL.md` one level without recursing, while the skills CLI resolves `--skill` by name across a recursive scan. Measured against the real loader, not inferred: 6 registered skills to 1, 19 components to 14, always-on cost roughly 2,254 to 1,042 tokens per session, with all thirteen slash commands intact. `/plan-de` and its four siblings read their translated skill from disk and state that the status tokens stay literal English, because `check-complete.sh` matches them with `grep -F`. Also fixes seven shell hooks that could emit JSON with a raw control character when run under a POSIX-mode shell on macOS. |
+| **v3.10.2** | **`PLANNING_DISABLED=1` had never reached the GitHub Copilot or Cursor hooks** (PRs #223, #222 and #224, by @Whxuan0701). Both routes read `task_plan.md` directly instead of dispatching to the script that carries the #195 guard, so eighteen hook entry points ignored the opt-out entirely: a one-shot task sharing a working directory with an unrelated plan had no way to detach from it. Auditing the merge found three more: the disabled `PreToolUse` branch answered `permissionDecision: allow`, so turning the skill off widened Copilot's permissions instead of staying neutral; `.cursor/hooks/stop.ps1` was the last copy the #191 zero-phase guard never reached, still auto-continuing on `0/0 phases done`; and `error-occurred.ps1` had never logged an error on Windows because it read stdin into `$input`, PowerShell's automatic pipeline variable, which does not hold the assignment under `-File`. The opt-out tests now run every hook with the variable unset as well as set, because the disabled-only versions stayed green against a fleet gutted to emit `{}`. Suite 424 to 430. |
+| **v3.10.1** | **Codex context hooks now emit valid event JSON on Linux and macOS** (fixes #220, reported by @mfehlhaber). `SessionStart`, `UserPromptSubmit`, and `PreCompact` use the same adapter as Windows, so planning output beginning with `[` is no longer misread as malformed JSON. This release also aligns the tracked npm payload with the published 20-script package, corrects the release reference, and makes the version bumper safe to run without the gitignored ClawHub stage in a fresh clone. |
+| **v3.10.0** | **Two sessions sharing one plan directory could silently destroy each other's work** (closes #217, reported by @dubes394). Both read `task_plan.md`, both write it back, and the later write discards the earlier one's phases while injection, `plan-doctor` and the Stop gate all read the result as an ordinary edit. Attestation could not cover it: it compares against a baseline a human approved once, not against what the hooks last observed, and it is a read side gate that cannot stop the stale write. The guard compares progress rather than hashes, because a hash comparison flags a single agent's own edit on its very next fire; checked items and completed phases only go up during normal work, so a decrease means work is gone. Verifying #130 alongside it exposed that every non-English install was a subset install, missing attestation, the Stop gate, the ledger, phase status and plan-doctor entirely, plus a Windows UTF-8 crash fix that never left the canonical skill. Closed additively, 60 files created and 0 overwritten, with the translator-owned scripts pinned so no future sync can English them. Also fixes a README top that showed five labels and no numbers on a phone. Suite 411 to 417. |
+| **v3.9.0** | **A Codex thread whose cwd was a shared parent injected an unrelated project's plan on every hook fire** (closes #212, reported by @webwww123). Resolution was cwd relative with no notion of a thread, so the shared parent's pointer was the only one the hook could see. Adds `PWF_PLAN_ROOT` for an absolute plan root binding, which a cwd relative `PLAN_ID` slug structurally could not express, and refuses to inject when the cwd is ambiguous rather than guessing. Verifying the report exposed that `PLANNING_DISABLED=1` was inoperative on eleven of thirteen install routes, that the Stop hook could never find its script on six hosts, and that eight shipped PowerShell scripts could not be parsed by Windows PowerShell 5.1 at all, leaving Cursor injection and both Chinese variants' `init-session` dead on Windows. Also closes #211 (a provider error queued another request into the same failing provider, and the Pi status bar stopped tracking the plan after approval) and #210 (injection determinism now asserted, five routes normalized). Suite 311 to 411. |
+| **v3.8.2** | **Session recovery silently found nothing for any project path containing a dot, a space, or any other non-alphanumeric character** (closes #209, reported by @seathatflowsinourveins). Three copies of `session-catchup.py` still folded only `/`, `\` and `:`, and one of them is the copy every `/plugin install` runs on Linux, macOS and Git Bash. Against a real store holding 89 sessions the shipped resolver produced 0 bytes where the fix produces 11336 and recovers 166 messages. Folding now counts UTF-16 code units, so emoji folder names resolve too, and a per-session `cwd` filter stops two projects that fold to one directory name from reading each other's transcripts. One vector table now runs across every copy, so this drift cannot come back. Suite at 311. |
+| **v3.8.1** | **Pi extension: plan resolution no longer depends on the live shell cwd** (closes #208, reported by @fd44fdg). An agent that cd'd into a subdirectory lost the plan, recitation went dark, and the "No task_plan.md found" warning fired on every write. Resolution now anchors on the nearest ancestor with planning state, bounded by the `.git` repository boundary, with slug-validation and containment parity with the sh resolver; every injection states which plan it resolved (`plan: <id>`), making slug-over-root shadowing visible. Also: `init-session` heredocs never carried the v3.8.0 Next Step section; all copies fixed with an output-level regression test. Gated by an Opus adversarial pass plus a five-lens Sonnet reliability fleet. |
+| **v3.8.0** | **The Stop hook never fired on macOS or Linux** (a dead install-path fallback stacked on PowerShell-first dispatch), and **session recovery searched a project directory that does not exist** for POSIX or underscore project paths; both fixed with tests that execute the hooks end to end. Opt-in structure-aware injection (`PWF_INJECT=smart`) keeps the active phase and decision journal in the window late in long plans. Next Step pointer in the templates, tool-result outcomes in session catchup, macOS CI leg plus a BSD-userland simulation harness, `resolve-plan-dir.ps1` parity with fail-closed containment, UTF-8-safe ledger truncation, pinned line endings, and a rebuilt README with honest benchmark charts. Suite at 301. |
+| **v3.7.0** | **Agent Skills standard layout ships in-tree**: `.agents/skills/planning-with-files/` carries the full canonical surface, so tools that read the standard path natively (Zed, Amp, Warp, Devin, Antigravity, Gemini CLI, Cursor) discover the current skill from a plain `git clone`. Locked into the 18-entry parity set; `plan-doctor.sh` now ships in every synced IDE folder. |
+| **v3.6.0** | **Windows-native coreutils silently killed plan resolution and every hook injection** (backslash `realpath` broke the containment match); fixed, with per-fire latency down to 289ms on the machine that measured 2.0-2.4s at v3.4.0. New `/plan-doctor` self-check, install-route matrix in the docs, suite green at 217. |
+| **v3.5.1** | Codex Windows shell resolver skips WSL bash launchers, `pwf-hook.cmd` hardens Python discovery, and Pi recitations are delivered as `nextTurn` so interactive tools are not broken. |
+| **v3.5.0** | **Codex Windows hooks emit valid JSON and survive Unicode** (PR #205 by @yolo0731, closes #204); the Pi extension stops re-nagging closed and complete plans (#203 by @ziyu4huang); the plan lifecycle is documented (#202 by @kcinzgg). Four broken language-command references fixed, `/plan-zht` added. |
+| **v3.4.1** | **Codex hooks now run on Windows** (closes #201, reported by @mahdiit): per-hook `commandWindows` overrides, a `pwf-hook.cmd` launcher that never resolves the Store `python3` alias, and a Git Bash resolver anchored on `git.exe`. |
+| **v3.4.0** | **`PLANNING_DISABLED=1` per-invocation opt-out** so one-shot sessions that merely share a cwd with an incomplete plan are not hijacked (closes #195, reported by @marcmuon). Ships in every distributed copy. |
+| **v3.3.0** | **Pi hooks wait for explicit approval via `/plan-execute`** before activating (PR #193 by @Dikshj, closes #190, requested by @lazyst). A plan with a tampered attestation cannot be approved. |
+| **v3.2.0** | **Repository health audit**: `session-catchup.py` (the resume-after-`/clear` mechanism) was non-functional on Windows and `inject-plan.sh` silently dropped injection under aliased paths; both fixed, plus the "0/0 phases" false status (closes #191, #188, addresses #103). `SECURITY.md` added. (thanks @Stephen-abc, @igorcosta, @mixian939, @AvitalAviv) |
+| **v3.1.3** | **Hotfix**: v3.1.2's unquoted SKILL.md description broke the YAML frontmatter; quoted everywhere plus a new frontmatter-validity test. |
+| **v3.1.2** | Session-catchup works outside the plugin runtime via a `$HOME` fallback (PR #186 by @shunfeng8421, closes #185, reported by @xwang118), `.hermes` parity, refreshed skill descriptions. |
+| **v3.1.1** | Codex verification command matches the current `hooks` feature key (PR #184 by @Fat-Jan). |
+| **v3.1.0** | Codex Stop hook no longer blocks on an incomplete plan, native Codex PreCompact parity, Pi extension test suite, SHA-cache docs (PR #180 by @2023Anita closes #178, PR #181 by @GongYuanCaiJi, PRs #174/#175 by @mvanhorn close #163, #164). |
+| **v3.0.0** | **Autonomous and gated modes for long-running runs**: append-only JSONL run ledger, opt-in completion gate, attestation default-on in v3 modes, `MIGRATION.md`. No breaking changes: with no mode marker the hooks produce byte-identical v2.43 output. |
+| **v2.43.0** | **CONTRIBUTING.md + OpenCode docs fix + `.continue`/`.gemini`/`.kiro` variant sync to parity** (PR #171 by @Skulli485, issue #172 by @luyanfeng, issues #159/#160/#161): first `CONTRIBUTING.md` at repo root, auto-surfaced by GitHub in the PR creation flow. `docs/opencode.md` Quick Install switched from \`git clone\` to \`npx skills add\` after the manual-install block was found referencing a doubled path (`planning-with-files/planning-with-files/SKILL.md`). Three historically lagging IDE SKILL.md variants brought to v2.43.0 parity: `.continue` from v2.34.0 (9 versions behind), `.gemini` from v2.34.0 (9 versions behind), `.kiro` from v2.32.0-kiro (11 versions behind), preserving IDE-specific frontmatter, hook shapes, and Kiro Agent Skill layout. |
+| **v2.42.0** | **POSIX `init-session.sh` portability + plugin-vs-skill install transparency + Topic Handoff docs** (PR #169 and PR #170 by @carterusedulm2-maker): `init-session.sh` and its 7 mirrors swap the `[[ ]]` bashism for POSIX `[ ]` so `tests/test_init_session_slug.py` runs cleanly under `dash` (Ubuntu) when the test invokes the script via `sh` rather than the `bash` shebang. Canonical SKILL.md gains an install-scope clarification: `/plugin install` ships the `commands/` folder with `/plan-goal` and `/plan-loop`, but `npx skills add` (and ClawHub) do not. A manual fallback procedure for both wrappers is documented inline so skill-only sessions can produce the same effect by invoking Claude Code's native `/goal` and `/loop` primitives directly. `docs/quickstart.md` and `docs/workflow.md` add an optional Topic Handoff Pattern for very long-running operational topics (`handoffs/<topic>.md` alongside `progress.md`). |
+| **v2.41.0** | **Windows exec-bit test skip + attestation-locking docs** (PR #167 by @gauravvojha, Issue #166; PR #168 by @CleanDev-Fix, Issue #165): `test_script_permissions.py` now skips on Windows with a class-level `pytest.mark.skipif(sys.platform == "win32")` since NTFS does not store POSIX executable bits; the 2 pre-existing Windows exec-bit failures (present since v2.34.1) are resolved. New dedicated `docs/attestation-locking.md` page documents the `attest-plan.sh` write path, the atomic temp-rename guarantee, the optional `flock` advisory lock, and the recommended slug-mode workflow for parallel sessions. |
+| **v2.40.1** | **Pi adapter SKILL.md sync gap + npm scope correction** (PR #158 by @TomXPRIME): the `.pi` SKILL.md lagged the canonical Claude Code copy after v2.39.0; v2.40.1 backports Rule 7 (Continue After Completion), the Security Boundary section, the expanded Scripts section covering `set-active-plan.sh`/`resolve-plan-dir.sh`/`attest-plan.sh` plus the parallel task workflow, and the "Write web content to task_plan.md" anti-pattern row. The Pi npm package is renamed from the unscoped `pi-planning-with-files` to `@tomxprime/planning-with-files`, matching the package author's namespace; install docs updated accordingly. Author, repository, license, and bugs URLs preserved. |
+| **v2.40.0** | **Slug-mode resolution fixes + perf cache + KV-cache hygiene + Pi false-positive fix** (9 items from the v2.40 R&D experiment): hook resolution order inverted so slug-mode wins over legacy root, `.active_plan` target dir + content validated against a safe-identifier regex, `check-complete.sh` honors `$PLAN_ID` and `.active_plan`, Pi extension `isDangerousBashCommand` swapped to a word-boundary regex array so benign `git push origin <branch>` no longer fires the warning, mtime-keyed SHA-256 cache cuts attestation-hook latency on Windows Git Bash, `progress.md` tail timestamps normalized for KV-cache prefix stability, `resolve-plan-dir.sh` mtime resolution made portable across GNU/BSD/macOS/Alpine/Git Bash with python+perl fallbacks, `attest-plan.sh` uses atomic temp-rename with optional `flock` to close the concurrent-writer race. 130 pass / 2 pre-existing Windows exec-bit fails, +20 new tests. |
+| **v2.39.0** | **Pi Coding Agent full hook parity extension + Codex hooks flag fix** (PR #157 by @TomXPRIME, Issue #154 by @DLI1996): the `.pi` adapter ships a bundled TypeScript extension mapping eight Pi lifecycle events to the same behavior the skill provides on Claude Code, with a four-mode system (`auto`/`parity`/`cache-safe`/`notify`) that auto-detects DeepSeek and keeps the KV-cache prefix stable. Pi runtime reads the same `.attestation` file the canonical v2.37 `attest-plan.sh` writes, so attesting once locks the plan across both runtimes. Four slash commands (`/plan-status`, `/plan-attest`, `/plan-goal`, `/plan-loop`) mirror their Claude Code counterparts. Separately, `docs/codex.md` swaps from `codex_hooks = true` to `hooks = true` to match the current OpenAI canonical key, with an alias note so users on older configs are not pushed to migrate. |
+| **v2.38.1** | **Description field garbled in Claude Code skill picker** (surfaced via Discussion #153 by @bmyury): hook commands embedded `'---BEGIN PLAN DATA---'` plan-injection delimiters; Claude Code's skill-discovery loader split frontmatter on the first `---` and read the truncated value as the description. Swapped to `===BEGIN PLAN DATA===` / `===END PLAN DATA===` across canonical SKILL.md, all five language variants, the `.codebuddy/.codex/.cursor` adapter mirrors, and `clawhub-upload`. Hook execution and tamper attestation never affected; only the displayed metadata. |
+| **v2.38.0** | **Claude Code turn-loop integration + OpenCode SQLite fix**: new PreCompact hook fires on `/compact` and autoCompact, surfaces a reminder to flush progress before compaction completes and prints the active Plan-SHA256 when attested. New `/plan-goal` slash command composes with Claude Code's `/goal` (v2.1.139, May 12 2026): derives a termination condition from the active plan. New `/plan-loop` composes with `/loop` (v2.1.72+): default 10-minute tick re-reads planning files and runs check-complete. New `templates/loop.md` for the bare `/loop` planning-aware default. Session-catchup rewritten for OpenCode's SQLite migration. Codex gets a `PermissionRequest` adapter that surfaces plan context at permission prompts. |
+| **v2.37.0** | **Hash attestation + parity bumper** (closes #150, #151): `/plan-attest` locks `task_plan.md` with a SHA-256; hooks block injection on tamper. `scripts/bump-version.py` + parity test kill the "missed one variant" regression class behind v2.34.1, v2.36.0, v2.36.2, and v2.36.3. (thanks @oaabahussain!) |
+| **v2.36.3** | **Parallel planning scripts now ship in the skill**: `resolve-plan-dir.sh` and `set-active-plan.sh` were missing from the installed skill in v2.36.0; now in canonical + all IDE mirrors + SKILL.md docs updated |
+| **v2.36.2** | **Canonical script sync** (PR #149): `skills/planning-with-files/scripts/init-session.sh` was missing slug mode from v2.36.0; now synced with IDE mirrors + regression test. (thanks @voidborne-d!) |
+| **v2.36.1** | **Security hardening**: Stop hook cache search removed, ExecutionPolicy Bypass changed to RemoteSigned, prompt injection delimiters added. (Gen Agent Trust Hub FAIL resolved) |
+| **v2.36.0** | **Parallel plan isolation + Codex session isolation** (closes #146, #148): `init-session.sh` slug mode, `set-active-plan.sh`, `resolve-plan-dir.sh`, all Codex hooks route through resolver, session attachment gating. **Hermes docs** (closes #147): integration notes added to `docs/hermes.md`. 34 new tests. (thanks @githubYiheng, @09ashishkapoor, @shawnli1874!) |
+| **v2.35.1** | **Shebang portability fix**: changed `/bin/bash` to `/usr/bin/env bash` in hook scripts, fixing compatibility on NixOS and other systems where bash is not at `/bin/bash`. (thanks @Emin017!) |
+| **v2.35.0** | **Hermes adapter + NLPM audit hardening**: Hermes platform 17 support (thanks @bailob!), NLPM audit fixed Python PATH resolution, session-catchup injection cap, Pi PowerShell syntax (thanks @xiaolai!) |
+| **v2.34.1** | **Stop hook Windows portability fix** (closes #133): `export SD=` failed in Windows Git Bash hook context; fallback path was wrong for plugin cache structure. Fixed across all 13 SKILL.md variants. (thanks @nazeshinjite!) |
+| **v2.34.0** | **Codex hooks fully restored** (closes #132): `.codex/hooks.json` + lifecycle scripts back — SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop. Tessl CI for SKILL.md quality reviews. Exec bit fix. 4 missing contributors added. (thanks @Leon-Algo, @popey!) |
+| **v2.33.0** | **Multi-language expansion**: Arabic, German, and Spanish skill variants added (thanks to community contributors!) |
+| **v2.32.0** | Codex session catchup rewrite (thanks @ebrevdo!), Loaditout A-grade security badge, Stop hook Git Bash fix |
+| **v2.31.0** | Codex hooks.json integration with full lifecycle hooks (thanks @Leon-Algo!) |
+| **v2.30.1** | Fix: Codex script executable bits restored (thanks @Leon-Algo!) |
+| **v2.30.0** | `CLAUDE_SKILL_DIR` variable, IDE configs moved to per-IDE branches, plugin.json bumped from 2.23.0 |
+| **v2.29.0** | Analytics workflow template: `--template analytics` flag for data exploration sessions (thanks @mvanhorn!) |
+| **v2.28.0** | Traditional Chinese (zh-TW) skill variant (thanks @waynelee2048!) |
+| **v2.27.0** | Kiro Agent Skill layout (thanks @EListenX!) |
+| **v2.26.2** | Fix: `---` in hook commands broke YAML frontmatter parsing, hooks now register correctly |
+| **v2.26.1** | Fix: session catchup after `/clear`, path sanitization on Windows + content injection (thanks @tony-stark-eth!) |
+| **v2.26.0** | IDE audit: Factory hooks, Copilot errorOccurred hook, Gemini hooks, bug fixes |
+| **v2.18.2** | Mastra Code hooks fix (hooks.json + docs accuracy) |
+| **v2.18.1** | Copilot garbled characters complete fix |
+| **v2.18.0** | BoxLite sandbox runtime integration |
+| **v2.17.0** | Mastra Code support + all IDE SKILL.md spec fixes |
+| **v2.16.1** | Copilot garbled characters fix: PS1 UTF-8 encoding + bash ensure_ascii (thanks @Hexiaopi!) |
+| **v2.16.0** | GitHub Copilot hooks support (thanks @lincolnwan!) |
+| **v2.15.1** | Session catchup false-positive fix (thanks @gydx6!) |
+| **v2.15.0** | `/plan:status` command, OpenCode compatibility fix |
+| **v2.14.0** | Pi Agent support, OpenClaw docs update, Codex path fix |
+| **v2.11.0** | `/plan` command for easier autocomplete |
+| **v2.10.0** | Kiro steering files support |
+| **v2.7.0** | Gemini CLI support |
+| **v2.2.0** | Session recovery, Windows PowerShell, OS-aware hooks |
+
+[View all releases](https://github.com/OthmanAdi/planning-with-files/releases) · [CHANGELOG](CHANGELOG.md)
+
+> Parallel plan isolation (`.planning/YYYY-MM-DD-slug/` directories) and Codex session isolation shipped in v2.36.0. The `experimental/isolated-planning` branch was the earlier prototype; master is now the canonical location.
+
+</details>
+
+<a id="community"></a>
+
+<details>
+<summary><strong>🌍 What the community shipped</strong></summary>
+
+### Forks & Extensions
+
+| Fork | Author | What They Built |
+|------|--------|-----------------|
+| [devis](https://github.com/st01cs/devis) | [@st01cs](https://github.com/st01cs) | Interview-first workflow, `/devis:intv` and `/devis:impl` commands, guaranteed activation |
+| [multi-manus-planning](https://github.com/kmichels/multi-manus-planning) | [@kmichels](https://github.com/kmichels) | Multi-project support, SessionStart git sync |
+| [plan-cascade](https://github.com/Taoidle/plan-cascade) | [@Taoidle](https://github.com/Taoidle) | Multi-level task orchestration, parallel execution, multi-agent collaboration |
+| [agentfund-skill](https://github.com/RioTheGreat-ai/agentfund-skill) | [@RioTheGreat-ai](https://github.com/RioTheGreat-ai) | Crowdfunding for AI agents with milestone-based escrow on Base |
+| [openclaw-github-repo-commander](https://github.com/wd041216-bit/openclaw-github-repo-commander) | [@wd041216-bit](https://github.com/wd041216-bit) | 7-stage GitHub repo audit, optimization, and cleanup workflow for OpenClaw |
+
+### Used in the Wild
+
+| Project | What It Is |
+|---------|-----------|
+| [lincolnwan/Planning-with-files-copilot-agent](https://github.com/lincolnwan/Planning-with-files-copilot-agent) | Entire Copilot agent repo built around the planning-with-files skill |
+| [cooragent/ClarityFinance](https://github.com/cooragent/ClarityFinance) | AI finance agent framework, Planning-with-Files approach directly credited |
+| [oeftimie/vv-claude-harness](https://github.com/oeftimie/vv-claude-harness) | Claude Code harness built on Manus-style persistent markdown planning |
+| [jessepwj/CCteam-creator](https://github.com/jessepwj/CCteam-creator) | Multi-agent team orchestration skill using file-based planning |
+
+### Skill Registries & Hubs
+
+| Registry | What It Is |
+|----------|-----------|
+| [buzhangsan/skill-manager](https://github.com/buzhangsan/skill-manager) | Bilingual (EN/中文) Claude Code skill hub; planning-with-files installable one-click |
+
+*Built something? [Open an issue](https://github.com/OthmanAdi/planning-with-files/issues) to get listed!*
+
+Full list of everyone who made this project better: [CONTRIBUTORS.md](./CONTRIBUTORS.md).
+
+</details>
+
 All install methods: [docs/installation.md](docs/installation.md).
 
 ## Works across 18+ platforms
@@ -546,19 +663,28 @@ Pi runtime modes:
 - Tasks spanning many tool calls
 - Long-running agent sessions that must survive `/clear` and compaction
 
+## Acknowledgments
+
+- **Manus AI**, for pioneering the context-engineering pattern this skill implements
+- **Anthropic**, for Claude Code, Agent Skills, and the Plugin system
+- **Nous Research**, for Hermes Agent and a plugin API that made native support possible
+- **Lance Martin**, for the detailed Manus architecture analysis
+- Based on [Context Engineering for AI Agents](https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus)
+
+> A note from the author: this project blew up in less than 24 hours, and everyone who starred, forked, shared, and shipped fixes is the reason it kept going. If the skill helps you work smarter, that is all I wanted. Thank you.
+
 ---
 
 <a id="reference"></a>
 
 ## Reference
 
-Everything below is the proof and the reference half: the benchmarks and their limits, what lands in your project and what the repository ships, the release history, the community, and every guide in `docs/`.
+Everything below is the proof and the reference half: the benchmarks and their limits, what lands in your project and what the repository ships, and every guide in `docs/`. Release history and community projects sit in the collapsible sections under [Quick Install](#quick-install).
 
 | | |
 |---|---|
 | [Benchmark Results](#benchmark-results) | The eval run, the blind A/B, the recovery benchmark, and their disclosed limits |
 | [File Structure](#file-structure) | What lands in your project, and the repository layout |
-| [Releases](#releases) · [Community](#community) | Version history and community forks |
 | [Documentation](#documentation) | Every guide in `docs/` |
 
 ## Benchmark Results
@@ -621,122 +747,6 @@ Every release maintains 18 tracked parity targets plus the gitignored ClawHub up
 
 </details>
 
-<a id="releases"></a>
-
-<details>
-<summary><strong>📦 Releases</strong></summary>
-
-| Version | Highlights |
-|---------|------------|
-| **v3.13.0** | **Hermes Agent becomes a first-class host, CLI and Desktop.** The native plugin now resolves `.planning/<slug>/` plans (the old adapter only saw a root `task_plan.md`), honours `PLAN_ID`, `PWF_PLAN_ROOT` and `PLANNING_DISABLED`, registers `/pwf`, `/pwf-status` and `/plan-status` (the shipped Markdown command files were never loaded by Hermes), bundles the skill, creates gated and autonomous plans with attestation from `/pwf --gated <name>`, and answers Hermes' `pre_verify` hook with the completion gate. Verified in a live Hermes 0.19.1 plugin manager; the Hermes `skills-guard` scanner rates the bundle `SAFE`. Native Windows path fix (`%LOCALAPPDATA%\hermes`). README reorganized: install and platforms first, proof and reference at the bottom, nothing removed. |
-| **v3.12.1** | **Attestation now stays in slug mode when the helper runs inside `.planning/<slug>/`** (fixes #234, reported by @sortakool). The shell and PowerShell helpers update the slug's `.attestation` instead of creating a legacy `.plan-attestation`, and invalid explicit selectors stop without falling back to another local plan. PowerShell regression coverage exercises attest, show, and clear from the nested directory. The release also restores macOS system-alias handling for the Codex and Hermes context readers and keeps unsafe active-plan pointers from falling back to an unrelated legacy plan. |
-| **v3.12.0** | **Session recovery is now consent-bound and the published planning surface is fully auditable.** Automatic hooks read project planning files only. Same-project session metadata and bounded replay require explicit CLI modes, cross-project records remain quarantined, and phase-status writers fail closed when their shared lock is unavailable. Hidden template instructions were replaced with visible guidance, capability descriptions now disclose actual context and gate behavior, and the complete 29-file ClawHub stage is rebuilt and verified from canonical tracked source. |
-| **v3.11.2** | **Skills-only manual installs now copy one skill at the documented depth** (PR #229 by @dylanpulver). The Unix and PowerShell commands name `skills/planning-with-files` instead of copying `skills/*`, so the `skills/i18n/` subtree no longer lands below the loader path. Both instructions create `~/.claude/skills` first, which keeps a fresh install from placing `SKILL.md` directly under `skills/`. A tracked-Markdown test rejects the old whole-directory copy shape and locks the destination-creation step. |
-| **v3.11.1** | **The Copilot error hook could not be parsed by a POSIX shell** (PR #228 by @dylanpulver). `error-occurred.sh` fed its two Python helpers with `<<<`, a bash here-string that dash does not implement, and the suite invokes the shell hooks as `sh script`, so the `#!/bin/bash` shebang never applied. On ubuntu runners the file died at line 32 with `Syntax error: redirection unexpected`, and master CI had failed on that leg for five consecutive runs. Both call sites now pipe with `printf '%s\n'`. The sibling `echo` form was deliberately not copied: dash expands backslash escapes, which would have traded a loud syntax error for silent JSON corruption. No user was affected, because Copilot invokes the hook under a `bash` key that bypasses the shebang. |
-| **v3.11.0** | **The plugin registers one skill instead of six** (closes #130, reported by @sean3808; implemented by @dylanpulver in PR #226). The five language variants moved from `skills/planning-with-files-<lang>/` to `skills/i18n/planning-with-files-<lang>/`. Nothing deleted, nothing renamed, every `npx skills add --skill` command unchanged: Claude Code scans `skills/*/SKILL.md` one level without recursing, while the skills CLI resolves `--skill` by name across a recursive scan. Measured against the real loader, not inferred: 6 registered skills to 1, 19 components to 14, always-on cost roughly 2,254 to 1,042 tokens per session, with all thirteen slash commands intact. `/plan-de` and its four siblings read their translated skill from disk and state that the status tokens stay literal English, because `check-complete.sh` matches them with `grep -F`. Also fixes seven shell hooks that could emit JSON with a raw control character when run under a POSIX-mode shell on macOS. |
-| **v3.10.2** | **`PLANNING_DISABLED=1` had never reached the GitHub Copilot or Cursor hooks** (PRs #223, #222 and #224, by @Whxuan0701). Both routes read `task_plan.md` directly instead of dispatching to the script that carries the #195 guard, so eighteen hook entry points ignored the opt-out entirely: a one-shot task sharing a working directory with an unrelated plan had no way to detach from it. Auditing the merge found three more: the disabled `PreToolUse` branch answered `permissionDecision: allow`, so turning the skill off widened Copilot's permissions instead of staying neutral; `.cursor/hooks/stop.ps1` was the last copy the #191 zero-phase guard never reached, still auto-continuing on `0/0 phases done`; and `error-occurred.ps1` had never logged an error on Windows because it read stdin into `$input`, PowerShell's automatic pipeline variable, which does not hold the assignment under `-File`. The opt-out tests now run every hook with the variable unset as well as set, because the disabled-only versions stayed green against a fleet gutted to emit `{}`. Suite 424 to 430. |
-| **v3.10.1** | **Codex context hooks now emit valid event JSON on Linux and macOS** (fixes #220, reported by @mfehlhaber). `SessionStart`, `UserPromptSubmit`, and `PreCompact` use the same adapter as Windows, so planning output beginning with `[` is no longer misread as malformed JSON. This release also aligns the tracked npm payload with the published 20-script package, corrects the release reference, and makes the version bumper safe to run without the gitignored ClawHub stage in a fresh clone. |
-| **v3.10.0** | **Two sessions sharing one plan directory could silently destroy each other's work** (closes #217, reported by @dubes394). Both read `task_plan.md`, both write it back, and the later write discards the earlier one's phases while injection, `plan-doctor` and the Stop gate all read the result as an ordinary edit. Attestation could not cover it: it compares against a baseline a human approved once, not against what the hooks last observed, and it is a read side gate that cannot stop the stale write. The guard compares progress rather than hashes, because a hash comparison flags a single agent's own edit on its very next fire; checked items and completed phases only go up during normal work, so a decrease means work is gone. Verifying #130 alongside it exposed that every non-English install was a subset install, missing attestation, the Stop gate, the ledger, phase status and plan-doctor entirely, plus a Windows UTF-8 crash fix that never left the canonical skill. Closed additively, 60 files created and 0 overwritten, with the translator-owned scripts pinned so no future sync can English them. Also fixes a README top that showed five labels and no numbers on a phone. Suite 411 to 417. |
-| **v3.9.0** | **A Codex thread whose cwd was a shared parent injected an unrelated project's plan on every hook fire** (closes #212, reported by @webwww123). Resolution was cwd relative with no notion of a thread, so the shared parent's pointer was the only one the hook could see. Adds `PWF_PLAN_ROOT` for an absolute plan root binding, which a cwd relative `PLAN_ID` slug structurally could not express, and refuses to inject when the cwd is ambiguous rather than guessing. Verifying the report exposed that `PLANNING_DISABLED=1` was inoperative on eleven of thirteen install routes, that the Stop hook could never find its script on six hosts, and that eight shipped PowerShell scripts could not be parsed by Windows PowerShell 5.1 at all, leaving Cursor injection and both Chinese variants' `init-session` dead on Windows. Also closes #211 (a provider error queued another request into the same failing provider, and the Pi status bar stopped tracking the plan after approval) and #210 (injection determinism now asserted, five routes normalized). Suite 311 to 411. |
-| **v3.8.2** | **Session recovery silently found nothing for any project path containing a dot, a space, or any other non-alphanumeric character** (closes #209, reported by @seathatflowsinourveins). Three copies of `session-catchup.py` still folded only `/`, `\` and `:`, and one of them is the copy every `/plugin install` runs on Linux, macOS and Git Bash. Against a real store holding 89 sessions the shipped resolver produced 0 bytes where the fix produces 11336 and recovers 166 messages. Folding now counts UTF-16 code units, so emoji folder names resolve too, and a per-session `cwd` filter stops two projects that fold to one directory name from reading each other's transcripts. One vector table now runs across every copy, so this drift cannot come back. Suite at 311. |
-| **v3.8.1** | **Pi extension: plan resolution no longer depends on the live shell cwd** (closes #208, reported by @fd44fdg). An agent that cd'd into a subdirectory lost the plan, recitation went dark, and the "No task_plan.md found" warning fired on every write. Resolution now anchors on the nearest ancestor with planning state, bounded by the `.git` repository boundary, with slug-validation and containment parity with the sh resolver; every injection states which plan it resolved (`plan: <id>`), making slug-over-root shadowing visible. Also: `init-session` heredocs never carried the v3.8.0 Next Step section; all copies fixed with an output-level regression test. Gated by an Opus adversarial pass plus a five-lens Sonnet reliability fleet. |
-| **v3.8.0** | **The Stop hook never fired on macOS or Linux** (a dead install-path fallback stacked on PowerShell-first dispatch), and **session recovery searched a project directory that does not exist** for POSIX or underscore project paths; both fixed with tests that execute the hooks end to end. Opt-in structure-aware injection (`PWF_INJECT=smart`) keeps the active phase and decision journal in the window late in long plans. Next Step pointer in the templates, tool-result outcomes in session catchup, macOS CI leg plus a BSD-userland simulation harness, `resolve-plan-dir.ps1` parity with fail-closed containment, UTF-8-safe ledger truncation, pinned line endings, and a rebuilt README with honest benchmark charts. Suite at 301. |
-| **v3.7.0** | **Agent Skills standard layout ships in-tree**: `.agents/skills/planning-with-files/` carries the full canonical surface, so tools that read the standard path natively (Zed, Amp, Warp, Devin, Antigravity, Gemini CLI, Cursor) discover the current skill from a plain `git clone`. Locked into the 18-entry parity set; `plan-doctor.sh` now ships in every synced IDE folder. |
-| **v3.6.0** | **Windows-native coreutils silently killed plan resolution and every hook injection** (backslash `realpath` broke the containment match); fixed, with per-fire latency down to 289ms on the machine that measured 2.0-2.4s at v3.4.0. New `/plan-doctor` self-check, install-route matrix in the docs, suite green at 217. |
-| **v3.5.1** | Codex Windows shell resolver skips WSL bash launchers, `pwf-hook.cmd` hardens Python discovery, and Pi recitations are delivered as `nextTurn` so interactive tools are not broken. |
-| **v3.5.0** | **Codex Windows hooks emit valid JSON and survive Unicode** (PR #205 by @yolo0731, closes #204); the Pi extension stops re-nagging closed and complete plans (#203 by @ziyu4huang); the plan lifecycle is documented (#202 by @kcinzgg). Four broken language-command references fixed, `/plan-zht` added. |
-| **v3.4.1** | **Codex hooks now run on Windows** (closes #201, reported by @mahdiit): per-hook `commandWindows` overrides, a `pwf-hook.cmd` launcher that never resolves the Store `python3` alias, and a Git Bash resolver anchored on `git.exe`. |
-| **v3.4.0** | **`PLANNING_DISABLED=1` per-invocation opt-out** so one-shot sessions that merely share a cwd with an incomplete plan are not hijacked (closes #195, reported by @marcmuon). Ships in every distributed copy. |
-| **v3.3.0** | **Pi hooks wait for explicit approval via `/plan-execute`** before activating (PR #193 by @Dikshj, closes #190, requested by @lazyst). A plan with a tampered attestation cannot be approved. |
-| **v3.2.0** | **Repository health audit**: `session-catchup.py` (the resume-after-`/clear` mechanism) was non-functional on Windows and `inject-plan.sh` silently dropped injection under aliased paths; both fixed, plus the "0/0 phases" false status (closes #191, #188, addresses #103). `SECURITY.md` added. (thanks @Stephen-abc, @igorcosta, @mixian939, @AvitalAviv) |
-| **v3.1.3** | **Hotfix**: v3.1.2's unquoted SKILL.md description broke the YAML frontmatter; quoted everywhere plus a new frontmatter-validity test. |
-| **v3.1.2** | Session-catchup works outside the plugin runtime via a `$HOME` fallback (PR #186 by @shunfeng8421, closes #185, reported by @xwang118), `.hermes` parity, refreshed skill descriptions. |
-| **v3.1.1** | Codex verification command matches the current `hooks` feature key (PR #184 by @Fat-Jan). |
-| **v3.1.0** | Codex Stop hook no longer blocks on an incomplete plan, native Codex PreCompact parity, Pi extension test suite, SHA-cache docs (PR #180 by @2023Anita closes #178, PR #181 by @GongYuanCaiJi, PRs #174/#175 by @mvanhorn close #163, #164). |
-| **v3.0.0** | **Autonomous and gated modes for long-running runs**: append-only JSONL run ledger, opt-in completion gate, attestation default-on in v3 modes, `MIGRATION.md`. No breaking changes: with no mode marker the hooks produce byte-identical v2.43 output. |
-| **v2.43.0** | **CONTRIBUTING.md + OpenCode docs fix + `.continue`/`.gemini`/`.kiro` variant sync to parity** (PR #171 by @Skulli485, issue #172 by @luyanfeng, issues #159/#160/#161): first `CONTRIBUTING.md` at repo root, auto-surfaced by GitHub in the PR creation flow. `docs/opencode.md` Quick Install switched from \`git clone\` to \`npx skills add\` after the manual-install block was found referencing a doubled path (`planning-with-files/planning-with-files/SKILL.md`). Three historically lagging IDE SKILL.md variants brought to v2.43.0 parity: `.continue` from v2.34.0 (9 versions behind), `.gemini` from v2.34.0 (9 versions behind), `.kiro` from v2.32.0-kiro (11 versions behind), preserving IDE-specific frontmatter, hook shapes, and Kiro Agent Skill layout. |
-| **v2.42.0** | **POSIX `init-session.sh` portability + plugin-vs-skill install transparency + Topic Handoff docs** (PR #169 and PR #170 by @carterusedulm2-maker): `init-session.sh` and its 7 mirrors swap the `[[ ]]` bashism for POSIX `[ ]` so `tests/test_init_session_slug.py` runs cleanly under `dash` (Ubuntu) when the test invokes the script via `sh` rather than the `bash` shebang. Canonical SKILL.md gains an install-scope clarification: `/plugin install` ships the `commands/` folder with `/plan-goal` and `/plan-loop`, but `npx skills add` (and ClawHub) do not. A manual fallback procedure for both wrappers is documented inline so skill-only sessions can produce the same effect by invoking Claude Code's native `/goal` and `/loop` primitives directly. `docs/quickstart.md` and `docs/workflow.md` add an optional Topic Handoff Pattern for very long-running operational topics (`handoffs/<topic>.md` alongside `progress.md`). |
-| **v2.41.0** | **Windows exec-bit test skip + attestation-locking docs** (PR #167 by @gauravvojha, Issue #166; PR #168 by @CleanDev-Fix, Issue #165): `test_script_permissions.py` now skips on Windows with a class-level `pytest.mark.skipif(sys.platform == "win32")` since NTFS does not store POSIX executable bits; the 2 pre-existing Windows exec-bit failures (present since v2.34.1) are resolved. New dedicated `docs/attestation-locking.md` page documents the `attest-plan.sh` write path, the atomic temp-rename guarantee, the optional `flock` advisory lock, and the recommended slug-mode workflow for parallel sessions. |
-| **v2.40.1** | **Pi adapter SKILL.md sync gap + npm scope correction** (PR #158 by @TomXPRIME): the `.pi` SKILL.md lagged the canonical Claude Code copy after v2.39.0; v2.40.1 backports Rule 7 (Continue After Completion), the Security Boundary section, the expanded Scripts section covering `set-active-plan.sh`/`resolve-plan-dir.sh`/`attest-plan.sh` plus the parallel task workflow, and the "Write web content to task_plan.md" anti-pattern row. The Pi npm package is renamed from the unscoped `pi-planning-with-files` to `@tomxprime/planning-with-files`, matching the package author's namespace; install docs updated accordingly. Author, repository, license, and bugs URLs preserved. |
-| **v2.40.0** | **Slug-mode resolution fixes + perf cache + KV-cache hygiene + Pi false-positive fix** (9 items from the v2.40 R&D experiment): hook resolution order inverted so slug-mode wins over legacy root, `.active_plan` target dir + content validated against a safe-identifier regex, `check-complete.sh` honors `$PLAN_ID` and `.active_plan`, Pi extension `isDangerousBashCommand` swapped to a word-boundary regex array so benign `git push origin <branch>` no longer fires the warning, mtime-keyed SHA-256 cache cuts attestation-hook latency on Windows Git Bash, `progress.md` tail timestamps normalized for KV-cache prefix stability, `resolve-plan-dir.sh` mtime resolution made portable across GNU/BSD/macOS/Alpine/Git Bash with python+perl fallbacks, `attest-plan.sh` uses atomic temp-rename with optional `flock` to close the concurrent-writer race. 130 pass / 2 pre-existing Windows exec-bit fails, +20 new tests. |
-| **v2.39.0** | **Pi Coding Agent full hook parity extension + Codex hooks flag fix** (PR #157 by @TomXPRIME, Issue #154 by @DLI1996): the `.pi` adapter ships a bundled TypeScript extension mapping eight Pi lifecycle events to the same behavior the skill provides on Claude Code, with a four-mode system (`auto`/`parity`/`cache-safe`/`notify`) that auto-detects DeepSeek and keeps the KV-cache prefix stable. Pi runtime reads the same `.attestation` file the canonical v2.37 `attest-plan.sh` writes, so attesting once locks the plan across both runtimes. Four slash commands (`/plan-status`, `/plan-attest`, `/plan-goal`, `/plan-loop`) mirror their Claude Code counterparts. Separately, `docs/codex.md` swaps from `codex_hooks = true` to `hooks = true` to match the current OpenAI canonical key, with an alias note so users on older configs are not pushed to migrate. |
-| **v2.38.1** | **Description field garbled in Claude Code skill picker** (surfaced via Discussion #153 by @bmyury): hook commands embedded `'---BEGIN PLAN DATA---'` plan-injection delimiters; Claude Code's skill-discovery loader split frontmatter on the first `---` and read the truncated value as the description. Swapped to `===BEGIN PLAN DATA===` / `===END PLAN DATA===` across canonical SKILL.md, all five language variants, the `.codebuddy/.codex/.cursor` adapter mirrors, and `clawhub-upload`. Hook execution and tamper attestation never affected; only the displayed metadata. |
-| **v2.38.0** | **Claude Code turn-loop integration + OpenCode SQLite fix**: new PreCompact hook fires on `/compact` and autoCompact, surfaces a reminder to flush progress before compaction completes and prints the active Plan-SHA256 when attested. New `/plan-goal` slash command composes with Claude Code's `/goal` (v2.1.139, May 12 2026): derives a termination condition from the active plan. New `/plan-loop` composes with `/loop` (v2.1.72+): default 10-minute tick re-reads planning files and runs check-complete. New `templates/loop.md` for the bare `/loop` planning-aware default. Session-catchup rewritten for OpenCode's SQLite migration. Codex gets a `PermissionRequest` adapter that surfaces plan context at permission prompts. |
-| **v2.37.0** | **Hash attestation + parity bumper** (closes #150, #151): `/plan-attest` locks `task_plan.md` with a SHA-256; hooks block injection on tamper. `scripts/bump-version.py` + parity test kill the "missed one variant" regression class behind v2.34.1, v2.36.0, v2.36.2, and v2.36.3. (thanks @oaabahussain!) |
-| **v2.36.3** | **Parallel planning scripts now ship in the skill**: `resolve-plan-dir.sh` and `set-active-plan.sh` were missing from the installed skill in v2.36.0; now in canonical + all IDE mirrors + SKILL.md docs updated |
-| **v2.36.2** | **Canonical script sync** (PR #149): `skills/planning-with-files/scripts/init-session.sh` was missing slug mode from v2.36.0; now synced with IDE mirrors + regression test. (thanks @voidborne-d!) |
-| **v2.36.1** | **Security hardening**: Stop hook cache search removed, ExecutionPolicy Bypass changed to RemoteSigned, prompt injection delimiters added. (Gen Agent Trust Hub FAIL resolved) |
-| **v2.36.0** | **Parallel plan isolation + Codex session isolation** (closes #146, #148): `init-session.sh` slug mode, `set-active-plan.sh`, `resolve-plan-dir.sh`, all Codex hooks route through resolver, session attachment gating. **Hermes docs** (closes #147): integration notes added to `docs/hermes.md`. 34 new tests. (thanks @githubYiheng, @09ashishkapoor, @shawnli1874!) |
-| **v2.35.1** | **Shebang portability fix**: changed `/bin/bash` to `/usr/bin/env bash` in hook scripts, fixing compatibility on NixOS and other systems where bash is not at `/bin/bash`. (thanks @Emin017!) |
-| **v2.35.0** | **Hermes adapter + NLPM audit hardening**: Hermes platform 17 support (thanks @bailob!), NLPM audit fixed Python PATH resolution, session-catchup injection cap, Pi PowerShell syntax (thanks @xiaolai!) |
-| **v2.34.1** | **Stop hook Windows portability fix** (closes #133): `export SD=` failed in Windows Git Bash hook context; fallback path was wrong for plugin cache structure. Fixed across all 13 SKILL.md variants. (thanks @nazeshinjite!) |
-| **v2.34.0** | **Codex hooks fully restored** (closes #132): `.codex/hooks.json` + lifecycle scripts back — SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop. Tessl CI for SKILL.md quality reviews. Exec bit fix. 4 missing contributors added. (thanks @Leon-Algo, @popey!) |
-| **v2.33.0** | **Multi-language expansion**: Arabic, German, and Spanish skill variants added (thanks to community contributors!) |
-| **v2.32.0** | Codex session catchup rewrite (thanks @ebrevdo!), Loaditout A-grade security badge, Stop hook Git Bash fix |
-| **v2.31.0** | Codex hooks.json integration with full lifecycle hooks (thanks @Leon-Algo!) |
-| **v2.30.1** | Fix: Codex script executable bits restored (thanks @Leon-Algo!) |
-| **v2.30.0** | `CLAUDE_SKILL_DIR` variable, IDE configs moved to per-IDE branches, plugin.json bumped from 2.23.0 |
-| **v2.29.0** | Analytics workflow template: `--template analytics` flag for data exploration sessions (thanks @mvanhorn!) |
-| **v2.28.0** | Traditional Chinese (zh-TW) skill variant (thanks @waynelee2048!) |
-| **v2.27.0** | Kiro Agent Skill layout (thanks @EListenX!) |
-| **v2.26.2** | Fix: `---` in hook commands broke YAML frontmatter parsing, hooks now register correctly |
-| **v2.26.1** | Fix: session catchup after `/clear`, path sanitization on Windows + content injection (thanks @tony-stark-eth!) |
-| **v2.26.0** | IDE audit: Factory hooks, Copilot errorOccurred hook, Gemini hooks, bug fixes |
-| **v2.18.2** | Mastra Code hooks fix (hooks.json + docs accuracy) |
-| **v2.18.1** | Copilot garbled characters complete fix |
-| **v2.18.0** | BoxLite sandbox runtime integration |
-| **v2.17.0** | Mastra Code support + all IDE SKILL.md spec fixes |
-| **v2.16.1** | Copilot garbled characters fix: PS1 UTF-8 encoding + bash ensure_ascii (thanks @Hexiaopi!) |
-| **v2.16.0** | GitHub Copilot hooks support (thanks @lincolnwan!) |
-| **v2.15.1** | Session catchup false-positive fix (thanks @gydx6!) |
-| **v2.15.0** | `/plan:status` command, OpenCode compatibility fix |
-| **v2.14.0** | Pi Agent support, OpenClaw docs update, Codex path fix |
-| **v2.11.0** | `/plan` command for easier autocomplete |
-| **v2.10.0** | Kiro steering files support |
-| **v2.7.0** | Gemini CLI support |
-| **v2.2.0** | Session recovery, Windows PowerShell, OS-aware hooks |
-
-[View all releases](https://github.com/OthmanAdi/planning-with-files/releases) · [CHANGELOG](CHANGELOG.md)
-
-> Parallel plan isolation (`.planning/YYYY-MM-DD-slug/` directories) and Codex session isolation shipped in v2.36.0. The `experimental/isolated-planning` branch was the earlier prototype; master is now the canonical location.
-
-</details>
-
-<a id="community"></a>
-
-<details>
-<summary><strong>🌍 What the community shipped</strong></summary>
-
-### Forks & Extensions
-
-| Fork | Author | What They Built |
-|------|--------|-----------------|
-| [devis](https://github.com/st01cs/devis) | [@st01cs](https://github.com/st01cs) | Interview-first workflow, `/devis:intv` and `/devis:impl` commands, guaranteed activation |
-| [multi-manus-planning](https://github.com/kmichels/multi-manus-planning) | [@kmichels](https://github.com/kmichels) | Multi-project support, SessionStart git sync |
-| [plan-cascade](https://github.com/Taoidle/plan-cascade) | [@Taoidle](https://github.com/Taoidle) | Multi-level task orchestration, parallel execution, multi-agent collaboration |
-| [agentfund-skill](https://github.com/RioTheGreat-ai/agentfund-skill) | [@RioTheGreat-ai](https://github.com/RioTheGreat-ai) | Crowdfunding for AI agents with milestone-based escrow on Base |
-| [openclaw-github-repo-commander](https://github.com/wd041216-bit/openclaw-github-repo-commander) | [@wd041216-bit](https://github.com/wd041216-bit) | 7-stage GitHub repo audit, optimization, and cleanup workflow for OpenClaw |
-
-### Used in the Wild
-
-| Project | What It Is |
-|---------|-----------|
-| [lincolnwan/Planning-with-files-copilot-agent](https://github.com/lincolnwan/Planning-with-files-copilot-agent) | Entire Copilot agent repo built around the planning-with-files skill |
-| [cooragent/ClarityFinance](https://github.com/cooragent/ClarityFinance) | AI finance agent framework, Planning-with-Files approach directly credited |
-| [oeftimie/vv-claude-harness](https://github.com/oeftimie/vv-claude-harness) | Claude Code harness built on Manus-style persistent markdown planning |
-| [jessepwj/CCteam-creator](https://github.com/jessepwj/CCteam-creator) | Multi-agent team orchestration skill using file-based planning |
-
-### Skill Registries & Hubs
-
-| Registry | What It Is |
-|----------|-----------|
-| [buzhangsan/skill-manager](https://github.com/buzhangsan/skill-manager) | Bilingual (EN/中文) Claude Code skill hub; planning-with-files installable one-click |
-
-*Built something? [Open an issue](https://github.com/OthmanAdi/planning-with-files/issues) to get listed!*
-
-Full list of everyone who made this project better: [CONTRIBUTORS.md](./CONTRIBUTORS.md).
-
-</details>
 
 ## Documentation
 
@@ -755,16 +765,6 @@ Full list of everyone who made this project better: [CONTRIBUTORS.md](./CONTRIBU
 | [SECURITY.md](SECURITY.md) | Vulnerability reporting and hardening history |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute; authorship is preserved on merge |
 | Per-platform guides | 18+ setup docs in [docs/](docs/), linked from the [platform tables](#works-across-18-platforms) |
-
-## Acknowledgments
-
-- **Manus AI**, for pioneering the context-engineering pattern this skill implements
-- **Anthropic**, for Claude Code, Agent Skills, and the Plugin system
-- **Nous Research**, for Hermes Agent and a plugin API that made native support possible
-- **Lance Martin**, for the detailed Manus architecture analysis
-- Based on [Context Engineering for AI Agents](https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus)
-
-> A note from the author: this project blew up in less than 24 hours, and everyone who starred, forked, shared, and shipped fixes is the reason it kept going. If the skill helps you work smarter, that is all I wanted. Thank you.
 
 ## Contributing
 
