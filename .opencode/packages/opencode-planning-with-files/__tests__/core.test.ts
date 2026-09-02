@@ -12,6 +12,7 @@ import {
   evaluateGate,
   gateCounts,
   initPlan,
+  ledgerLineCount,
   nestedLivePlans,
   resolvePlan,
   slugIsValid,
@@ -89,7 +90,8 @@ describe("resolver", () => {
     for (const bad of ["../outside", "bad slug", "/abs", ".hidden"]) {
       fs.writeFileSync(path.join(root, ".planning", ".active_plan"), `${bad}\n`)
       expect(resolvePlan(root, {}, env).planDir).toBe(root)
-      expect(resolvePlan(root, {}, { ...env, PLAN_ID: bad }).planDir).toBeNull()
+      // a PLAN_ID that does not resolve falls through, like resolve-plan-dir.sh
+      expect(resolvePlan(root, {}, { ...env, PLAN_ID: bad }).planDir).toBe(root)
     }
     expect(slugIsValid("-leading")).toBe(false)
     expect(slugIsValid("2026-09-02-run.v2")).toBe(true)
@@ -136,12 +138,45 @@ describe("resolver", () => {
     expect(resolvePlan(root, {}, env)).toEqual({ planDir: null, conflicts: ["projectx"] })
   })
 
+  it("refuses a slug directory that escapes .planning through a link, and a linked task_plan.md", () => {
+    const outside = path.join(root, "outside")
+    fs.mkdirSync(outside)
+    fs.writeFileSync(path.join(outside, "task_plan.md"), "# OUTSIDE\n")
+    const planning = path.join(root, ".planning")
+    fs.mkdirSync(planning)
+    try {
+      fs.symlinkSync(outside, path.join(planning, "2026-09-02-evil"), "junction")
+    } catch {
+      return // no privilege to create links on this box; the guard is exercised on CI
+    }
+    fs.writeFileSync(path.join(planning, ".active_plan"), "2026-09-02-evil\n")
+    expect(resolvePlan(root, {}, env).planDir).toBeNull()
+    expect(resolvePlan(root, {}, { ...env, PLAN_ID: "2026-09-02-evil" }).planDir).toBeNull()
+    const real = path.join(planning, "2026-09-02-real")
+    fs.mkdirSync(real)
+    try {
+      fs.symlinkSync(path.join(outside, "task_plan.md"), path.join(real, "task_plan.md"), "file")
+    } catch {
+      return
+    }
+    expect(resolvePlan(root, {}, { ...env, PLAN_ID: "2026-09-02-real" }).planDir).toBeNull()
+  })
+
+  it("counts ledger lines like grep -c, including empty lines", () => {
+    const dir = slugPlan(root, "2026-09-02-run", { mode: "autonomous gate", attest: true, pointer: true })
+    fs.writeFileSync(path.join(dir, "ledger-main.jsonl"), '{"a":1}\n\n{"b":2}\n')
+    expect(ledgerLineCount(dir)).toBe(3)
+    fs.writeFileSync(path.join(dir, "ledger-worker.jsonl"), '{"c":3}')
+    expect(ledgerLineCount(dir)).toBe(4)
+  })
+
   it("applies the PWF_PLAN_ROOT pin and fails closed on a broken pin", () => {
     const project = path.join(root, "project")
     fs.mkdirSync(project)
     expect(effectiveProjectRoot(root, { ...env, PWF_PLAN_ROOT: project })).toBe(fs.realpathSync(project))
     expect(effectiveProjectRoot(root, { ...env, PWF_PLAN_ROOT: path.join(root, "missing") })).toBeNull()
     expect(effectiveProjectRoot(root, { ...env, PWF_PLAN_ROOT: "relative/path" })).toBeNull()
+    if (process.platform === "win32") expect(effectiveProjectRoot(root, { ...env, PWF_PLAN_ROOT: "\\rootless" })).toBeNull()
     expect(effectiveProjectRoot(root, env)).toBe(root)
   })
 })

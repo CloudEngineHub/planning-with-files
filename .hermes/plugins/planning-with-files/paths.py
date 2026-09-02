@@ -251,7 +251,12 @@ def resolve_plan(
     planning_root = project_dir / ".planning"
     requested = plan_id if plan_id is not None else os.environ.get("PLAN_ID", "").strip()
     if requested:
-        return _slug_plan_dir(planning_root, requested), []
+        # An explicit slug that resolves is authoritative and skips the nested
+        # check. One that does not resolve falls through to the pointer, the
+        # newest slug and the legacy root, exactly like resolve-plan-dir.sh.
+        explicit_dir = _slug_plan_dir(planning_root, requested)
+        if explicit_dir is not None:
+            return explicit_dir, []
 
     chosen: Path | None = None
     if planning_root.is_dir() and not _is_link_or_reparse(planning_root):

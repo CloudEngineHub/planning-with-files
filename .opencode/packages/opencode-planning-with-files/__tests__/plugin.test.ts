@@ -13,6 +13,7 @@ const PLAN = "### Phase 1: A\n- **Status:** complete\n\n### Phase 2: B\n- **Stat
 let root: string
 let prompts: unknown[]
 let sessions: Record<string, { directory: string; parentID?: string }>
+let lookupFails: boolean
 const savedEnv: Record<string, string | undefined> = {}
 
 function sha(file: string): string {
@@ -22,7 +23,10 @@ function sha(file: string): string {
 async function load(): Promise<Hooks> {
   const client = {
     session: {
-      get: async ({ path: { id } }: { path: { id: string } }) => ({ data: sessions[id] ? { id, ...sessions[id] } : undefined }),
+      get: async ({ path: { id } }: { path: { id: string } }) => {
+        if (lookupFails) throw new Error("offline")
+        return { data: sessions[id] ? { id, ...sessions[id] } : undefined }
+      },
       promptAsync: async (opts: unknown) => {
         prompts.push(opts)
         return {}
@@ -49,6 +53,7 @@ function message(sessionID = "ses_main") {
 beforeEach(() => {
   root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "pwf-oc-plugin-")))
   prompts = []
+  lookupFails = false
   sessions = { ses_main: { directory: root }, ses_child: { directory: root, parentID: "ses_main" } }
   for (const key of ["PLANNING_DISABLED", "PWF_PLAN_ROOT", "PLAN_ID", "PWF_GATE_CAP"]) {
     savedEnv[key] = process.env[key]
@@ -172,6 +177,65 @@ describe("session.idle gate", () => {
     fs.unlinkSync(path.join(root, ".mode"))
     await idle("ses_main")
     expect(prompts).toHaveLength(1)
+  })
+})
+
+describe("review fixes", () => {
+  it("does not cache a failed session lookup and never gates an unknown session", async () => {
+    const other = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "pwf-oc-other-")))
+    try {
+      fs.writeFileSync(path.join(other, "task_plan.md"), "# OTHER PROJECT\n")
+      fs.writeFileSync(path.join(other, ".mode"), "autonomous gate\n")
+      fs.writeFileSync(path.join(other, ".plan-attestation"), `${sha(path.join(other, "task_plan.md"))}\n`)
+      fs.writeFileSync(path.join(root, "task_plan.md"), "# SERVER ROOT PLAN\n")
+      sessions.ses_other = { directory: other }
+      const hooks = await load()
+      lookupFails = true
+      const first = message("ses_other")
+      await hooks["chat.message"]!(first.input as never, first.output as never)
+      expect(first.output.parts[0]?.text).toContain("SERVER ROOT PLAN")
+      await hooks.event!({ event: { type: "session.idle", properties: { sessionID: "ses_other" } } } as never)
+      expect(prompts).toHaveLength(0)
+      lookupFails = false
+      const second = message("ses_other")
+      await hooks["chat.message"]!(second.input as never, second.output as never)
+      expect(second.output.parts[0]?.text).toContain("OTHER PROJECT")
+    } finally {
+      fs.rmSync(other, { recursive: true, force: true })
+    }
+  })
+
+  it("injects at most once per message", async () => {
+    fs.writeFileSync(path.join(root, "task_plan.md"), "# Plan\n")
+    const hooks = await load()
+    const { input, output } = message()
+    await hooks["chat.message"]!(input as never, output as never)
+    await hooks["chat.message"]!(input as never, output as never)
+    expect(output.parts).toHaveLength(1)
+  })
+
+  it("tools follow the pin and refuse when planning is disabled or the pin is broken", async () => {
+    const pinned = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "pwf-oc-pin-")))
+    try {
+      const hooks = await load()
+      const context = { sessionID: "ses_main", messageID: "m", agent: "build", directory: root, worktree: root, abort: new AbortController().signal, metadata() {}, async ask() {} }
+      process.env.PWF_PLAN_ROOT = pinned
+      const init = JSON.parse(String(await hooks.tool!.pwf_init.execute({} as never, context as never)))
+      expect(init.ok).toBe(true)
+      expect(fs.existsSync(path.join(pinned, "task_plan.md"))).toBe(true)
+      expect(fs.existsSync(path.join(root, "task_plan.md"))).toBe(false)
+      const status = JSON.parse(String(await hooks.tool!.pwf_status.execute({} as never, context as never)))
+      expect(status.project_dir).toBe(pinned)
+      process.env.PWF_PLAN_ROOT = path.join(root, "missing")
+      const broken = JSON.parse(String(await hooks.tool!.pwf_status.execute({} as never, context as never)))
+      expect(broken.ok).toBe(false)
+      delete process.env.PWF_PLAN_ROOT
+      process.env.PLANNING_DISABLED = "1"
+      const disabled = JSON.parse(String(await hooks.tool!.pwf_check.execute({} as never, context as never)))
+      expect(disabled.ok).toBe(false)
+    } finally {
+      fs.rmSync(pinned, { recursive: true, force: true })
+    }
   })
 })
 

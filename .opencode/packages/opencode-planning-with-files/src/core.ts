@@ -112,6 +112,8 @@ export function effectiveProjectRoot(project: string, env: Env): string | null {
   const pin = (env.PWF_PLAN_ROOT ?? "").trim()
   if (!pin) return project
   if (!path.isAbsolute(pin) || pin.startsWith("\\\\") || pin.startsWith("//")) return null
+  // win32: a rootless "\\foo" passes path.isAbsolute but resolves against the current drive; the shell refuses it
+  if (process.platform === "win32" && /^[\\/]/.test(pin)) return null
   const st = lstatSafe(pin)
   if (!st || st.isSymbolicLink() || !st.isDirectory()) return null
   return realpathOrNull(pin)
@@ -185,7 +187,13 @@ export type Resolution = { planDir: string | null; conflicts: string[] }
 export function resolvePlan(root: string, opts: { planId?: string; explicit?: boolean }, env: Env): Resolution {
   const planningRoot = path.join(root, ".planning")
   const requested = opts.planId !== undefined ? opts.planId : (env.PLAN_ID ?? "").trim()
-  if (requested) return { planDir: slugPlanDir(planningRoot, requested), conflicts: [] }
+  if (requested) {
+    // An explicit slug that resolves is authoritative and skips the nested-root
+    // check. One that does not resolve falls through to the pointer, the newest
+    // slug and the legacy root, exactly like resolve-plan-dir.sh.
+    const explicitDir = slugPlanDir(planningRoot, requested)
+    if (explicitDir) return { planDir: explicitDir, conflicts: [] }
+  }
 
   let chosen: string | null = null
   if (isRealDir(planningRoot)) {
@@ -303,7 +311,7 @@ export type Verified = { ok: true; plan: Buffer; mode: string } | { ok: false; r
 /** Read task_plan.md and enforce the v3 attestation contract. */
 export function verifyPlan(root: string, planDir: string): Verified {
   const plan = readBytes(path.join(planDir, "task_plan.md"))
-  if (plan === null) return { ok: false, reason: "task_plan.md is not a readable regular file" }
+  if (plan === null) return { ok: false, reason: "task_plan.md is not a readable regular file (or exceeds 4 MiB)" }
   const tokens = modeTokens(planDir)
   if (tokens === null) return { ok: false, reason: "unsafe mode marker" }
   const mode = tokens.includes("gate") ? "gated" : tokens.includes("autonomous") ? "autonomous" : ""
@@ -394,7 +402,10 @@ export function ledgerLineCount(planDir: string): number {
   for (const name of names.sort()) {
     const text = readText(path.join(planDir, name))
     if (text === null) continue
-    total += text.split("\n").filter((line) => line.length > 0).length
+    if (text.length === 0) continue
+    // grep -c "" semantics: every newline-terminated line counts, a final
+    // unterminated line counts once, empty lines count
+    total += text.split("\n").length - (text.endsWith("\n") ? 1 : 0)
   }
   return total
 }
@@ -591,7 +602,7 @@ function copyTemplates(planDir: string, templatesDir: string | null, template: s
 export function writeAttestation(root: string, planDir: string): string {
   const digest = crypto.createHash("sha256").update(fs.readFileSync(path.join(planDir, "task_plan.md"))).digest("hex")
   const target = attestationPathFor(root, planDir)
-  const tmp = `${target}.tmp`
+  const tmp = `${target}.tmp.${process.pid}.${crypto.randomBytes(4).toString("hex")}`
   writeText(tmp, `${digest}\n`)
   fs.renameSync(tmp, target)
   return digest

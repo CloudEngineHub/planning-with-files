@@ -22,6 +22,13 @@ OpenCode becomes a first-class host through its own plugin system, and issue #23
 - README: OpenCode install block and matrix row, command table, hooks reference row, and the host tier bullets name the native plugin; `docs/installation.md` gains the OpenCode route.
 - Version bumped to 3.14.0 across the tracked parity set and the ClawHub stage. The OpenCode plugin package carries its own version (1.0.0), like the Pi extension.
 
+### Fixed (Hermes)
+- **A `PLAN_ID` that did not resolve blacked out injection on Hermes.** The Python resolver returned nothing for a stale slug; `resolve-plan-dir.sh` falls through to the pointer, the newest slug and the legacy root. Both the Hermes plugin and the OpenCode plugin now fall through.
+
+### Verification
+- 25 Vitest tests for the OpenCode plugin plus the Python suite; live load in OpenCode 1.18.21.
+- An independent adversarial review by a second model before release found three confirmed divergences in the first build (a failed session lookup was cached and pinned the session to the server directory, the tools bypassed `PWF_PLAN_ROOT` and `PLANNING_DISABLED`, a stale `PLAN_ID` did not fall through) plus a missing idempotency guard, an untested link-escape path, a rootless Windows pin, ledger counting that differed from `grep -c ''`, and a non-unique attestation temp file. All fixed with tests.
+
 ### Thanks
 - Luyanfeng reported the install path mismatch in issue #235, the second OpenCode docs bug they caught.
 

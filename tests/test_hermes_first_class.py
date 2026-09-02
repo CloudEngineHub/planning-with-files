@@ -176,8 +176,8 @@ class HermesFirstClassTests(unittest.TestCase):
                 (root / ".planning" / ".active_plan").write_text(bad + "\n", encoding="utf-8")
                 self.assertEqual(root, paths_module.resolve_plan_dir(root), bad)
                 os.environ["PLAN_ID"] = bad
-                if bad:
-                    self.assertIsNone(paths_module.resolve_plan_dir(root), bad)
+                # a PLAN_ID that does not resolve falls through, like resolve-plan-dir.sh
+                self.assertEqual(root, paths_module.resolve_plan_dir(root), bad)
                 os.environ.pop("PLAN_ID", None)
             self.assertFalse(paths_module.slug_is_valid("-leading-dash"))
             self.assertTrue(paths_module.slug_is_valid("2026-09-01-hermes_run.v2"))

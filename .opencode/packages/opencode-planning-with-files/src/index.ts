@@ -36,26 +36,55 @@ type Located = { root: string | null; planDir: string | null; conflicts: string[
 
 export const PlanningWithFiles: Plugin = async ({ client, directory }) => {
   const env = process.env
+  const MAX_SESSIONS = 512
   const sessionDirs = new Map<string, string>()
   const sessionIsChild = new Map<string, boolean>()
   const gateInFlight = new Set<string>()
 
-  async function sessionRoot(sessionID: string): Promise<string> {
-    if (!sessionDirs.has(sessionID)) {
-      let dir = directory
-      let child = false
-      try {
-        const result = await client.session.get({ path: { id: sessionID } })
-        const session = (result as { data?: { directory?: string; parentID?: string } }).data
-        if (session?.directory) dir = session.directory
-        child = Boolean(session?.parentID)
-      } catch {
-        // offline or unknown session: fall back to the server directory
-      }
-      sessionDirs.set(sessionID, dir)
-      sessionIsChild.set(sessionID, child)
+  type SessionInfo = { dir: string; child: boolean; known: boolean }
+
+  function remember<T>(map: Map<string, T>, key: string, value: T): void {
+    map.set(key, value)
+    if (map.size > MAX_SESSIONS) {
+      const oldest = map.keys().next().value
+      if (oldest !== undefined) map.delete(oldest)
     }
-    return sessionDirs.get(sessionID) ?? directory
+  }
+
+  /**
+   * The session's own directory and whether it is a child (subagent) session.
+   * Only a successful lookup is cached: a transient failure must not pin the
+   * session to the server directory for the rest of its life. When the lookup
+   * fails the caller gets the server directory for this call only and
+   * `known: false`, which the gate treats as "do not re-prompt".
+   */
+  async function sessionInfo(sessionID: string): Promise<SessionInfo> {
+    const cachedDir = sessionDirs.get(sessionID)
+    if (cachedDir !== undefined) return { dir: cachedDir, child: sessionIsChild.get(sessionID) ?? false, known: true }
+    try {
+      const result = await client.session.get({ path: { id: sessionID } })
+      const session = (result as { data?: { directory?: string; parentID?: string } }).data
+      if (!session) return { dir: directory, child: false, known: false }
+      const dir = session.directory || directory
+      const child = Boolean(session.parentID)
+      remember(sessionDirs, sessionID, dir)
+      remember(sessionIsChild, sessionID, child)
+      return { dir, child, known: true }
+    } catch {
+      return { dir: directory, child: false, known: false }
+    }
+  }
+
+  async function sessionRoot(sessionID: string): Promise<string> {
+    return (await sessionInfo(sessionID)).dir
+  }
+
+  /** Tools resolve the same root as the hooks; a broken pin or the opt-out is an explicit error, never a silent fallback. */
+  function toolRoot(project: string): string | { ok: false; error: string } {
+    if (env.PLANNING_DISABLED === "1") return { ok: false, error: "PLANNING_DISABLED=1 is set for this session; planning-with-files is switched off." }
+    const root = effectiveProjectRoot(project, env)
+    if (!root) return { ok: false, error: `PWF_PLAN_ROOT=${env.PWF_PLAN_ROOT} does not resolve to an existing directory.` }
+    return root
   }
 
   function locate(project: string): Located {
@@ -76,6 +105,11 @@ export const PlanningWithFiles: Plugin = async ({ client, directory }) => {
         if (located.planDir) text = buildContext(located.root, located.planDir)
         else if (located.conflicts.length) text = ambiguityNotice(located.conflicts)
         if (!text) return
+        const alreadyInjected = output.parts.some((part) => {
+          const candidate = part as { type?: string; text?: string }
+          return candidate.type === "text" && typeof candidate.text === "string" && candidate.text.startsWith("[planning-with-files] ")
+        })
+        if (alreadyInjected) return
         output.parts.push({
           id: `prt_pwf_${crypto.randomUUID().replace(/-/g, "")}`,
           sessionID: input.sessionID,
@@ -115,9 +149,9 @@ export const PlanningWithFiles: Plugin = async ({ client, directory }) => {
       const sessionID = (event.properties as { sessionID?: string }).sessionID
       if (!sessionID || gateInFlight.has(sessionID)) return
       try {
-        await sessionRoot(sessionID)
-        if (sessionIsChild.get(sessionID)) return
-        const located = locate(sessionDirs.get(sessionID) ?? directory)
+        const info = await sessionInfo(sessionID)
+        if (!info.known || info.child) return
+        const located = locate(info.dir)
         if (!located.planDir) return
         const reason = evaluateGate(located.planDir, env)
         if (!reason) return
@@ -141,21 +175,27 @@ export const PlanningWithFiles: Plugin = async ({ client, directory }) => {
           template: tool.schema.string().optional().describe("default or analytics"),
         },
         async execute(args, context) {
-          return JSON.stringify(initPlan(context.directory, args, env))
+          const root = toolRoot(context.directory)
+          if (typeof root !== "string") return JSON.stringify(root)
+          return JSON.stringify(initPlan(root, args, env))
         },
       }),
       pwf_status: tool({
         description: "planning-with-files: summarize the active plan (id, mode, attestation, current phase, phase counts).",
         args: {},
         async execute(_args, context) {
-          return JSON.stringify(summarizeStatus(context.directory, env))
+          const root = toolRoot(context.directory)
+          if (typeof root !== "string") return JSON.stringify(root)
+          return JSON.stringify(summarizeStatus(root, env))
         },
       }),
       pwf_check: tool({
         description: "planning-with-files: report whether every phase of the active plan is complete.",
         args: {},
         async execute(_args, context) {
-          return JSON.stringify({ plugin: VERSION, ...checkComplete(context.directory, env) })
+          const root = toolRoot(context.directory)
+          if (typeof root !== "string") return JSON.stringify(root)
+          return JSON.stringify({ plugin: VERSION, ...checkComplete(root, env) })
         },
       }),
     },
