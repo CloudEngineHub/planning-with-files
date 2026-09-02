@@ -233,7 +233,13 @@ class CodexHooksTests(unittest.TestCase):
 
         self.assertEqual(0, result.returncode, result.stderr)
         payload = json.loads(result.stdout)
-        self.assertIn("progress.md", payload["systemMessage"])
+        # The nudge is addressed to Claude, so it goes into the model context
+        # as additionalContext (#239). systemMessage is documented as a warning
+        # shown to the USER, so the model never received this instruction.
+        self.assertNotIn("systemMessage", payload)
+        block = payload["hookSpecificOutput"]
+        self.assertEqual("PostToolUse", block["hookEventName"])
+        self.assertIn("progress.md", block["additionalContext"])
 
     def test_pre_compact_emits_flush_reminder(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

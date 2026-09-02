@@ -46,7 +46,10 @@ class ClaudePluginDescriptorTests(unittest.TestCase):
         )
         self.assertEqual("startup|resume|clear|compact", hooks["SessionStart"][0]["matcher"])
         self.assertEqual("Write|Edit|Bash|Read|Glob|Grep", hooks["PreToolUse"][0]["matcher"])
-        self.assertEqual("Write|Edit|Bash", hooks["PostToolUse"][0]["matcher"])
+        # Bash came off PostToolUse in v3.16.0 (#239): ls and git status were
+        # tripping a "you changed something, record it" reminder. PreToolUse
+        # above keeps Bash, which is a different and wanted behaviour.
+        self.assertEqual("Write|Edit", hooks["PostToolUse"][0]["matcher"])
 
         for groups in hooks.values():
             for group in groups:
