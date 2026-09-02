@@ -22,6 +22,7 @@ Not every route delivers every surface. This matrix is the difference between "i
 | Plugin: `/plugin marketplace add` + `/plugin install` | Yes | **Yes** | **Yes**, through plugin-level lifecycle hooks, including quiet `SessionStart` recovery |
 | `npx skills add OthmanAdi/planning-with-files` | Yes | No (`commands/` is not copied) | Activation-scoped frontmatter hooks after the skill is invoked; no `SessionStart` |
 | ClawHub / manual skill copy to `~/.claude/skills/` | Yes | No | Activation-scoped frontmatter hooks after the skill is invoked; no `SessionStart` |
+| Hermes Agent: `hermes skills install OthmanAdi/planning-with-files/.hermes/skills/planning-with-files` + `hermes plugins install OthmanAdi/planning-with-files/.hermes/plugins/planning-with-files` | Yes (the `.hermes` bundle; the canonical path is refused by Hermes' skills-guard scanner) | Hermes commands `/pwf`, `/pwf-status`, `/plan-status` | **Yes**, native plugin hooks `pre_llm_call`, `post_tool_call`, `pre_verify` (gate); see [docs/hermes.md](hermes.md) |
 
 Two conditions can leave a standalone skill route without active hooks:
 
