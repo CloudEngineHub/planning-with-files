@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [3.16.0] - 2026-09-03
+
+The PostToolUse progress reminder was addressed to Claude and delivered to the user instead, on every matching tool call, with `Bash` in the matcher. Reported by @sortakool in #239, filed shortly after #236 to #238 and fixed on its own.
+
+### Fixed
+- **The PostToolUse nudge never reached the model (closes #239, reported by @sortakool).** `hooks/claude-hook.sh:110` emitted "Update progress.md with what you just did" as `systemMessage`, which Claude Code documents as a warning shown to the user. So the person saw the instruction after every `Write`, `Edit` and `Bash` call and the model, which the sentence is written for, never saw it once. `emit_session_start` eleven lines above already emitted `hookSpecificOutput.additionalContext` for its own event, so the correct shape was in the same file the whole time. Both the plugin dispatcher and `.codex/hooks/post_tool_use.py` now emit `additionalContext` with `"hookEventName": "PostToolUse"`; the Codex adapter's `pre_tool_use.py` and `run_sh.py` already used that shape for their events.
+- **The nudge is now once per turn rather than once per tool call.** The string is a constant, so every repeat after the first carries no information: it names no tool, no file and no phase. UserPromptSubmit and SessionStart fire once per turn and clear a marker; the first post-tool fire of the turn sets it. The marker lives in the user's private cache under `pwf-turn/`, never in the plan directory, and is keyed on the plan path plus `PWF_SESSION_ID` so two sessions sharing a plan do not silence each other. A cache root that cannot be created skips the throttle rather than the reminder, so a broken cache cannot quietly remove it.
+- **`Bash` came off the PostToolUse matchers.** `ls`, `git status` and `grep` were tripping a "you changed something, record it" reminder. `hooks/hooks.json` goes to `Write|Edit` and both Codex manifests go to `apply_patch|Edit|Write`. PreToolUse keeps `Bash`: a plan reminder before a shell command is a different and wanted behavior. The standalone skill route already used `Write|Edit`, which is further evidence the wider matcher was drift rather than intent.
+- **The plugin dispatcher still had the #237 fallback.** `active_plan_dir()` in `hooks/claude-hook.sh` resolves through the shared resolver and then fell back to the legacy root `task_plan.md`, the fallback v3.15.0 removed from the script and Codex routes but not from this one. Found while fixing #239. A rejected `PLAN_ID` or `PWF_PLAN_ROOT` now stops there too.
+
+### Verification
+- 10 new tests in `tests/test_post_tool_nudge.py`, driving both routes as processes. Coverage includes the field, the once-per-turn behavior through a real re-arm, session-start as a second re-arm, two session ids not silencing each other, a broken cache root still emitting, and every matcher in all three manifests.
+- One test earns its place by proving key agreement through deletion: the two Codex scripts derive the marker key independently and one of them resolves a `PWF_PLAN_ROOT` pin while the other does not. A divergence there would leave the marker uncleared and silently degrade the nudge to once per session, so the re-arm is asserted to remove the exact file the throttle wrote.
+
+### Not changed
+- The standalone skill route emits the same sentence as plain stdout from a YAML frontmatter scalar, with no throttle. It already carries the narrower `Write|Edit` matcher, so the spam this issue is about never applied to it, and giving it the throttle means either embedding cache-key logic in a hook scalar or routing it through a new script context across eleven SKILL.md files. Both are real changes that belong in a release where they can be tested on their own rather than appended to a fix.
+- `FileChanged` was suggested in the issue as a way to catch a `Bash` command that rewrites a file. It is a new event surface with its own behavior and is deliberately left for its own release.
+
+### Thanks
+- Raymond, for tracing all three defects to the line and checking the Codex route before filing, and for confirming there was no user-side workaround rather than leaving it to be guessed at (#239).
+
 ## [3.15.0] - 2026-09-02
 
 Three selector and policy defects reported by @sortakool, all reproduced here before any code changed. Two of them let a session work on a plan nobody selected, and the third made the diagnostic that should have caught them report PASS. A minor rather than a patch because two behaviors change on purpose: a `PLAN_ID` that does not resolve now refuses instead of picking another plan, and a slug plan can no longer start below a project's committed `.mode`.

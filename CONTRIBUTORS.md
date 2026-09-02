@@ -106,12 +106,13 @@ These amazing people have contributed code, documentation, or significant improv
 
 ### Other Contributors
 
-- **[Raymond Manaloto](https://github.com/sortakool)** - [Issue #234](https://github.com/OthmanAdi/planning-with-files/issues/234), [Issue #236](https://github.com/OthmanAdi/planning-with-files/issues/236), [Issue #237](https://github.com/OthmanAdi/planning-with-files/issues/237), [Issue #238](https://github.com/OthmanAdi/planning-with-files/issues/238)
+- **[Raymond Manaloto](https://github.com/sortakool)** - [Issue #234](https://github.com/OthmanAdi/planning-with-files/issues/234), [Issue #236](https://github.com/OthmanAdi/planning-with-files/issues/236), [Issue #237](https://github.com/OthmanAdi/planning-with-files/issues/237), [Issue #238](https://github.com/OthmanAdi/planning-with-files/issues/238), [Issue #239](https://github.com/OthmanAdi/planning-with-files/issues/239)
   - Reproduced the nested attestation failure and traced it to the fallback from slug mode to legacy mode when the helper runs inside `.planning/<slug>/`
   - Found that `plan-doctor.sh` matched its control strings against the injected plan body, so a plan quoting one of them reported a false tamper warning, and that a stale literal at `:92` made a fully dark-hooks state report PASS. Supplied the structural alternative that replaced the string matching, and the four test arms
   - Showed that a `PLAN_ID` of valid slug shape naming no directory fell through to another plan, which then got attested at rc=0, with a control arm proving the probe could return the right plan
   - Showed that a slug plan with no `.mode` bypassed a project's committed root `.mode`, with a control arm removing the slug directory to prove it was a bypass rather than a mode that was never armed
-  - **Impact:** Attestation and injection follow the plan the operator named or refuse; a project's `.mode` is a floor a plan cannot start below; and `/plan-doctor` classifies on the data framing, so a reworded banner degrades to a warning instead of a silent PASS
+  - Traced the PostToolUse progress reminder to `systemMessage`, a field Claude Code delivers to the user, so an instruction written for the model reached the person instead on every matching tool call, and checked the Codex adapter for the same defect before filing
+  - **Impact:** Attestation and injection follow the plan the operator named or refuse; a project's `.mode` is a floor a plan cannot start below; `/plan-doctor` classifies on the data framing, so a reworded banner degrades to a warning instead of a silent PASS; and the progress reminder reaches the model, once per turn, without firing on read-only shell commands
 
 - **[@lowmiaq-gmail](https://github.com/lowmiaq-gmail)** - [PR #233](https://github.com/OthmanAdi/planning-with-files/pull/233) / [Issue #232](https://github.com/OthmanAdi/planning-with-files/issues/232)
   - Reported that direct help flags were parsed as project names, then supplied a focused POSIX-shell fix and regression covering both `-h` and `--help` against an empty working directory
