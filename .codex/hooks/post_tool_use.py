@@ -15,7 +15,18 @@ def main() -> None:
 
     stdout, _ = adapter.run_shell_script("post-tool-use.sh", root)
     if stdout:
-        adapter.emit_json({"systemMessage": stdout})
+        # The nudge is addressed to Claude, so it belongs in the model's
+        # context, not in a systemMessage (issue #239). systemMessage is a
+        # warning shown to the USER, so the instruction never reached the model
+        # while the person saw it after every matching tool call.
+        # pre_tool_use.py and run_sh.py already emit this shape for their own
+        # events; this path had simply never been moved over.
+        adapter.emit_json({
+            "hookSpecificOutput": {
+                "hookEventName": "PostToolUse",
+                "additionalContext": stdout,
+            }
+        })
 
 
 if __name__ == "__main__":

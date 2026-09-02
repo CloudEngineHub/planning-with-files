@@ -94,6 +94,37 @@ else
 fi
 [ -f "$PLAN_FILE" ] || exit 0
 
+# --- Re-arm the once-per-turn PostToolUse nudge (issue #239). ---
+# One user message is one turn, and this hook fires once per turn, so clearing
+# the marker here is what makes the nudge appear once after the first write
+# instead of after every matching tool call.
+#
+# The key is computed from post-tool-use.sh's OWN plan-file expression, not
+# from $PLAN_FILE above. This hook resolves a PWF_PLAN_ROOT pin and that one
+# does not, so the two spellings diverge under a pin; keying off the shared
+# expression keeps both sides on one marker. A mismatch here would not be
+# loud: the marker would never be cleared and the nudge would fire once per
+# session instead of once per turn.
+TURN_PLAN_FILE="${PLAN_DIR:+${PLAN_DIR}/}task_plan.md"
+if [ -n "${XDG_CACHE_HOME:-}" ]; then
+    TURN_ROOT="${XDG_CACHE_HOME}/pwf-turn"
+elif [ -n "${HOME:-}" ]; then
+    TURN_ROOT="${HOME}/.cache/pwf-turn"
+else
+    TURN_ROOT="${TMPDIR:-/tmp}/pwf-turn"
+fi
+if [ -d "$TURN_ROOT" ]; then
+    case "$TURN_PLAN_FILE" in
+        /*|[A-Za-z]:*|\\\\*) TURN_KEY_SRC="$TURN_PLAN_FILE" ;;
+        *) TURN_KEY_SRC="${PWD}/${TURN_PLAN_FILE}" ;;
+    esac
+    TURN_KEY_SRC="${TURN_KEY_SRC}|${PWF_SESSION_ID:-}"
+    TURN_KEY=$(printf '%s' "$TURN_KEY_SRC" \
+        | { sha256sum 2>/dev/null || shasum -a 256 2>/dev/null; } \
+        | awk '{print $1}' | cut -c1-16)
+    [ -n "$TURN_KEY" ] && rm -f -- "${TURN_ROOT}/${TURN_KEY}" 2>/dev/null || :
+fi
+
 # Session isolation: if .planning/sessions/ exists, only attached sessions see
 # plan context. Absence of the sessions dir means legacy single-session mode —
 # all sessions in the cwd receive context to preserve backward compatibility.
