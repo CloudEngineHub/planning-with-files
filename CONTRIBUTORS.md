@@ -106,9 +106,12 @@ These amazing people have contributed code, documentation, or significant improv
 
 ### Other Contributors
 
-- **[Raymond Manaloto](https://github.com/sortakool)** - [Issue #234](https://github.com/OthmanAdi/planning-with-files/issues/234)
+- **[Raymond Manaloto](https://github.com/sortakool)** - [Issue #234](https://github.com/OthmanAdi/planning-with-files/issues/234), [Issue #236](https://github.com/OthmanAdi/planning-with-files/issues/236), [Issue #237](https://github.com/OthmanAdi/planning-with-files/issues/237), [Issue #238](https://github.com/OthmanAdi/planning-with-files/issues/238)
   - Reproduced the nested attestation failure and traced it to the fallback from slug mode to legacy mode when the helper runs inside `.planning/<slug>/`
-  - **Impact:** The shell and PowerShell helpers now update the slug's `.attestation` from either the project root or the slug directory, so the next root injection does not report a false tamper event
+  - Found that `plan-doctor.sh` matched its control strings against the injected plan body, so a plan quoting one of them reported a false tamper warning, and that a stale literal at `:92` made a fully dark-hooks state report PASS. Supplied the structural alternative that replaced the string matching, and the four test arms
+  - Showed that a `PLAN_ID` of valid slug shape naming no directory fell through to another plan, which then got attested at rc=0, with a control arm proving the probe could return the right plan
+  - Showed that a slug plan with no `.mode` bypassed a project's committed root `.mode`, with a control arm removing the slug directory to prove it was a bypass rather than a mode that was never armed
+  - **Impact:** Attestation and injection follow the plan the operator named or refuse; a project's `.mode` is a floor a plan cannot start below; and `/plan-doctor` classifies on the data framing, so a reworded banner degrades to a warning instead of a silent PASS
 
 - **[@lowmiaq-gmail](https://github.com/lowmiaq-gmail)** - [PR #233](https://github.com/OthmanAdi/planning-with-files/pull/233) / [Issue #232](https://github.com/OthmanAdi/planning-with-files/issues/232)
   - Reported that direct help flags were parsed as project names, then supplied a focused POSIX-shell fix and regression covering both `-h` and `--help` against an empty working directory
@@ -413,4 +416,4 @@ If you've contributed and don't see your name here, please open an issue! We wan
 
 **Total Contributors:** 56+ and growing!
 
-*Last updated: August 31, 2026*
+*Last updated: September 2, 2026*
