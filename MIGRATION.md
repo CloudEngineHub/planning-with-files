@@ -223,8 +223,8 @@ durable state; only the gate's enforcement strength differs.
 | Tier | Mechanism | Hosts |
 |------|-----------|-------|
 | Hard block | `decision:block` / exit 2 holds the turn | Claude Code, Codex CLI, OpenAI Codex API, Continue.dev |
-| Follow-up inject | continuation via an injected follow-up message plus the host's own counter | Cursor, Pi, Kiro, Hermes Agent |
-| Notify only | a system message is shown, no enforcement | OpenCode, Gemini CLI, and the remaining adapters |
+| Follow-up inject | continuation via an injected follow-up message plus the host's own counter | Cursor, Pi, Kiro, Hermes Agent, OpenCode (native plugin) |
+| Notify only | a system message is shown, no enforcement | Gemini CLI and the remaining adapters |
 
 On hard-block hosts, gated mode enforces the gate. On follow-up hosts, the gate becomes a
 follow-up message capped by a counter (Pi's AUTO_CONTINUE_LIMIT is the reference). On
@@ -233,10 +233,14 @@ because it needs no gate.
 
 ### OpenCode: honest note
 
-OpenCode has no Stop-hook re-activation. The upstream request (issue #12472) is open and
-unimplemented, so OpenCode cannot enforce the completion gate at all. On OpenCode the gate is a
-system message only. Autonomous mode and the run-ledger work on OpenCode because they do not
-depend on blocking the stop; only the gate's enforcement is unavailable until upstream ships it.
+OpenCode has no Stop-hook re-activation (upstream issue #12472 is still open), so nothing can
+refuse to end a turn there. Since v3.14.0 the native plugin `opencode-planning-with-files` uses
+what OpenCode does offer: it listens for `session.idle` and, while a gated plan still has an
+`in_progress` phase, sends the gate reason back as a new user message through the SDK. That is
+the follow-up-inject tier, bounded by the shared block counter (`PWF_GATE_CAP`) and the ledger
+stall rule, and never applied to child sessions. Without the plugin (skill-only installs) OpenCode
+stays notify-only: the skill's `hooks:` frontmatter is a Claude Code convention OpenCode ignores.
+Autonomous mode and the run ledger work either way because they do not depend on blocking the stop.
 
 ## Breaking changes
 

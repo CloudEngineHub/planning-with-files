@@ -185,6 +185,14 @@ hermes plugins install OthmanAdi/planning-with-files/.hermes/plugins/planning-wi
 hermes plugins enable planning-with-files
 ```
 
+**OpenCode**, native plugin plus the skill (the `npx skills add` command above lands in `~/.agents/skills/`, which OpenCode reads):
+
+```json
+{ "plugin": ["opencode-planning-with-files"] }
+```
+
+in `opencode.json` or `~/.config/opencode/opencode.json`; OpenCode installs it on the next start.
+
 Under a minute. Safe to re-run. Trigger it by typing `/plan` (plugin) or asking the agent to "plan this task"; the skill also self-triggers on multi-step tasks.
 
 What each route actually ships:
@@ -196,6 +204,7 @@ What each route actually ships:
 | `npm install` | yes, under `node_modules/` | no | no, copy the skill in yourself |
 | `pi install npm:` | yes | **yes**, Pi commands | **yes**, via the Pi extension |
 | `hermes plugins install` | yes, with the skill bundle | **yes**, `/pwf`, `/pwf-status` | **yes**, plugin hooks incl. the gate |
+| OpenCode `opencode.json` plugin | yes, with the skill | **yes**, `/pwf`, `/pwf-status` (two copied command files) | **yes**, plugin hooks incl. the gate |
 | ClawHub / manual copy | yes | no | frontmatter hooks, see note |
 
 Skill-route installs can end up silently hook-less (project trust not accepted, or frontmatter hooks not registering on project-level installs). The hooks are the differentiating mechanism, so if they matter to you, use the plugin route, then verify with `/plan-doctor`. Full matrix and the two silent killers: [docs/installation.md](docs/installation.md#what-each-install-route-actually-ships).
@@ -270,7 +279,7 @@ Copy-Item -Recurse -Path "$env:USERPROFILE\.claude\plugins\cache\planning-with-f
 | Hermes Agent | [Hermes Setup](docs/hermes.md) | Skill + native plugin (tools, `/pwf`, `pre_llm_call`, `post_tool_call`, `pre_verify` gate), CLI and Desktop |
 | CodeBuddy | [CodeBuddy Setup](docs/codebuddy.md) | [Skills + Hooks](https://www.codebuddy.ai/docs/cli/skills) |
 | FactoryAI Droid | [Factory Setup](docs/factory.md) | [Skills + Hooks](https://docs.factory.ai/cli/configuration/skills) |
-| OpenCode | [OpenCode Setup](docs/opencode.md) | Skills + Custom session storage |
+| OpenCode | [OpenCode Setup](docs/opencode.md) | Native plugin `opencode-planning-with-files` (`chat.message` injection, write reminders, compaction flush, `session.idle` gate, `pwf_*` tools, `/pwf` commands) + skill |
 
 </details>
 
@@ -345,6 +354,7 @@ One hook fire measures 289ms wall-clock since the v3.6.0 optimization, down from
 
 | Version | Highlights |
 |---------|------------|
+| **v3.14.0** | **OpenCode becomes a first-class host through its own plugin system** (closes #235, reported by @luyanfeng). New npm plugin `opencode-planning-with-files`: `chat.message` injects the framed plan on every turn, `tool.execute.after` reminds after writes, `experimental.session.compacting` keeps the plan pointer and attestation in the summary, and `session.idle` runs the completion gate in gated mode by re-prompting the session (Tier 2). Tools `pwf_init`, `pwf_status`, `pwf_check`; commands `/pwf`, `/pwf-status`. Same resolver, ambiguity rule, gate table and frame format as the shell route, 22 Vitest tests, verified live in OpenCode 1.18.21. `docs/opencode.md` now names the real install path (`npx skills add -g` lands in `~/.agents/skills/`, which OpenCode reads) and the tier tables stop crediting OpenCode with hooks it never ran. |
 | **v3.13.0** | **Hermes Agent becomes a first-class host, CLI and Desktop.** The native plugin now resolves `.planning/<slug>/` plans (the old adapter only saw a root `task_plan.md`), honours `PLAN_ID`, `PWF_PLAN_ROOT` and `PLANNING_DISABLED`, registers `/pwf`, `/pwf-status` and `/plan-status` (the shipped Markdown command files were never loaded by Hermes), bundles the skill, creates gated and autonomous plans with attestation from `/pwf --gated <name>`, and answers Hermes' `pre_verify` hook with the completion gate. Verified in a live Hermes 0.19.1 plugin manager; the Hermes `skills-guard` scanner rates the bundle `SAFE`. Native Windows path fix (`%LOCALAPPDATA%\hermes`). README reorganized: install and platforms first, proof and reference at the bottom, nothing removed. |
 | **v3.12.1** | **Attestation now stays in slug mode when the helper runs inside `.planning/<slug>/`** (fixes #234, reported by @sortakool). The shell and PowerShell helpers update the slug's `.attestation` instead of creating a legacy `.plan-attestation`, and invalid explicit selectors stop without falling back to another local plan. PowerShell regression coverage exercises attest, show, and clear from the nested directory. The release also restores macOS system-alias handling for the Codex and Hermes context readers and keeps unsafe active-plan pointers from falling back to an unrelated legacy plan. |
 | **v3.12.0** | **Session recovery is now consent-bound and the published planning surface is fully auditable.** Automatic hooks read project planning files only. Same-project session metadata and bounded replay require explicit CLI modes, cross-project records remain quarantined, and phase-status writers fail closed when their shared lock is unavailable. Hidden template instructions were replaced with visible guidance, capability descriptions now disclose actual context and gate behavior, and the complete 29-file ClawHub stage is rebuilt and verified from canonical tracked source. |
@@ -503,7 +513,7 @@ Hermes' own `skills-guard` scanner rates the Hermes bundle `SAFE`; the canonical
 - **Session attachment.** On Codex and Hermes a project can opt into `.planning/sessions/<id>.attached`, so only attached sessions receive plan context in a shared working directory.
 - **Parallel-write guard.** When two sessions write the same plan, the next turn reports how much checked progress was lost instead of silently continuing on the clobbered file.
 - **Stall-aware gate.** The completion gate reads the ledger, not `progress.md` mtime, so a worker that stopped producing events releases the stop instead of looping.
-- **One plan, many hosts.** Claude Code, Codex, Pi and Hermes read the same files, the same `.attestation` and the same gate counters, so a plan can be handed from one agent to another mid-run.
+- **One plan, many hosts.** Claude Code, Codex, Pi, Hermes and OpenCode read the same files, the same `.attestation` and the same gate counters, so a plan can be handed from one agent to another mid-run.
 
 The contract and the `.mode` tokens are specified in the skill itself ([SKILL.md, Autonomous and Gated Modes](skills/planning-with-files/SKILL.md#autonomous-and-gated-modes-v3)) and in [docs/long-running-agent-tasks.md](docs/long-running-agent-tasks.md).
 
@@ -520,7 +530,7 @@ The agent stops at the first rung that applies:
 6. Every phase complete?                  → only then does the Stop gate release (gated mode)
 ```
 
-Hooks make steps 2 to 6 mechanical rather than optional: the Claude Code plugin runs 6 lifecycle hooks, its activation-scoped standalone skill runs 5, Codex runs 7, Pi runs 8, and the Hermes plugin runs 3 (`pre_llm_call`, `post_tool_call`, `pre_verify`). Together they re-inject the plan each turn, remind after writes, and check completion before stopping.
+Hooks make steps 2 to 6 mechanical rather than optional: the Claude Code plugin runs 6 lifecycle hooks, its activation-scoped standalone skill runs 5, Codex runs 7, Pi runs 8, the Hermes plugin runs 3 (`pre_llm_call`, `post_tool_call`, `pre_verify`), and the OpenCode plugin runs 4 (`chat.message`, `tool.execute.after`, `experimental.session.compacting`, `session.idle`). Together they re-inject the plan each turn, remind after writes, and check completion before stopping.
 
 ```mermaid
 flowchart LR
@@ -578,6 +588,15 @@ Install the Pi extension with `pi install npm:planning-with-files`; it registers
 
 On Pi there is no `/plan` command to create the files; the skill creates them, then `/plan-execute` approves and activates the hooks. Pi `plan-goal`/`plan-loop` run their own logic, while the Claude Code commands of the same name forward to native `/goal` and `/loop`. The doctor ships as a script in every mirror since v3.7.0: run `sh scripts/plan-doctor.sh` directly on platforms without the command.
 
+### OpenCode plugin commands
+
+The OpenCode plugin ships two Markdown commands (`.opencode/commands/`), copied to `~/.config/opencode/commands/` or a project's `.opencode/commands/`.
+
+| Command | What it does | Version |
+|---------|--------------|---------|
+| `/pwf [--gated\|--autonomous] [--template analytics] [plan name]` | Tells the agent to call `pwf_init` (root plan or `.planning/YYYY-MM-DD-<slug>/`, v3 markers and attestation with the flags) and fill in the plan | v3.14.0+ |
+| `/pwf-status` | Calls `pwf_status`: plan id, mode, attestation, current phase, phase counts | v3.14.0+ |
+
 ### Hermes plugin commands
 
 The Hermes plugin registers these in-session commands (CLI, gateway and Desktop), typed with no prefix.
@@ -596,6 +615,7 @@ The Hermes plugin registers these in-session commands (CLI, gateway and Desktop)
 | Claude Code | `/planning-with-files:<verb>`, autocompletes from the short form | `/plan`, `/pwf`, `/plan-attest`, `/plan-de` |
 | Pi | bare form, no prefix | `/plan-status`, `/plan-execute`, `/plan-goal` |
 | Hermes Agent | bare form, no prefix | `/pwf`, `/pwf-status`, `/plan-status` |
+| OpenCode | bare form, no prefix | `/pwf`, `/pwf-status` |
 | Continue.dev | `/planning-with-files` | |
 
 On the plugin route the model-invocable SKILL is `planning-with-files:planning-with-files`; the doubled form is the skill id, not a command you type. The five language variants live under `skills/i18n/`, which the plugin scan does not reach, so there is no `planning-with-files:planning-with-files-de` to invoke by name — reach a translation through its `/plan-ar`, `/plan-de`, `/plan-es`, `/plan-zh` or `/plan-zht` command, or install it as its own skill with `npx skills add OthmanAdi/planning-with-files --skill planning-with-files-de -g`, which registers it under its own name. There is no `/pwf-de` and no `/planning-with-files:planning-with-files-goal`; `/pwf` is just a short alias for `/plan`.
@@ -612,7 +632,7 @@ The v3 line adds features aimed at long-running agentic runs. Each one is listed
 - **PreCompact progress flush** (`PreCompact` hook): surfaces a reminder to flush progress before compaction completes, and prints the active Plan-SHA256 when attested.
 - **SHA-256 plan attestation** (`/plan-attest`): locks `task_plan.md`; a tampered plan body is refused at injection.
 - **Run ledger**: an append-only JSONL record of phase transitions that replaces the raw `progress.md` tail in v3 modes with a fixed-shape summary.
-- **Host capability tiers**: hard block on Claude Code, Codex, and Continue; follow-up injection on Cursor, Pi, Kiro, and Hermes Agent; notify-only elsewhere.
+- **Host capability tiers**: hard block on Claude Code, Codex, and Continue; follow-up injection on Cursor, Pi, Kiro, Hermes Agent, and OpenCode; notify-only elsewhere.
 - **Per-invocation opt-out** (`PLANNING_DISABLED=1`, v3.4.0): a one-shot session that merely shares a cwd with an incomplete plan skips all plan reading at every hook entry point. Covers the Copilot and Cursor routes since v3.10.2 and the Hermes plugin since v3.13.0; `.gemini` is deliberately behind and does not honour it.
 - **Absolute plan-root pin** (`PWF_PLAN_ROOT`, v3.9.0): binds a thread to a project root by absolute path, for agent threads whose cwd is a shared parent of the project they are actually working in. Ambiguous cwds refuse to inject rather than guessing.
 
@@ -637,6 +657,7 @@ The v3 line adds features aimed at long-running agentic runs. Each one is listed
 | Codex CLI | 7: SessionStart, UserPromptSubmit, PreToolUse, PermissionRequest, PostToolUse, PreCompact, Stop | Workspace installs use `.codex/hooks.json`; the Codex plugin selects `hooks/codex-hooks.json` and resolves through `${PLUGIN_ROOT}`. Both routes use `commandWindows` on Windows. |
 | Pi | 8 lifecycle handlers in the bundled extension | The injection and recitation handlers stay passive until `/plan-execute` |
 | Hermes Agent | 3: `pre_llm_call`, `post_tool_call`, `pre_verify` | Native plugin under `<HERMES_HOME>/plugins/planning-with-files/`, opt-in through `plugins.enabled`; the gate answers `pre_verify` in gated mode only |
+| OpenCode | 4: `chat.message`, `tool.execute.after`, `experimental.session.compacting`, `event` on `session.idle` | npm plugin `opencode-planning-with-files` listed in `opencode.json`; commands from `.opencode/commands/`; the gate re-prompts the session in gated mode only |
 
 Pi runtime modes:
 
