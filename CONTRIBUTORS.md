@@ -370,7 +370,7 @@ Thank you to everyone who reported issues, provided feedback, and helped test fi
 - [@tingles2233](https://github.com/tingles2233) - Issue #29 (Plugin update issues)
 - [@st01cs](https://github.com/st01cs) - Issue #28 (Devis fork discussion)
 - [@wqh17101](https://github.com/wqh17101) - Issue #11 testing and confirmation
-- [@luyanfeng](https://github.com/luyanfeng) - Issue #172 (OpenCode install/verify paths doubled the folder segment in docs/opencode.md; fixed in v2.43.0)
+- [@luyanfeng](https://github.com/luyanfeng) - Issue #172 (OpenCode install/verify paths doubled the folder segment in docs/opencode.md; fixed in v2.43.0) and Issue #235 (docs/opencode.md claimed `npx skills add -g` installs to `~/.config/opencode/skills/` while it installs to `~/.agents/skills/`; the report triggered the v3.14.0 OpenCode rewrite with the native plugin)
 - [@mixian939](https://github.com/mixian939) - Issue #191 (Codex hooks reporting a false "0/0 phases complete" status for an unstructured task_plan.md, with a full root-cause diagnosis and suggested fix; the audit this triggered found and fixed the same defect in the canonical scripts and two other IDE adapters, fixed in v3.2.0)
 - [@AvitalAviv](https://github.com/AvitalAviv) - Issue #188 (flagged that the repo had no private vulnerability disclosure channel; private vulnerability reporting is now enabled and documented in SECURITY.md)
 - [@lazyst](https://github.com/lazyst) - Issue #190 (feature request describing the Pi extension activating hooks on a draft plan before user confirmation, with the exact passive-until-confirmed behavior that shipped as `/plan-execute` in v3.3.0)

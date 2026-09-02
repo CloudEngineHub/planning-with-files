@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [3.14.0] - 2026-09-02
+
+OpenCode becomes a first-class host through its own plugin system, and issue #235 is fixed. Verified against OpenCode 1.18.21: the plugin loaded from a project config directory, `pwf_init`, `pwf_status` and `pwf_check` appeared in the tool list, `/pwf` and `/pwf-status` in the command list, and a real session message received the framed plan as a synthetic part.
+
+### Added
+- **Native OpenCode plugin `opencode-planning-with-files`** (`.opencode/packages/opencode-planning-with-files/`, npm package, TypeScript). Hooks: `chat.message` appends the framed active plan to every user message (plan head, normalized progress tail, findings pointer) or a once-per-turn ambiguity notice; `tool.execute.after` appends the progress reminder to `write`, `edit`, `patch`, `multiedit` and `apply_patch` output; `experimental.session.compacting` keeps the plan pointer and attestation hash in the compaction context; `event` on `session.idle` runs the completion gate in gated mode and re-prompts the session with the gate reason through the SDK. Tools `pwf_init` (root or `.planning/<date>-<slug>/`, `mode: autonomous` or `gated` with the v3 markers and attestation), `pwf_status`, `pwf_check`. Each session is resolved from its own OpenCode directory; child sessions are never re-prompted.
+- **Plan resolution and gate parity in TypeScript.** Same precedence as `resolve-plan-dir.sh` (`PLAN_ID`, BOM-tolerant `.active_plan`, newest slug, legacy root) with slug validation, lstat-based symlink refusal and containment; the `inject-plan.sh` nested-root rule (only a live nested plan competes; a `PWF_PLAN_ROOT` pin or `PLAN_ID` skips it; `PWF_PLAN_ROOT` fails closed); the `check-complete.sh --gate` decision table with per-field maximum status counting and the shared `.stop_blocks` and `.gate_last_ledger` files; `init-session.sh` markers; the same framed injection format with a content-derived nonce, byte bound, SHA-256 and `DATA ONLY` preamble; attestation refusal for tampered or unattested v3 plans.
+- **Commands** `.opencode/commands/pwf.md` and `pwf-status.md` in OpenCode's own Markdown command format, and a dogfood entry `.opencode/plugins/planning-with-files.ts` that loads the plugin from source when this repository is opened in OpenCode (`.opencode/package.json` now tracked with the `@opencode-ai/plugin` dependency).
+- **Vitest suite** (22 tests: resolver, BOM, ambiguity, pin, framing, tampering, gate counters and stall, mixed status formats, init markers, status, plugin hooks against a fake client, tools) and a `vitest (OpenCode plugin)` CI job that typechecks, builds and tests the package.
+
+### Fixed
+- **`docs/opencode.md` named the wrong install location (closes #235, reported by @luyanfeng).** `npx skills add OthmanAdi/planning-with-files --skill planning-with-files -g` installs to `~/.agents/skills/planning-with-files/`, not `~/.config/opencode/skills/`. OpenCode reads `~/.agents/skills/`, `~/.claude/skills/`, `~/.config/opencode/skills/` and the project-local `.agents/skills/`, `.claude/skills/`, `.opencode/skills/`, so the install works; the page, the `.opencode` skill's restore-context snippets and its file-location table now name the real paths and probe every location.
+- **OpenCode was listed as an Enhanced host on the strength of `hooks:` frontmatter OpenCode never runs.** The tier tables, `MIGRATION.md` and the README now say what each install actually gets: skill-only installs stay notify-only, the native plugin is Tier 2 (follow-up inject).
+
+### Changed
+- README: OpenCode install block and matrix row, command table, hooks reference row, and the host tier bullets name the native plugin; `docs/installation.md` gains the OpenCode route.
+- Version bumped to 3.14.0 across the tracked parity set and the ClawHub stage. The OpenCode plugin package carries its own version (1.0.0), like the Pi extension.
+
+### Thanks
+- Luyanfeng reported the install path mismatch in issue #235, the second OpenCode docs bug they caught.
+
 ## [3.13.0] - 2026-09-01
 
 Hermes Agent by Nous Research becomes a first-class host, on the CLI and in Hermes Desktop. Every claim in this entry was checked against the Hermes v0.19.1 source and a live install: the plugin was loaded through Hermes' own plugin manager, and the skill bundle was scanned with Hermes' `skills-guard`.
