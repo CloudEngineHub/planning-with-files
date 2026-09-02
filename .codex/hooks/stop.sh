@@ -6,6 +6,11 @@
 
 HOOK_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
 PLAN_DIR="$(sh "${HOOK_DIR}/resolve-plan-dir.sh" 2>/dev/null)"
+# An explicit PLAN_ID is a binding, not a hint (issue #237). When the shared
+# resolver rejected one it emits nothing, and the legacy-root fallback below
+# would decide whether this run may stop from a plan the operator never named.
+# Allow the stop rather than gating on the wrong plan.
+[ -z "$PLAN_DIR" ] && [ -n "${PLAN_ID:-}" ] && exit 0
 PLAN_FILE="${PLAN_DIR:+${PLAN_DIR}/}task_plan.md"
 
 if [ ! -f "$PLAN_FILE" ]; then

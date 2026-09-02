@@ -144,12 +144,35 @@ export function resolvePlanPaths(sessionCwd: string): PlanPaths {
 		attestationCandidates: [join(cwd, ".plan-attestation")],
 	});
 
+	const makeNone = (): PlanPaths => ({
+		cwd,
+		scope: "none",
+		attestationCandidates: [join(cwd, ".plan-attestation")],
+	});
+
+	// A set PLAN_ID is a BINDING, not a hint (issue #237).
+	//
+	// A slug that resolves to a contained scoped plan wins. One that does NOT
+	// resolve ends resolution right here. Falling through to .active_plan, the
+	// newest slug and the root plan turned a one-character typo into a silent
+	// switch: the operator asked for plan A, the pointer or newest-by-mtime
+	// answered with plan B, and B was what got attested and injected at rc=0.
+	// Every rejection route ends the same way, whether the selector failed
+	// SLUG_RE (traversal shapes included), named no plan directory, or failed
+	// containment. The session gets the "none" scope and takes its own
+	// fail-closed path rather than a plan nobody selected.
+	//
+	// An EMPTY or unset PLAN_ID still means "no selector": resolution continues
+	// below exactly as before, which is what the legacy root path depends on.
 	const planId = process.env.PLAN_ID?.trim();
-	if (planId && SLUG_RE.test(planId)) {
-		const candidate = join(planRoot, planId);
-		if (existsSync(join(candidate, "task_plan.md")) && isWithinRoot(cwd, candidate)) {
-			return makeScoped(candidate);
+	if (planId) {
+		if (SLUG_RE.test(planId)) {
+			const candidate = join(planRoot, planId);
+			if (existsSync(join(candidate, "task_plan.md")) && isWithinRoot(cwd, candidate)) {
+				return makeScoped(candidate);
+			}
 		}
+		return makeNone();
 	}
 
 	const activePlanFile = join(planRoot, ".active_plan");
@@ -176,11 +199,7 @@ export function resolvePlanPaths(sessionCwd: string): PlanPaths {
 		return rootPlan;
 	}
 
-	return {
-		cwd,
-		scope: "none",
-		attestationCandidates: [join(cwd, ".plan-attestation")],
-	};
+	return makeNone();
 }
 
 export function readPlanStatus(cwd: string): PlanStatus {

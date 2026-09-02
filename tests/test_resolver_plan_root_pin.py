@@ -133,13 +133,23 @@ class ShResolverPinTests(PinTreeMixin):
         out = run_sh(self.workspace, {"PWF_PLAN_ROOT": str(self.workspace / "missing")})
         self.assertEqual("", out, "a broken pin must fail closed to empty stdout")
 
-    def test_plan_id_resolves_under_the_pin_not_the_cwd(self) -> None:
-        # PLAN_ID=plan-a exists at the parent but NOT under the pin; the
-        # resolver must not mix roots, so it falls through to the pinned
-        # .active_plan and returns plan-b.
+    def test_plan_id_not_under_the_pin_fails_closed(self) -> None:
+        # PLAN_ID=plan-a exists at the parent but NOT under the pin. Not mixing
+        # roots was always the point and still holds. Since issue #237 the
+        # resolver no longer falls through to the pinned .active_plan either:
+        # returning plan-b for an operator who named plan-a is the wrong-plan
+        # harm the binding removes, and attest-plan.sh would have locked plan-b
+        # at rc=0.
+        out = run_sh(self.workspace, {"PWF_PLAN_ROOT": str(self.project), "PLAN_ID": "plan-a"})
+        self.assertEqual("", out.strip(), f"expected a refusal, got {out}")
+
+    def test_plan_id_that_does_exist_under_the_pin_still_resolves(self) -> None:
+        # Control arm for the refusal above: the pin plus a slug that really is
+        # under it resolves normally, so the empty result is a binding refusal
+        # rather than the pin breaking PLAN_ID outright.
         out = canon(
             self.workspace,
-            run_sh(self.workspace, {"PWF_PLAN_ROOT": str(self.project), "PLAN_ID": "plan-a"}),
+            run_sh(self.workspace, {"PWF_PLAN_ROOT": str(self.project), "PLAN_ID": "plan-b"}),
         )
         assert out is not None
         self.assertTrue(out.endswith("plan-b"), f"expected plan-b, got {out}")
@@ -184,6 +194,19 @@ class ResolverPinParityTests(PinTreeMixin):
 
     def test_unset_pin_parity(self) -> None:
         self.assert_parity(None, "plan-a")
+
+    def test_plan_id_outside_the_pin_fails_closed_on_both(self) -> None:
+        # Issue #237: both resolvers must refuse rather than substitute the
+        # pinned .active_plan. A host disagreement here would put the shell
+        # route and the PowerShell route on different plans.
+        self.assert_parity(
+            {"PWF_PLAN_ROOT": str(self.project), "PLAN_ID": "plan-a"}, None
+        )
+
+    def test_plan_id_inside_the_pin_resolves_on_both(self) -> None:
+        self.assert_parity(
+            {"PWF_PLAN_ROOT": str(self.project), "PLAN_ID": "plan-b"}, "plan-b"
+        )
 
 
 if __name__ == "__main__":

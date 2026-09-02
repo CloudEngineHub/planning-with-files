@@ -118,11 +118,52 @@ class ResolverParityTests(unittest.TestCase):
         self._plan("2026-07-21-beta", mtime_offset=60)
         self.assert_parity({"PLAN_ID": "2026-07-21-alpha"}, "2026-07-21-alpha")
 
-    def test_plan_id_env_invalid_slug_falls_through(self):
+    def test_plan_id_env_traversal_slug_fails_closed(self):
+        """A traversal-shaped PLAN_ID resolves to nothing, not to another plan.
+
+        This asserted a fall-through to the newest plan until issue #237. Not
+        escaping .planning was always right, but continuing to .active_plan and
+        newest-by-mtime afterwards is the same wrong-plan harm as a typo: the
+        operator named one plan, attest-plan.sh locked a different one at rc=0,
+        and injection followed it. A set PLAN_ID is a binding for every
+        rejection reason, so both resolvers now emit nothing.
+        """
         self._plan("2026-07-21-alpha")
         evil = self.tmp / ".planning" / ".." / "outside"
         evil.mkdir(parents=True, exist_ok=True)
-        self.assert_parity({"PLAN_ID": "../outside"}, "2026-07-21-alpha")
+        self.assert_parity({"PLAN_ID": "../outside"}, None)
+
+    def test_plan_id_env_valid_shape_nonexistent_fails_closed(self):
+        """A one-character typo must not silently select the pointed plan.
+
+        The core of issue #237: PLAN_ID has valid slug shape but names no
+        directory, and .active_plan points at a real, different plan. The
+        rejected selector must stop resolution rather than hand back beta.
+        """
+        self._plan("2026-07-21-alpha")
+        self._plan("2026-07-21-beta", mtime_offset=60)
+        (self.tmp / ".planning" / ".active_plan").write_text(
+            "2026-07-21-beta\n", encoding="utf-8"
+        )
+        # Control arm: the same fixture DOES resolve alpha when the slug is
+        # spelled correctly, so the assertion below is a real refusal rather
+        # than a broken probe.
+        self.assert_parity({"PLAN_ID": "2026-07-21-alpha"}, "2026-07-21-alpha")
+        self.assert_parity({"PLAN_ID": "2026-07-21-alhpa"}, None)
+
+    def test_empty_plan_id_still_means_unset(self):
+        """PLAN_ID="" is not a selector; resolution proceeds normally.
+
+        init-session.sh passes PLAN_ID="${PLAN_ID:-}" into attest-plan.sh on
+        the legacy path, so an empty value must keep resolving the pointer
+        rather than failing closed.
+        """
+        self._plan("2026-07-21-alpha")
+        self._plan("2026-07-21-beta", mtime_offset=60)
+        (self.tmp / ".planning" / ".active_plan").write_text(
+            "2026-07-21-beta\n", encoding="utf-8"
+        )
+        self.assert_parity({"PLAN_ID": ""}, "2026-07-21-beta")
 
     def test_active_plan_pointer(self):
         self._plan("2026-07-21-alpha", mtime_offset=60)

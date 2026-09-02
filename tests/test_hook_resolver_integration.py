@@ -343,8 +343,14 @@ class HookResolverIntegrationTests(unittest.TestCase):
             )
 
             self.assertEqual(0, result.returncode, result.stderr)
-            self.assertIn("Workspace plan", result.stdout)
+            # Never the escaped plan: that was always the point of this test.
             self.assertNotIn("Escaped plan", result.stdout)
+            # And since issue #237, not the workspace plan either. Refusing to
+            # leave .planning was right; handing back a plan the operator did
+            # not name is the same wrong-plan harm as a typo, so a rejected
+            # selector now stops resolution and says so.
+            self.assertNotIn("Workspace plan", result.stdout)
+            self.assertIn("PLAN_ID does not name a plan directory", result.stdout)
 
     def test_user_prompt_submit_rejects_external_symlink_plan(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as outside_tmp:
@@ -379,8 +385,12 @@ class HookResolverIntegrationTests(unittest.TestCase):
                 )
 
                 self.assertEqual(0, result.returncode, result.stderr)
-                self.assertIn("Workspace plan", result.stdout)
+                # The containment refusal is unchanged and remains the point.
                 self.assertNotIn("Escaped plan", result.stdout)
+                # Since issue #237 a rejected selector no longer substitutes
+                # the pointer's plan; a failed containment check is a rejection
+                # like any other.
+                self.assertNotIn("Workspace plan", result.stdout)
             finally:
                 if escape.is_symlink():
                     escape.unlink()

@@ -95,16 +95,25 @@ class ResolvePlanDirTests(unittest.TestCase):
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertEqual("", result.stdout.strip())
 
-    def test_env_plan_id_pointing_to_missing_dir_falls_through(self) -> None:
+    def test_env_plan_id_pointing_to_missing_dir_fails_closed(self) -> None:
+        # This asserted a fall-through to the newest existing plan until issue
+        # #237. Substituting another plan for a selector the operator named is
+        # the defect: attest-plan.sh then locked that other plan at rc=0.
+        # Emptiness is the fail-closed signal; the exit status stays 0 so
+        # callers under set -e are not killed for a non-error condition.
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             real = root / ".planning" / "real"
             real.mkdir(parents=True)
             (real / "task_plan.md").write_text("# real plan\n", encoding="utf-8")
+            # Control arm: the fixture does resolve when the slug is correct,
+            # so the refusal below is real and not a broken probe.
+            control = self.run_resolver(root, plan_id="real")
+            self.assertTrue(control.stdout.strip().endswith("real"))
+
             result = self.run_resolver(root, plan_id="ghost")
             self.assertEqual(0, result.returncode, result.stderr)
-            # Should fall through to newest existing plan dir
-            self.assertTrue(result.stdout.strip().endswith("real"))
+            self.assertEqual("", result.stdout.strip())
 
     def test_corrupt_active_plan_whitespace_only_falls_through(self) -> None:
         # Regression for v2.40: .active_plan filled with whitespace/newlines
@@ -145,14 +154,28 @@ class ResolvePlanDirTests(unittest.TestCase):
             )
 
     def test_env_plan_id_with_whitespace_rejected(self) -> None:
-        # Regression for v2.40: PLAN_ID env with whitespace or empty value must
-        # not bypass the slug check. Falls through cleanly.
+        # Regression for v2.40: PLAN_ID env with whitespace must not bypass the
+        # slug check. Since issue #237 the rejection also stops resolution
+        # rather than falling through, because a set selector is a binding for
+        # every rejection reason, shape included.
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             real = root / ".planning" / "real"
             real.mkdir(parents=True)
             (real / "task_plan.md").write_text("# real plan\n", encoding="utf-8")
             result = self.run_resolver(root, plan_id="   ")
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual("", result.stdout.strip())
+
+    def test_env_plan_id_empty_string_is_not_a_selector(self) -> None:
+        # An EMPTY value still means "unset": init-session.sh passes
+        # PLAN_ID="${PLAN_ID:-}" into attest-plan.sh on the legacy path.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            real = root / ".planning" / "real"
+            real.mkdir(parents=True)
+            (real / "task_plan.md").write_text("# real plan\n", encoding="utf-8")
+            result = self.run_resolver(root, plan_id="")
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertTrue(result.stdout.strip().endswith("real"))
 

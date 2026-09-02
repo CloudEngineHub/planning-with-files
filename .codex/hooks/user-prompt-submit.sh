@@ -79,6 +79,15 @@ PLAN_DIR="$(sh "${HOOK_DIR}/resolve-plan-dir.sh" 2>/dev/null)"
 if [ -n "$PLAN_DIR" ]; then
     PLAN_FILE="${PLAN_DIR}/task_plan.md"
     PROGRESS_FILE="${PLAN_DIR}/progress.md"
+elif [ -n "${PLAN_ID:-}" ]; then
+    # An explicit PLAN_ID is a binding, not a hint (issue #237). The shared
+    # resolver rejected it, so the legacy-root fallback below would inject a
+    # plan the operator never named. This hook fires once per turn, so one
+    # diagnosable line is not spam and the alternative is a dark session with
+    # no stated cause. Wording matches scripts/inject-plan.sh so all routes say
+    # the same thing.
+    echo "[planning-with-files] PLAN_ID does not name a plan directory under .planning: ${PLAN_ID} — nothing injected. Fix or unset the pin; a broken pin fails closed rather than selecting another plan."
+    exit 0
 else
     PLAN_FILE="${PLAN_PREFIX}task_plan.md"
     PROGRESS_FILE="${PLAN_PREFIX}progress.md"

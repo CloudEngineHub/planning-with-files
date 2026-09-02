@@ -13,6 +13,7 @@ import {
   gateCounts,
   initPlan,
   ledgerLineCount,
+  modeTokens,
   nestedLivePlans,
   resolvePlan,
   slugIsValid,
@@ -90,11 +91,24 @@ describe("resolver", () => {
     for (const bad of ["../outside", "bad slug", "/abs", ".hidden"]) {
       fs.writeFileSync(path.join(root, ".planning", ".active_plan"), `${bad}\n`)
       expect(resolvePlan(root, {}, env).planDir).toBe(root)
-      // a PLAN_ID that does not resolve falls through, like resolve-plan-dir.sh
-      expect(resolvePlan(root, {}, { ...env, PLAN_ID: bad }).planDir).toBe(root)
+      // a rejected PLAN_ID stops resolution instead of falling through to the
+      // pointer, the newest slug or the legacy root (#237)
+      expect(resolvePlan(root, {}, { ...env, PLAN_ID: bad }).planDir).toBeNull()
     }
     expect(slugIsValid("-leading")).toBe(false)
     expect(slugIsValid("2026-09-02-run.v2")).toBe(true)
+  })
+
+  it("stops when a valid-shape PLAN_ID names no directory, ignoring the pointer (#237)", () => {
+    const active = slugPlan(root, "2026-09-02-active", { pointer: true })
+    expect(resolvePlan(root, {}, env).planDir).toBe(active)
+    // one typo in the slug: the pointed plan must NOT answer in its place
+    expect(resolvePlan(root, {}, { ...env, PLAN_ID: "2026-09-02-actve" })).toEqual({
+      planDir: null,
+      conflicts: [],
+    })
+    // an empty PLAN_ID is still "no selector" and resolves the pointer
+    expect(resolvePlan(root, {}, { ...env, PLAN_ID: "" }).planDir).toBe(active)
   })
 
   it("picks the newest slug by mtime when there is no pointer, and PLAN_ID overrides", () => {
@@ -226,35 +240,83 @@ describe("injection", () => {
 describe("gate", () => {
   it("blocks, counts, stalls and caps like check-complete.sh --gate", () => {
     const dir = slugPlan(root, "2026-09-02-run", { mode: "autonomous gate", attest: true, pointer: true })
-    const first = evaluateGate(dir, env)
+    const first = evaluateGate(root, dir, env)
     expect(first).toContain("Phase 2: Build the adapter")
     expect(first).toContain("(1/3 complete, gate block 1/20)")
     expect(fs.readFileSync(path.join(dir, ".stop_blocks"), "utf8").trim()).toBe("1")
-    expect(evaluateGate(dir, env)).toBeNull()
+    expect(evaluateGate(root, dir, env)).toBeNull()
     fs.writeFileSync(path.join(dir, "ledger-main.jsonl"), '{"tick":1}\n')
-    expect(evaluateGate(dir, env)).toContain("gate block 2/20")
+    expect(evaluateGate(root, dir, env)).toContain("gate block 2/20")
     fs.writeFileSync(path.join(dir, "ledger-main.jsonl"), '{"tick":1}\n{"tick":2}\n')
-    expect(evaluateGate(dir, { ...env, PWF_GATE_CAP: "2" })).toBeNull()
+    expect(evaluateGate(root, dir, { ...env, PWF_GATE_CAP: "2" })).toBeNull()
   })
 
   it("never holds legacy, autonomous, complete, heading-less or disabled plans", () => {
     const dir = slugPlan(root, "2026-09-02-run", { pointer: true })
-    expect(evaluateGate(dir, env)).toBeNull()
+    expect(evaluateGate(root, dir, env)).toBeNull()
     fs.writeFileSync(path.join(dir, ".mode"), "autonomous\n")
-    expect(evaluateGate(dir, env)).toBeNull()
+    expect(evaluateGate(root, dir, env)).toBeNull()
     fs.writeFileSync(path.join(dir, ".mode"), "autonomous gate\n")
-    expect(evaluateGate(dir, { ...env, PLANNING_DISABLED: "1" })).toBeNull()
+    expect(evaluateGate(root, dir, { ...env, PLANNING_DISABLED: "1" })).toBeNull()
     fs.writeFileSync(path.join(dir, "task_plan.md"), "### Phase 1\n- **Status:** complete\n")
-    expect(evaluateGate(dir, env)).toBeNull()
+    expect(evaluateGate(root, dir, env)).toBeNull()
     fs.writeFileSync(path.join(dir, "task_plan.md"), "no headings\n- [in_progress]\n")
-    expect(evaluateGate(dir, env)).toBeNull()
+    expect(evaluateGate(root, dir, env)).toBeNull()
   })
 
   it("counts mixed status formats per field like the shell", () => {
     const mixed = "### Phase 1: A\n- **Status:** complete\n\n### Phase 2: B\n- [in_progress]\n\n### Phase 3: C\n- **Status:** pending\n"
     expect(gateCounts(mixed)).toEqual({ total: 3, complete: 1, in_progress: 1, pending: 1 })
     const dir = slugPlan(root, "2026-09-02-mixed", { text: mixed, mode: "autonomous gate", attest: true, pointer: true })
-    expect(evaluateGate(dir, env)).toContain("Phase 2: B")
+    expect(evaluateGate(root, dir, env)).toContain("Phase 2: B")
+  })
+})
+
+describe("root .mode floor (#238)", () => {
+  it("arms a slug plan that carries no .mode of its own from the project root", () => {
+    const dir = slugPlan(root, "2026-09-02-arbtask", { attest: true, pointer: true })
+    // Negative control first: without a root .mode the gate stays off, so the
+    // assertion below is evidence of the floor rather than of a fixture that
+    // would have blocked either way.
+    expect(modeTokens(root, dir)).toEqual([])
+    expect(evaluateGate(root, dir, env)).toBeNull()
+
+    fs.writeFileSync(path.join(root, ".mode"), "autonomous gate\n")
+    expect(modeTokens(root, dir)).toEqual(expect.arrayContaining(["autonomous", "gate"]))
+    expect(evaluateGate(root, dir, env)).toContain("Phase 2: Build the adapter")
+  })
+
+  it("lets a slug raise strictness but never lower it", () => {
+    const raised = slugPlan(root, "2026-09-02-raise", { mode: "autonomous gate" })
+    fs.writeFileSync(path.join(root, ".mode"), "autonomous\n")
+    expect(modeTokens(root, raised)).toContain("gate")
+
+    const lowered = slugPlan(root, "2026-09-02-lower", { mode: "autonomous plan-guard-off" })
+    expect(modeTokens(root, lowered)).not.toContain("plan-guard-off")
+  })
+
+  it("keeps plan-guard-off when the root carries it too", () => {
+    const dir = slugPlan(root, "2026-09-02-agree", { mode: "autonomous plan-guard-off" })
+    fs.writeFileSync(path.join(root, ".mode"), "autonomous plan-guard-off\n")
+    expect(modeTokens(root, dir)).toContain("plan-guard-off")
+  })
+
+  it("leaves the slug tokens untouched when the project has no .mode", () => {
+    const dir = slugPlan(root, "2026-09-02-legacy", { mode: "autonomous plan-guard-off" })
+    expect(modeTokens(root, dir)).toEqual(["autonomous", "plan-guard-off"])
+  })
+
+  it("refuses a malformed root .mode instead of proceeding as unset", () => {
+    const dir = slugPlan(root, "2026-09-02-malformed", { mode: "autonomous" })
+    fs.writeFileSync(path.join(root, ".mode"), "not-a-real-token\n")
+    expect(modeTokens(root, dir)).toBeNull()
+    expect(verifyPlan(root, dir)).toEqual({ ok: false, reason: "unsafe mode marker" })
+  })
+
+  it("has no second source in root scope", () => {
+    fs.writeFileSync(path.join(root, "task_plan.md"), GATED_PLAN)
+    fs.writeFileSync(path.join(root, ".mode"), "autonomous plan-guard-off\n")
+    expect(modeTokens(root, root)).toEqual(["autonomous", "plan-guard-off"])
   })
 })
 

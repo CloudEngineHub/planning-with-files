@@ -30,6 +30,10 @@ export const WRITE_LIKE_TOOLS = new Set(["write", "edit", "patch", "multiedit", 
 
 const SLUG_RE = /^[A-Za-z0-9_][A-Za-z0-9._-]*$/
 const MODE_TOKENS = new Set(["autonomous", "gate", "inject-smart", "plan-guard-off"])
+// The strictness-LOWERING members of MODE_TOKENS. Everything else raises
+// strictness, and the root .mode floor (issue #238) treats the two halves in
+// opposite directions, so a new token must be classified here deliberately.
+const MODE_LOWERING_TOKENS = new Set(["plan-guard-off"])
 const READ_PREVIEW_LINES = 50
 const PROGRESS_TAIL_LINES = 20
 const MAX_SOURCE_BYTES = 4 * 1024 * 1024
@@ -188,11 +192,23 @@ export function resolvePlan(root: string, opts: { planId?: string; explicit?: bo
   const planningRoot = path.join(root, ".planning")
   const requested = opts.planId !== undefined ? opts.planId : (env.PLAN_ID ?? "").trim()
   if (requested) {
-    // An explicit slug that resolves is authoritative and skips the nested-root
-    // check. One that does not resolve falls through to the pointer, the newest
-    // slug and the legacy root, exactly like resolve-plan-dir.sh.
+    // A set PLAN_ID is a BINDING, not a hint (issue #237).
+    //
+    // A slug that resolves is authoritative and skips the nested-root check.
+    // One that does NOT resolve ends resolution right here. Falling through to
+    // the pointer, the newest slug and the legacy root turned a one-character
+    // typo into a silent switch: the operator asked for plan A, .active_plan or
+    // newest-by-mtime answered with plan B, and B was what got attested and
+    // injected at rc=0. Every rejection route ends the same way, whether the
+    // selector failed slug validation (traversal shapes included), named no
+    // directory, or failed containment. The caller receives "no plan" and takes
+    // its own fail-closed path rather than a plan nobody selected.
+    //
+    // An EMPTY PLAN_ID still means "no selector": resolution continues below
+    // exactly as before, which is what the legacy root path depends on.
     const explicitDir = slugPlanDir(planningRoot, requested)
     if (explicitDir) return { planDir: explicitDir, conflicts: [] }
+    return { planDir: null, conflicts: [] }
   }
 
   let chosen: string | null = null
@@ -296,14 +312,55 @@ export function frameBytes(kind: "plan" | "progress", data: Buffer, truncated = 
   )
 }
 
-/** Tokens of <plan-dir>/.mode; [] when absent; null when a token is not allowed. */
-export function modeTokens(planDir: string): string[] | null {
-  const raw = readText(path.join(planDir, ".mode"), 256)
+/** Tokens of one directory's .mode; [] when absent; null when a token is not allowed. */
+function readModeFile(dir: string): string[] | null {
+  const raw = readText(path.join(dir, ".mode"), 256)
   if (raw === null) return []
   const tokens = raw.split(/\s+/).filter(Boolean)
   if (tokens.length === 0) return null
   for (const token of tokens) if (!MODE_TOKENS.has(token)) return null
   return tokens
+}
+
+/**
+ * Effective mode for a plan: the slug's .mode raised by the project root's
+ * .mode FLOOR (issue #238). [] when neither file is present; null when either
+ * file carries a token outside MODE_TOKENS.
+ *
+ * A project makes attestation mandatory by committing a root .mode, which is a
+ * reviewed project setting. Reading only <plan-dir>/.mode let a slug plan
+ * silently exempt itself: initPlan writes no .mode unless the operator asked
+ * for a mode, so creating a plan turned the project's policy off in one
+ * agent-invocable call.
+ *
+ * Strictness-RAISING tokens (autonomous, gate, inject-smart) are effective when
+ * EITHER file carries them: a slug may go stricter than the project asked, it
+ * can never go looser. The single strictness-LOWERING token (plan-guard-off)
+ * survives only when the slug carries it AND, where a root .mode exists, that
+ * file carries it too, so a slug cannot switch off a protection the project
+ * kept on.
+ *
+ * A malformed ROOT .mode returns null, the same "not allowed" signal a
+ * malformed slug .mode already produces. That is the fail-closed reading: the
+ * committed policy is unreadable, so verifyPlan refuses the plan ("unsafe mode
+ * marker") instead of proceeding as if the project had asked for nothing.
+ *
+ * With no root .mode the effective set is byte-identical to the slug's, which
+ * is the invariant existing projects depend on. Root scope has no second
+ * source at all: <root>/.mode already IS the plan's .mode there.
+ */
+export function modeTokens(root: string, planDir: string): string[] | null {
+  const slug = readModeFile(planDir)
+  if (slug === null) return null
+  if (path.resolve(planDir) === path.resolve(root)) return slug
+  const floor = readModeFile(root)
+  if (floor === null) return null
+  if (floor.length === 0) return slug
+  const effective = slug.filter((token) => !MODE_LOWERING_TOKENS.has(token) || floor.includes(token))
+  for (const token of floor) {
+    if (!MODE_LOWERING_TOKENS.has(token) && !effective.includes(token)) effective.push(token)
+  }
+  return effective
 }
 
 export type Verified = { ok: true; plan: Buffer; mode: string } | { ok: false; reason: string }
@@ -312,7 +369,7 @@ export type Verified = { ok: true; plan: Buffer; mode: string } | { ok: false; r
 export function verifyPlan(root: string, planDir: string): Verified {
   const plan = readBytes(path.join(planDir, "task_plan.md"))
   if (plan === null) return { ok: false, reason: "task_plan.md is not a readable regular file (or exceeds 4 MiB)" }
-  const tokens = modeTokens(planDir)
+  const tokens = modeTokens(root, planDir)
   if (tokens === null) return { ok: false, reason: "unsafe mode marker" }
   const mode = tokens.includes("gate") ? "gated" : tokens.includes("autonomous") ? "autonomous" : ""
   const attestationRaw = readText(attestationPathFor(root, planDir), 128)
@@ -411,9 +468,9 @@ export function ledgerLineCount(planDir: string): number {
 }
 
 /** Returns the continuation message when the stop must be held, otherwise null. */
-export function evaluateGate(planDir: string, env: Env): string | null {
+export function evaluateGate(root: string, planDir: string, env: Env): string | null {
   if (env.PLANNING_DISABLED === "1") return null
-  const tokens = modeTokens(planDir)
+  const tokens = modeTokens(root, planDir)
   if (!tokens || !tokens.includes("gate")) return null
   const text = readText(path.join(planDir, "task_plan.md"))
   if (text === null) return null
@@ -694,7 +751,7 @@ export function summarizeStatus(root: string, env: Env): StatusResult {
     return { exists: false, message: "No planning files found. Run pwf_init first.", project_dir: root, conflicts }
   }
   const text = readText(path.join(resolved.planDir, "task_plan.md")) ?? ""
-  const tokens = modeTokens(resolved.planDir)
+  const tokens = modeTokens(root, resolved.planDir)
   return {
     exists: true,
     project_dir: root,

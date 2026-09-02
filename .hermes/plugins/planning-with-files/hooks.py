@@ -217,7 +217,7 @@ def pre_verify(**kwargs: Any) -> dict[str, str] | None:
     if project_dir is None or plan_dir is None:
         return None
     try:
-        reason = evaluate_gate(plan_dir)
+        reason = evaluate_gate(project_dir, plan_dir)
     except (OSError, RuntimeError, ValueError):
         return None
     if not reason:

@@ -133,7 +133,7 @@ describe("slug validation and containment parity with the sh resolver (v3.8.1)",
 		}
 	});
 
-	it("rejects a PLAN_ID containing whitespace", () => {
+	it("stops on a PLAN_ID containing whitespace instead of resolving another plan (#237)", () => {
 		const root = makeWorkspace();
 		writeScopedPlan(root, "plan a", "# spaced");
 		writeScopedPlan(root, "plan-fallback", "# fallback");
@@ -142,7 +142,25 @@ describe("slug validation and containment parity with the sh resolver (v3.8.1)",
 		process.env.PLAN_ID = "plan a";
 		try {
 			const paths = resolvePlanPaths(root);
-			expect(paths.planId).toBe("plan-fallback");
+			expect(paths.scope).toBe("none");
+			expect(paths.planId).toBeUndefined();
+		} finally {
+			if (previous === undefined) delete process.env.PLAN_ID;
+			else process.env.PLAN_ID = previous;
+		}
+	});
+
+	it("stops when a valid-shape PLAN_ID names no directory, ignoring .active_plan (#237)", () => {
+		const root = makeWorkspace();
+		writeScopedPlan(root, "plan-active", "# active");
+		writeFileSync(join(root, ".planning", ".active_plan"), "plan-active");
+
+		const previous = process.env.PLAN_ID;
+		process.env.PLAN_ID = "plan-actve";
+		try {
+			const paths = resolvePlanPaths(root);
+			expect(paths.scope).toBe("none");
+			expect(paths.planId).toBeUndefined();
 		} finally {
 			if (previous === undefined) delete process.env.PLAN_ID;
 			else process.env.PLAN_ID = previous;

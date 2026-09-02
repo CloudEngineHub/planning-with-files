@@ -251,12 +251,25 @@ def resolve_plan(
     planning_root = project_dir / ".planning"
     requested = plan_id if plan_id is not None else os.environ.get("PLAN_ID", "").strip()
     if requested:
-        # An explicit slug that resolves is authoritative and skips the nested
-        # check. One that does not resolve falls through to the pointer, the
-        # newest slug and the legacy root, exactly like resolve-plan-dir.sh.
+        # A set PLAN_ID is a BINDING, not a hint (issue #237).
+        #
+        # A slug that resolves is authoritative and skips the nested check. One
+        # that does NOT resolve ends resolution right here. Falling through to
+        # the pointer, the newest slug and the legacy root turned a
+        # one-character typo into a silent switch: the operator asked for plan
+        # A, .active_plan or newest-by-mtime answered with plan B, and B was
+        # what got attested and injected at rc=0. Every rejection route ends the
+        # same way, whether the selector failed slug validation (traversal
+        # shapes included), named no directory, or failed containment. The
+        # caller receives "no plan" and takes its own fail-closed path rather
+        # than a plan nobody selected.
+        #
+        # An EMPTY PLAN_ID still means "no selector": resolution continues below
+        # exactly as before, which is what the legacy root path depends on.
         explicit_dir = _slug_plan_dir(planning_root, requested)
         if explicit_dir is not None:
             return explicit_dir, []
+        return None, []
 
     chosen: Path | None = None
     if planning_root.is_dir() and not _is_link_or_reparse(planning_root):

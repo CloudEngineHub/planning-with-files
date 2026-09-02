@@ -176,11 +176,29 @@ class HermesFirstClassTests(unittest.TestCase):
                 (root / ".planning" / ".active_plan").write_text(bad + "\n", encoding="utf-8")
                 self.assertEqual(root, paths_module.resolve_plan_dir(root), bad)
                 os.environ["PLAN_ID"] = bad
-                # a PLAN_ID that does not resolve falls through, like resolve-plan-dir.sh
-                self.assertEqual(root, paths_module.resolve_plan_dir(root), bad)
+                if bad:
+                    # a rejected PLAN_ID stops resolution instead of falling
+                    # through to the pointer, the newest slug or the legacy
+                    # root (#237)
+                    self.assertIsNone(paths_module.resolve_plan_dir(root), bad)
+                else:
+                    # an empty PLAN_ID still means "no selector"
+                    self.assertEqual(root, paths_module.resolve_plan_dir(root), bad)
                 os.environ.pop("PLAN_ID", None)
             self.assertFalse(paths_module.slug_is_valid("-leading-dash"))
             self.assertTrue(paths_module.slug_is_valid("2026-09-01-hermes_run.v2"))
+
+    def test_set_plan_id_that_names_no_directory_stops_resolution(self) -> None:
+        with self._workspace() as root:
+            active = self._slug_plan(root, "2026-09-01-active", pointer=True)
+            self.assertEqual(active, paths_module.resolve_plan_dir(root))
+            # one typo in the slug: the pointed plan must NOT answer in its place (#237)
+            os.environ["PLAN_ID"] = "2026-09-01-actve"
+            self.assertIsNone(paths_module.resolve_plan_dir(root))
+            self.assertEqual((None, []), paths_module.resolve_plan(root))
+            # an empty PLAN_ID is still "no selector" and resolves the pointer
+            os.environ["PLAN_ID"] = ""
+            self.assertEqual(active, paths_module.resolve_plan_dir(root))
 
     def test_newest_slug_by_mtime_when_no_pointer(self) -> None:
         with self._workspace() as root:
@@ -287,13 +305,77 @@ class HermesFirstClassTests(unittest.TestCase):
         self.assertEqual({"total": 3, "complete": 1, "in_progress": 1, "pending": 1}, counts)
         with self._workspace() as root:
             plan_dir = self._slug_plan(root, "2026-09-01-mixed", text=mixed, mode="autonomous gate", attest=True, pointer=True)
-            held = planning_module.evaluate_gate(plan_dir)
+            held = planning_module.evaluate_gate(root, plan_dir)
             assert held is not None
             self.assertIn("Phase 2: Build", held)
             self.assertIn("(1/3 complete", held)
             (plan_dir / "task_plan.md").write_text("# no phase headings\n- [in_progress]\n", encoding="utf-8")
             (plan_dir / ".stop_blocks").write_text("0\n", encoding="ascii")
-            self.assertIsNone(planning_module.evaluate_gate(plan_dir), "a plan without ### Phase headings is never gated")
+            self.assertIsNone(planning_module.evaluate_gate(root, plan_dir), "a plan without ### Phase headings is never gated")
+
+    def test_root_mode_is_a_floor_a_slug_plan_cannot_start_below(self) -> None:
+        """Issue #238, mirrored from inject-plan.sh into the Hermes plugin.
+
+        A project that commits a root .mode has made that a reviewed setting.
+        Reading only <plan-dir>/.mode let creating a slug plan turn the policy
+        off, since a new plan carries no .mode unless one was asked for.
+        """
+        mixed = (
+            "### Phase 1: Discovery\n- **Status:** complete\n\n"
+            "### Phase 2: Build\n- [in_progress]\n"
+        )
+        with self._workspace() as root:
+            # No .mode on the slug at all: the reported shape.
+            plan_dir = self._slug_plan(
+                root, "2026-09-02-arbtask", text=mixed, attest=True, pointer=True
+            )
+            self.assertEqual([], planning_module.mode_tokens(root, plan_dir))
+            # Negative control: without a root .mode the gate must stay off, so
+            # the positive assertion below is evidence of the floor and not of
+            # a fixture that would block either way.
+            self.assertIsNone(planning_module.evaluate_gate(root, plan_dir))
+
+            (root / ".mode").write_text("autonomous gate\n", encoding="ascii")
+            tokens = planning_module.mode_tokens(root, plan_dir)
+            self.assertIn("autonomous", tokens)
+            self.assertIn("gate", tokens)
+            held = planning_module.evaluate_gate(root, plan_dir)
+            assert held is not None, "a root gate token must arm the gate for a slug plan"
+            self.assertIn("Phase 2: Build", held)
+
+    def test_a_slug_may_raise_the_mode_but_never_lower_it(self) -> None:
+        with self._workspace() as root:
+            plan_dir = self._slug_plan(root, "2026-09-02-raise", mode="autonomous gate")
+            (root / ".mode").write_text("autonomous\n", encoding="ascii")
+            self.assertIn("gate", planning_module.mode_tokens(root, plan_dir))
+
+            lower = self._slug_plan(
+                root, "2026-09-02-lower", mode="autonomous plan-guard-off"
+            )
+            self.assertNotIn(
+                "plan-guard-off",
+                planning_module.mode_tokens(root, lower),
+                "a slug alone cannot switch off a protection the project kept on",
+            )
+
+    def test_plan_guard_off_survives_when_the_root_agrees(self) -> None:
+        with self._workspace() as root:
+            plan_dir = self._slug_plan(
+                root, "2026-09-02-agree", mode="autonomous plan-guard-off"
+            )
+            (root / ".mode").write_text("autonomous plan-guard-off\n", encoding="ascii")
+            self.assertIn("plan-guard-off", planning_module.mode_tokens(root, plan_dir))
+
+    def test_no_root_mode_leaves_the_slug_tokens_untouched(self) -> None:
+        """The legacy invariant: projects without a root .mode see no change."""
+        with self._workspace() as root:
+            plan_dir = self._slug_plan(
+                root, "2026-09-02-legacy", mode="autonomous plan-guard-off"
+            )
+            self.assertEqual(
+                ["autonomous", "plan-guard-off"],
+                planning_module.mode_tokens(root, plan_dir),
+            )
 
     def test_bundled_skill_registration_never_walks_the_cwd(self) -> None:
         with self._workspace() as root:

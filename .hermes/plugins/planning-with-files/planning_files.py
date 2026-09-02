@@ -291,13 +291,57 @@ def gate_counts(task_plan: str) -> dict[str, int]:
     return counts
 
 
-def mode_tokens(plan_dir: Path) -> list[str]:
-    """Tokens of <plan-dir>/.mode; empty when absent or unreadable."""
+# The strictness-LOWERING mode tokens. Everything else raises strictness, and
+# the root .mode floor (issue #238) treats the two halves in opposite
+# directions, so a new token must be classified here deliberately.
+_LOWERING_MODE_TOKENS = frozenset({"plan-guard-off"})
+
+
+def _read_mode_file(directory: Path) -> list[str]:
+    """Tokens of one directory's .mode; empty when absent or unreadable."""
     try:
-        raw = (plan_dir / ".mode").read_text(encoding="ascii", errors="strict")
+        raw = (directory / ".mode").read_text(encoding="ascii", errors="strict")
     except (OSError, UnicodeError):
         return []
     return raw.split()
+
+
+def mode_tokens(project_dir: Path, plan_dir: Path) -> list[str]:
+    """Effective mode: the slug's .mode raised by the project root .mode FLOOR.
+
+    A project makes attestation mandatory by committing a root .mode, which is
+    a reviewed project setting. Reading only <plan-dir>/.mode let a slug plan
+    silently exempt itself (issue #238): init_plan writes no .mode unless the
+    operator asked for a mode, so creating a plan turned the project policy off
+    in one agent-invocable call.
+
+    Strictness-RAISING tokens (autonomous, gate, inject-smart) count when
+    EITHER file carries them: a slug may go stricter than the project asked, it
+    can never go looser. The strictness-LOWERING token (plan-guard-off) survives
+    only when the slug carries it AND, where a root .mode exists, that file
+    carries it too, so a slug cannot switch off a protection the project kept
+    on.
+
+    With no root .mode the result is exactly the slug's tokens, in the slug's
+    own order, which is the invariant existing projects depend on. Root scope
+    has no second source at all: <root>/.mode already IS the plan's .mode
+    there.
+    """
+    slug = _read_mode_file(plan_dir)
+    if plan_dir == project_dir:
+        return slug
+    # Presence of the file is what makes the root a policy statement, not the
+    # tokens in it. A committed but empty root .mode still says "this project
+    # reviewed its mode and asked for no relaxations", so a slug's
+    # plan-guard-off does not survive it. Testing `not floor` instead would
+    # treat an empty file like a missing one and diverge from inject-plan.sh,
+    # which checks `[ -f "$ROOT_MODE_FILE" ]`.
+    if not (project_dir / ".mode").is_file():
+        return slug
+    floor = _read_mode_file(project_dir)
+    effective = [t for t in slug if t not in _LOWERING_MODE_TOKENS or t in floor]
+    effective.extend(t for t in floor if t not in _LOWERING_MODE_TOKENS and t not in effective)
+    return effective
 
 
 def _read_counter(path: Path) -> int:
@@ -324,13 +368,15 @@ def ledger_line_count(plan_dir: Path) -> int:
     return total
 
 
-def evaluate_gate(plan_dir: Path) -> str | None:
+def evaluate_gate(project_dir: Path, plan_dir: Path) -> str | None:
     """The v3 completion gate decision table, in Python, for the Hermes pre_verify hook.
 
     Returns the continuation message when the stop must be held, otherwise
     None. Byte-for-byte the same guards as check-complete.sh --gate:
 
-    1. <plan-dir>/.mode contains the ``gate`` token (explicit opt-in).
+    1. The effective mode contains the ``gate`` token (explicit opt-in):
+       <plan-dir>/.mode, or the project root .mode floor the slug cannot
+       opt out of (issue #238), which is why the project root is a parameter.
     2. An in_progress phase exists; complete < total alone never blocks.
     3. (Hermes has no stop_hook_active field; the host bounds re-entry itself
        through agent.max_verify_nudges.)
@@ -343,7 +389,7 @@ def evaluate_gate(plan_dir: Path) -> str | None:
     """
     if os.environ.get("PLANNING_DISABLED", "") == "1":
         return None
-    if "gate" not in mode_tokens(plan_dir):
+    if "gate" not in mode_tokens(project_dir, plan_dir):
         return None
     try:
         task_plan = (plan_dir / "task_plan.md").read_text(encoding="utf-8", errors="replace")
@@ -394,7 +440,7 @@ def summarize_status(project_dir: Path) -> dict[str, Any]:
     progress_path = plan_dir / "progress.md"
     task_plan = task_plan_path.read_text(encoding="utf-8")
     counts = phase_counts(task_plan)
-    tokens = mode_tokens(plan_dir)
+    tokens = mode_tokens(project_dir, plan_dir)
     return {
         "exists": True,
         "project_dir": str(project_dir),

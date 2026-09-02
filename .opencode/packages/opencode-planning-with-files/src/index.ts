@@ -152,8 +152,8 @@ export const PlanningWithFiles: Plugin = async ({ client, directory }) => {
         const info = await sessionInfo(sessionID)
         if (!info.known || info.child) return
         const located = locate(info.dir)
-        if (!located.planDir) return
-        const reason = evaluateGate(located.planDir, env)
+        if (!located.planDir || !located.root) return
+        const reason = evaluateGate(located.root, located.planDir, env)
         if (!reason) return
         gateInFlight.add(sessionID)
         await client.session.promptAsync({
