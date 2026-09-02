@@ -65,3 +65,24 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Run vitest
         run: npm test
+
+  vitest-opencode:
+    name: vitest (OpenCode plugin)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: .opencode/packages/opencode-planning-with-files
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: .opencode/packages/opencode-planning-with-files/package-lock.json
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Typecheck and build
+        run: npm run build
+      - name: Run vitest
+        run: npm test

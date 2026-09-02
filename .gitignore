@@ -63,3 +63,9 @@ node_modules/
 
 # v3 large banner exceeds GitHub's 100MB hard limit and stays local permanently
 media/v3-banner-large.png
+
+# OpenCode: bun installs plugin deps next to .opencode/package.json; the
+# plugin package keeps its own tracked package-lock.json and builds to dist/.
+.opencode/package-lock.json
+.opencode/bun.lock
+.opencode/packages/*/dist/
