@@ -18,14 +18,125 @@ INJECT_PLAN="${SCRIPTS_DIR}/inject-plan.sh"
 GATE_STOP="${SCRIPTS_DIR}/gate-stop.sh"
 RESOLVE_PLAN_DIR="${SCRIPTS_DIR}/resolve-plan-dir.sh"
 SESSION_CATCHUP="${SCRIPTS_DIR}/session-catchup.py"
+FAST_PATH="${SCRIPTS_DIR}/inject-plan.py"
+
+# --- One interpreter instead of one fork per tool (v3.17.0). ---
+# Everything below this block answers an event by running resolve-plan-dir.sh
+# and inject-plan.sh, and those answer by forking: realpath, stat, sha256sum,
+# awk, tr, mktemp, head, tail, sed, wc, four Python starts, and a $(...)
+# around most of them. A UserPromptSubmit fire forks about 130 times. On Linux
+# and macOS a fork costs one to three milliseconds. Under Git Bash on Windows
+# it costs about 90 ms, so the same fire took seven to twelve seconds against
+# the 10 s hook timeout: Claude Code discarded the output, the plan never
+# reached the model, and every Bash, Read, Grep and Edit call waited five
+# more seconds in PreToolUse first.
+#
+# scripts/inject-plan.py is a byte-identical twin of the chain below
+# (tests/test_inject_plan_python_parity.py proves it against this file and
+# inject-plan.sh on every CI leg). When a CPython 3 is on PATH the event runs
+# there in one process. The twin exits 0 only when its stdout is the complete
+# answer; any other status, including an interpreter that cannot run it, falls
+# through to the reference chain below unchanged. PWF_FAST_PATH=0 forces the
+# reference chain. The Stop event never takes the fast path because it must
+# forward Claude's stdin payload to gate-stop.sh.
+#
+# The PATH walk below is pure shell on purpose: `$(command -v python3)` is
+# itself a fork, and the whole point of this block is to spend none. The
+# Microsoft Store python.exe/python3.exe aliases are skipped by path: they are
+# discoverable on PATH yet refuse to run a script. python3 is preferred over
+# python across the whole PATH so an old distro's Python 2 `python` is never
+# tried while a python3 exists further down.
+find_python() {
+    FOUND_PYTHON=""
+    for _fp_explicit in "${PWF_TRUSTED_PYTHON:-}" "${PYTHON_BIN:-}"; do
+        [ -n "$_fp_explicit" ] || continue
+        case "$_fp_explicit" in
+            /*|[A-Za-z]:[\\/]*) ;;
+            *) continue ;;
+        esac
+        case "$_fp_explicit" in
+            *[Ww][Ii][Nn][Dd][Oo][Ww][Ss][Aa][Pp][Pp][Ss]*) continue ;;
+        esac
+        if [ -f "$_fp_explicit" ] && [ -x "$_fp_explicit" ]; then
+            FOUND_PYTHON="$_fp_explicit"
+            return 0
+        fi
+    done
+    # set -u is active: an unset IFS or PATH must not kill the dispatcher
+    # before the reference chain gets its turn.
+    if [ "${IFS+set}" = set ]; then
+        _fp_saved_ifs="$IFS"
+        _fp_ifs_was_set=1
+    else
+        _fp_saved_ifs=""
+        _fp_ifs_was_set=0
+    fi
+    for _fp_name in python3 python; do
+        IFS=:
+        set -f
+        for _fp_dir in ${PATH-}; do
+            case "$_fp_dir" in
+                /*) ;;
+                *) continue ;;
+            esac
+            case "$_fp_dir" in
+                *[Ww][Ii][Nn][Dd][Oo][Ww][Ss][Aa][Pp][Pp][Ss]*) continue ;;
+            esac
+            if [ -f "${_fp_dir}/${_fp_name}" ] && [ -x "${_fp_dir}/${_fp_name}" ]; then
+                FOUND_PYTHON="${_fp_dir}/${_fp_name}"
+                break
+            fi
+        done
+        set +f
+        if [ "$_fp_ifs_was_set" = 1 ]; then IFS="$_fp_saved_ifs"; else unset IFS; fi
+        [ -n "$FOUND_PYTHON" ] && return 0
+    done
+    return 1
+}
+
+case "$EVENT" in
+    session-start|user-prompt-submit|pre-tool-use|post-tool-use|pre-compact)
+        # No planning state where the resolver will look and no selector to
+        # validate: every route below answers with nothing, so answer with
+        # nothing now, before any interpreter or fork. Byte-identical to the
+        # reference chain, which reaches the same silence about ten forks
+        # later. A set PLAN_ID or PWF_PLAN_ROOT still gets its refusal notice.
+        if [ -z "${PLAN_ID:-}" ] && [ -z "${PWF_PLAN_ROOT:-}" ] \
+            && [ ! -f task_plan.md ] && [ ! -d .planning ]; then
+            exit 0
+        fi
+        if [ "${PWF_FAST_PATH:-}" != "0" ] && [ -f "$FAST_PATH" ] && find_python; then
+            # -I: isolated mode, so the project directory is never on
+            # sys.path and a repository's own secrets.py or hashlib.py cannot
+            # be imported by a hook. -B: never write bytecode into the
+            # plugin cache. PWF_SHELL_PWD hands the twin this shell's own
+            # $PWD spelling so both routes derive the same turn-marker and
+            # progress-guard slots; MSYS2_ENV_CONV_EXCL keeps Git Bash from
+            # rewriting it into a Windows path on the way.
+            #
+            # The twin's stdout is deliberately not captured: $(...) costs
+            # another fork, the very thing this block exists to remove. The
+            # contract that makes this safe is the twin's: it writes nothing
+            # until its answer is complete, and exits non-zero otherwise.
+            if PWF_SHELL_PWD="$PWD" \
+                MSYS2_ENV_CONV_EXCL="${MSYS2_ENV_CONV_EXCL:+${MSYS2_ENV_CONV_EXCL};}PWF_SHELL_PWD" \
+                "$FOUND_PYTHON" -I -B "$FAST_PATH" "--claude-event=${EVENT}" 2>/dev/null; then
+                exit 0
+            fi
+        fi
+        ;;
+esac
 
 # JSON-string encode bounded, trusted hook output without requiring Python or
 # Node. The planning scripts already bound injected project data; this removes
 # remaining JSON-forbidden control bytes and preserves line boundaries. Walk
 # characters directly because awk gsub replacement escaping varies by runtime.
+# LC_ALL=C makes that walk byte-wise: in a UTF-8 locale gawk on Windows walks
+# UTF-16 units and re-emits a character outside the BMP as a lone surrogate,
+# which is not UTF-8 and reaches the model as garbage.
 json_string() {
     tr '\001-\011\013-\037' ' ' \
-        | awk 'BEGIN { first = 1 }
+        | LC_ALL=C awk 'BEGIN { first = 1 }
             {
                 if (!first) printf "\\n"
                 for (i = 1; i <= length($0); i++) {

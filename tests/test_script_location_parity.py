@@ -39,6 +39,7 @@ DUAL_SHIPPED = [
     "init-session.ps1",
     "init-session.sh",
     "inject-plan.sh",
+    "inject-plan.py",
     "skill-hook.sh",
     "ledger-append.ps1",
     "ledger-append.sh",

@@ -64,6 +64,7 @@ SCRIPTS = [
 # chain in every variant's own scripts directory.
 HOOK_DISPATCH_SCRIPTS = [
     "scripts/inject-plan.sh",
+    "scripts/inject-plan.py",
     "scripts/ledger-summary.sh",
     "scripts/resolve-plan-dir.sh",
     "scripts/skill-hook.sh",
@@ -75,6 +76,7 @@ HOOK_DISPATCH_SCRIPTS = [
 AGENTS_EXTRA_SCRIPTS = [
     "scripts/gate-stop.sh",
     "scripts/inject-plan.sh",
+    "scripts/inject-plan.py",
     "scripts/ledger-append.sh",
     "scripts/ledger-append.ps1",
     "scripts/ledger-summary.sh",
@@ -185,6 +187,7 @@ IDE_MANIFESTS = {
         include_scripts=True,
         extra_scripts=[
             "scripts/inject-plan.sh",
+            "scripts/inject-plan.py",
             "scripts/gate-stop.sh",
             "scripts/ledger-append.sh",
             "scripts/ledger-append.ps1",
@@ -314,6 +317,7 @@ IDE_MANIFESTS[".agents"] = _build_agents_manifest()
 # standalone adapter and its loop asset in the same verified inventory.
 IDE_MANIFESTS["."] = {
     "scripts/inject-plan.sh": "scripts/inject-plan.sh",
+    "scripts/inject-plan.py": "scripts/inject-plan.py",
     "scripts/skill-hook.sh": "scripts/skill-hook.sh",
     "templates/loop.md": "templates/loop.md",
 }
