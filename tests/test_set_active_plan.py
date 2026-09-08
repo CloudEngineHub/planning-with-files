@@ -98,7 +98,15 @@ class SetActivePlanTests(unittest.TestCase):
                 check=False,
             )
             self.assertEqual(0, resolved.returncode, resolved.stderr)
-            self.assertTrue(resolved.stdout.strip().endswith("selected"))
+            self.assertEqual("", resolved.stdout.strip())
+            # Pointer bytes are still portable; only single-plan discovery
+            # may use them without an explicit session pin.
+            (newest / "task_plan.md").unlink()
+            single = subprocess.run(
+                [SH, str(RESOLVE_SH)], cwd=str(root), text=True,
+                encoding="utf-8", capture_output=True, check=False,
+            )
+            self.assertTrue(single.stdout.strip().endswith("selected"))
 
     def test_no_args_no_active_plan_prints_none(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -141,8 +149,8 @@ class SetActivePlanTests(unittest.TestCase):
             self.assertNotEqual(0, result.returncode)
             self.assertIn("not found", result.stderr)
 
-    def test_resolver_picks_up_newly_set_plan(self) -> None:
-        # End-to-end: set-active-plan.sh then resolve-plan-dir.sh returns correct dir
+    def test_shared_pointer_changes_do_not_bind_multiple_plans(self) -> None:
+        # Writing a shared pointer does not bind any individual session.
         from pathlib import Path as P
         resolve_sh = REPO_ROOT / "scripts" / "resolve-plan-dir.sh"
         with tempfile.TemporaryDirectory() as tmp:
@@ -153,7 +161,7 @@ class SetActivePlanTests(unittest.TestCase):
             plan_b.mkdir(parents=True)
             (plan_a / "task_plan.md").write_text("# A\n", encoding="utf-8")
             (plan_b / "task_plan.md").write_text("# B\n", encoding="utf-8")
-            # Pin to task-a
+            # Set the shared pointer to task-a.
             run_set_active(root, "2026-task-a")
             result = subprocess.run(
                 ["sh", str(resolve_sh)],
@@ -163,7 +171,7 @@ class SetActivePlanTests(unittest.TestCase):
                 capture_output=True,
                 check=False,
             )
-            self.assertTrue(result.stdout.strip().endswith("2026-task-a"))
+            self.assertEqual("", result.stdout.strip())
             # Switch to task-b
             run_set_active(root, "2026-task-b")
             result = subprocess.run(
@@ -174,7 +182,13 @@ class SetActivePlanTests(unittest.TestCase):
                 capture_output=True,
                 check=False,
             )
-            self.assertTrue(result.stdout.strip().endswith("2026-task-b"))
+            self.assertEqual("", result.stdout.strip())
+            pinned = subprocess.run(
+                ["sh", str(resolve_sh)], cwd=str(root), text=True,
+                encoding="utf-8", capture_output=True, check=False,
+                env=dict(os.environ, PLAN_ID="2026-task-a"),
+            )
+            self.assertTrue(pinned.stdout.strip().endswith("2026-task-a"))
 
 
 if __name__ == "__main__":

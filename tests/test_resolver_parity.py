@@ -155,23 +155,23 @@ class ResolverParityTests(unittest.TestCase):
         """PLAN_ID="" is not a selector; resolution proceeds normally.
 
         init-session.sh passes PLAN_ID="${PLAN_ID:-}" into attest-plan.sh on
-        the legacy path, so an empty value must keep resolving the pointer
-        rather than failing closed.
+        the legacy path. Empty remains unset, so it cannot select between
+        multiple named plans, even with a shared pointer.
         """
         self._plan("2026-07-21-alpha")
         self._plan("2026-07-21-beta", mtime_offset=60)
         (self.tmp / ".planning" / ".active_plan").write_text(
             "2026-07-21-beta\n", encoding="utf-8"
         )
-        self.assert_parity({"PLAN_ID": ""}, "2026-07-21-beta")
+        self.assert_parity({"PLAN_ID": ""}, None)
 
-    def test_active_plan_pointer(self):
+    def test_active_plan_pointer_cannot_select_between_multiple_plans(self):
         self._plan("2026-07-21-alpha", mtime_offset=60)
         self._plan("2026-07-21-beta")
         (self.tmp / ".planning" / ".active_plan").write_text(
             "2026-07-21-beta\n", encoding="utf-8"
         )
-        self.assert_parity(None, "2026-07-21-beta")
+        self.assert_parity(None, None)
 
     def test_active_plan_invalid_slug_falls_through_to_newest(self):
         self._plan("2026-07-21-alpha", mtime_offset=60)

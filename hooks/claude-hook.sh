@@ -164,6 +164,9 @@ active_plan_dir() {
     _resolved=""
     if [ -f "$RESOLVE_PLAN_DIR" ]; then
         _resolved=$(sh "$RESOLVE_PLAN_DIR" 2>/dev/null) || _resolved=""
+        if [ -z "$_resolved" ] && [ "$(sh "$RESOLVE_PLAN_DIR" --check-ambiguity 2>/dev/null)" = "PWF_PLAN_AMBIGUOUS_V1" ]; then
+            return 0
+        fi
     fi
     if [ -n "$_resolved" ] && [ -f "${_resolved}/task_plan.md" ]; then
         printf '%s\n' "$_resolved"

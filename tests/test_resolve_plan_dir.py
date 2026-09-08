@@ -66,7 +66,7 @@ class ResolvePlanDirTests(unittest.TestCase):
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertTrue(result.stdout.strip().endswith("beta"))
 
-    def test_falls_back_to_newest_dir(self) -> None:
+    def test_multiple_live_plans_refuse_newest_fallback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             old = root / ".planning" / "older"
@@ -80,10 +80,7 @@ class ResolvePlanDirTests(unittest.TestCase):
             os.utime(new, None)
             result = self.run_resolver(root)
             self.assertEqual(0, result.returncode, result.stderr)
-            self.assertTrue(
-                result.stdout.strip().endswith("newer"),
-                f"expected newer, got {result.stdout!r}",
-            )
+            self.assertEqual("", result.stdout.strip())
 
     def test_legacy_root_plan_emits_empty(self) -> None:
         # When no .planning/ but cwd/task_plan.md exists, resolver emits empty so

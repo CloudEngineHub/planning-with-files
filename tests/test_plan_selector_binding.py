@@ -93,6 +93,8 @@ class PlanSelectorBindingTests(unittest.TestCase):
     def test_empty_plan_id_is_not_a_selector(self):
         """init-session.sh passes PLAN_ID="" into attest-plan.sh on the legacy
         path, so an empty value must keep meaning "unset"."""
+        # One live plan remains compatible; an empty pin cannot choose among two.
+        (self.root / ".planning" / "2026-07-21-alpha" / "task_plan.md").unlink()
         out = self._run("resolve-plan-dir.sh", plan_id="").stdout.strip()
         self.assertTrue(out.endswith("2026-07-21-beta"), out)
 

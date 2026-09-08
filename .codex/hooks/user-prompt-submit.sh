@@ -76,6 +76,10 @@ fi
 # Resolve and confirm a contained plan before probing or executing any Python
 # candidate. No-plan hook fires remain shell-only and silent.
 PLAN_DIR="$(sh "${HOOK_DIR}/resolve-plan-dir.sh" 2>/dev/null)"
+PLAN_AMBIGUOUS=0
+if [ -z "$PLAN_DIR" ] && [ "$(sh "${HOOK_DIR}/resolve-plan-dir.sh" --check-ambiguity 2>/dev/null)" = "PWF_PLAN_AMBIGUOUS_V1" ]; then
+    PLAN_AMBIGUOUS=1
+fi
 if [ -n "$PLAN_DIR" ]; then
     PLAN_FILE="${PLAN_DIR}/task_plan.md"
     PROGRESS_FILE="${PLAN_DIR}/progress.md"
@@ -92,7 +96,7 @@ else
     PLAN_FILE="${PLAN_PREFIX}task_plan.md"
     PROGRESS_FILE="${PLAN_PREFIX}progress.md"
 fi
-[ -f "$PLAN_FILE" ] || exit 0
+[ -f "$PLAN_FILE" ] || [ "$PLAN_AMBIGUOUS" = "1" ] || exit 0
 
 # --- Re-arm the once-per-turn PostToolUse nudge (issue #239). ---
 # One user message is one turn, and this hook fires once per turn, so clearing
@@ -113,7 +117,7 @@ elif [ -n "${HOME:-}" ]; then
 else
     TURN_ROOT="${TMPDIR:-/tmp}/pwf-turn"
 fi
-if [ -d "$TURN_ROOT" ]; then
+if [ "$PLAN_AMBIGUOUS" = "0" ] && [ -d "$TURN_ROOT" ]; then
     case "$TURN_PLAN_FILE" in
         /*|[A-Za-z]:*|\\\\*) TURN_KEY_SRC="$TURN_PLAN_FILE" ;;
         *) TURN_KEY_SRC="${PWD}/${TURN_PLAN_FILE}" ;;
@@ -159,6 +163,11 @@ case "$PWF_SESSION_ADMISSION" in
         exit 0
         ;;
 esac
+
+if [ "$PLAN_AMBIGUOUS" = "1" ]; then
+    echo "[planning-with-files] Multiple plans are available. Set PLAN_ID=<slug> for this session; nothing injected."
+    exit 0
+fi
 
 # Plan-id safe-identifier check. Pure-sh case patterns; shared shape with
 # resolve-plan-dir.sh, needed below to decide whether PLAN_ID named the plan.

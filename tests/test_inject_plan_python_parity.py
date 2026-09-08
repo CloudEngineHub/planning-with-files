@@ -245,7 +245,6 @@ class InjectorParityTests(ParityCase):
 
     def test_active_plan_pointer_with_padding_selects_the_slug(self):
         self.slug("2026-09-01-alpha", mtime=1_700_000_000)
-        self.slug("2026-09-03-beta", mtime=1_700_000_100)
         write(self.project / ".planning" / ".active_plan", "  2026-09-01-alpha \r\n")
         self.assert_parity(expect={"userprompt": "Task Plan: 2026-09-01-alpha"},
                            forbid={"userprompt": "2026-09-03-beta"})
@@ -255,17 +254,15 @@ class InjectorParityTests(ParityCase):
         UTF-16LE pointer without a BOM as its ASCII slug; a UTF-16 BOM is not
         whitespace and still invalidates the pointer."""
         self.slug("2026-09-01-alpha", mtime=1_700_000_000)
-        self.slug("2026-09-03-beta", mtime=1_700_000_100)
         for pointer in (b"2026-09-01-alpha\x00\n", "2026-09-01-alpha\n".encode("utf-16-le")):
             write(self.project / ".planning" / ".active_plan", pointer)
             self.assert_parity(expect={"userprompt": "Task Plan: 2026-09-01-alpha"},
                                forbid={"userprompt": "2026-09-03-beta"})
             self.assert_event_parity(events=("session-start", "post-tool-use"))
         write(self.project / ".planning" / ".active_plan", "2026-09-01-alpha\n".encode("utf-16"))
-        self.assert_parity(expect={"userprompt": "Task Plan: 2026-09-03-beta"})
+        self.assert_parity(expect={"userprompt": "Task Plan: 2026-09-01-alpha"})
 
-    def test_bom_pointer_is_rejected_and_newest_wins(self):
-        self.slug("2026-09-01-alpha", mtime=1_700_000_000)
+    def test_bom_pointer_is_rejected_and_single_live_plan_wins(self):
         self.slug("2026-09-03-beta", mtime=1_700_000_100)
         write(self.project / ".planning" / ".active_plan", b"\xef\xbb\xbf2026-09-01-alpha\n")
         self.assert_parity(expect={"userprompt": "Task Plan: 2026-09-03-beta"})

@@ -17,8 +17,8 @@ HOOK_DIR = Path(__file__).resolve().parent
 _SAFE_LEGACY_SESSION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 _PLAN_SLUG = re.compile(r"[A-Za-z0-9_][A-Za-z0-9._-]*\Z")
 SESSION_PLAN_BINDING_NOTICE = (
-    "[planning-with-files] Multiple plans are available while session isolation "
-    "is armed. Set PLAN_ID=<slug> for this session; nothing injected."
+    "[planning-with-files] Multiple plans are available. "
+    "Set PLAN_ID=<slug> for this session; nothing injected."
 )
 _DARWIN_SYSTEM_ALIASES = {
     Path("/var"): Path("/private/var"),
@@ -223,23 +223,21 @@ def session_plan_requires_binding(root: Path) -> bool:
     """Require PLAN_ID when an attached session can resolve multiple plans.
 
     Session sentinels admit a session to planning context. They do not select a
-    plan. Once isolation is armed, an unbound session may use legacy resolution
-    only when the effective root has at most one live plan candidate.
+    plan. Multiple named plans always require a pin. With isolation armed,
+    a legacy root plan also counts as a competing candidate.
     """
     if os.environ.get("PLAN_ID", ""):
         return False
 
     sessions_dir = root / ".planning" / "sessions"
-    try:
-        sessions_info = sessions_dir.lstat()
-        if _is_reparse_or_link(sessions_dir) or not stat.S_ISDIR(sessions_info.st_mode):
-            return False
-    except (FileNotFoundError, OSError, RuntimeError):
+    armed = sessions_dir.exists() or sessions_dir.is_symlink()
+    planning_dir = root / ".planning"
+    if not planning_dir.exists():
         return False
 
     candidates = 0
     try:
-        if (root / "task_plan.md").is_file():
+        if armed and (root / "task_plan.md").is_file():
             candidates += 1
         planning_dir = root / ".planning"
         for child in planning_dir.iterdir():

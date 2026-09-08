@@ -310,15 +310,15 @@ class HookResolverIntegrationTests(unittest.TestCase):
             self.assertIn("Task A goal", result.stdout)
             self.assertNotIn("Task B goal", result.stdout)
 
-    def test_user_prompt_submit_accepts_utf8_bom_active_pointer(self) -> None:
+    def test_utf8_bom_active_pointer_cannot_bypass_multiple_plan_refusal(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             safe = root / ".planning" / "safe"
             write_plan_in_dir(safe, goal="BOM-safe goal")
             decoy = root / ".planning" / "newer-decoy"
             write_plan_in_dir(decoy, goal="Newest fallback goal")
-            # If BOM stripping regresses, newest-dir fallback must select the
-            # decoy and make this test fail instead of masking the bug.
+            # Neither pointer parsing nor newest fallback may select a task
+            # while another named plan competes with it.
             os.utime(safe, (100, 100))
             os.utime(decoy, (200, 200))
             (root / ".planning" / ".active_plan").write_bytes(b"\xef\xbb\xbfsafe\n")
@@ -326,8 +326,14 @@ class HookResolverIntegrationTests(unittest.TestCase):
             result = run_hook("user-prompt-submit.sh", root)
 
             self.assertEqual(0, result.returncode, result.stderr)
-            self.assertIn("BOM-safe goal", result.stdout)
+            self.assertIn("Set PLAN_ID=<slug>", result.stdout)
+            self.assertNotIn("BOM-safe goal", result.stdout)
             self.assertNotIn("Newest fallback goal", result.stdout)
+
+            # The same BOM pointer remains usable in a single-plan project.
+            (decoy / "task_plan.md").unlink()
+            single = run_hook("user-prompt-submit.sh", root)
+            self.assertIn("BOM-safe goal", single.stdout)
 
     def test_user_prompt_submit_rejects_traversal_plan_id(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

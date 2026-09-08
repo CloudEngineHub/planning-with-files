@@ -7,6 +7,9 @@
 
 HOOK_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
 PLAN_DIR="$(sh "${HOOK_DIR}/resolve-plan-dir.sh" 2>/dev/null)"
+if [ -z "$PLAN_DIR" ] && [ "$(sh "${HOOK_DIR}/resolve-plan-dir.sh" --check-ambiguity 2>/dev/null)" = "PWF_PLAN_AMBIGUOUS_V1" ]; then
+    exit 0
+fi
 # An explicit PLAN_ID is a binding, not a hint (issue #237). When the shared
 # resolver rejected one it emits nothing, and the legacy-root fallback below
 # would carry the wrong plan through compaction, which is the one moment the

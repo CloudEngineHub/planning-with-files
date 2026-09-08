@@ -274,7 +274,41 @@ class SessionPlanAmbiguityTests(unittest.TestCase):
         legacy = self.native(
             "run_sh.py", session_id="unattached", runner_arg="user-prompt-submit.sh"
         )
-        self.assertIn("PLAN-B", legacy.stdout)
+        self.assertIn(NOTICE, legacy.stdout)
+        self.assertNotIn("PLAN-B", legacy.stdout)
+
+    def test_unarmed_sessions_refuse_every_native_event_after_pointer_changes(self) -> None:
+        self.write_scoped_plan("plan-a", "PLAN-A")
+        self.write_scoped_plan("plan-b", "PLAN-B")
+        routes = (
+            ("run_sh.py", "user-prompt-submit.sh"),
+            ("run_sh.py", "session-start.sh"),
+            ("run_sh.py", "pre-compact.sh"),
+            ("pre_tool_use.py", None),
+            ("permission_request.py", None),
+            ("post_tool_use.py", None),
+            ("stop.py", None),
+        )
+        for pointer in ("plan-a", "plan-b"):
+            self.point(pointer)
+            for script, arg in routes:
+                with self.subTest(pointer=pointer, script=script, arg=arg):
+                    result = self.native(script, runner_arg=arg)
+                    self.assertEqual(0, result.returncode, result.stderr)
+                    if arg == "user-prompt-submit.sh":
+                        self.assertIn(NOTICE, result.stdout)
+                    else:
+                        self.assertEqual("", result.stdout.strip())
+                    self.assertNotIn("PLAN-A", result.stdout)
+                    self.assertNotIn("PLAN-B", result.stdout)
+
+        for plan_id, marker in (("plan-a", "PLAN-A"), ("plan-b", "PLAN-B")):
+            result = self.native(
+                "run_sh.py", runner_arg="user-prompt-submit.sh",
+                env_extra={"PLAN_ID": plan_id},
+            )
+            self.assertIn(marker, result.stdout)
+            self.assertNotIn(NOTICE, result.stdout)
 
     def test_unattached_session_keeps_existing_isolation_refusal(self) -> None:
         self.build_two_plan_tree()
