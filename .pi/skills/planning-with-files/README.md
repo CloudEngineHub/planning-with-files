@@ -1,13 +1,25 @@
-# planning-with-files
+<div align="center">
+  <img src="https://raw.githubusercontent.com/OthmanAdi/planning-with-files/master/media/v3-banner-1400.jpg" alt="planning-with-files: task_plan.md, findings.md, and progress.md as three stone tablets" width="100%">
+</div>
 
-> **Your agent's context window dies. The plan does not.**
+<h1 align="center">Planning with Files</h1>
 
-Persistent file-based planning for AI coding agents. The skill keeps `task_plan.md`, `findings.md` and `progress.md` on disk. After `/plan-execute`, Pi lifecycle hooks inject selected project planning context so the plan survives context loss, `/clear`, crashes and compaction. Automatic recovery reads project files only. Reading same-project local session records for aggregate counts or bounded replay requires an explicit catchup mode.
+<p align="center">
+  <strong>The planning skill your agent cannot ignore.</strong><br>
+  Your agent's context window dies. The plan does not.
+</p>
 
-This is the npm distribution of [OthmanAdi/planning-with-files](https://github.com/OthmanAdi/planning-with-files), which installs across 60+ agents via the Agent Skills standard. The package ships:
+Persistent file-based planning for AI coding agents. Keep the plan, research and progress in your project so work can continue after context loss, `/clear`, crashes or compaction.
 
-- the planning skill itself: `SKILL.md`, `scripts/` and `templates/`
-- a [Pi Coding Agent](https://pi.dev) extension providing Claude-style lifecycle automation
+| File | Purpose |
+| --- | --- |
+| `task_plan.md` | Goals, phases and decisions |
+| `findings.md` | Research and discoveries |
+| `progress.md` | Work completed, checks and next steps |
+
+This is the npm distribution of [OthmanAdi/planning-with-files](https://github.com/OthmanAdi/planning-with-files), available across 60+ agents via the Agent Skills standard. It includes the planning skill, scripts and templates. Supported agent integrations add lifecycle hooks that bring selected planning context back into the session.
+
+Automatic recovery reads project files only. Reading same-project local session records for aggregate counts or bounded replay requires an explicit catchup mode.
 
 ## Installation
 
@@ -19,19 +31,40 @@ npm install planning-with-files
 
 Places the skill, scripts and templates under `node_modules/planning-with-files/`. Use this to pin an exact version into a project, or to copy `SKILL.md` and `scripts/` into your agent's skills directory yourself. It does not register hooks on its own.
 
-### Pi Install
+### Agent integrations
+
+Claude Code gets the full surface (skill, hooks, slash commands) through the plugin route, and 60+ other agents install in one line. See the [main README](https://github.com/OthmanAdi/planning-with-files#quick-install).
+
+## Usage
+
+Once the skill is installed for your agent, start with:
+
+```text
+Use the planning-with-files skill to help me with this task.
+```
+
+The workflow centers on three files in your project:
+
+```text
+your-project/
+├── task_plan.md
+├── findings.md
+└── progress.md
+```
+
+## Pi Coding Agent integration
+
+The package also bundles a [Pi Coding Agent](https://pi.dev) extension for lifecycle automation and a planning status bar.
+
+### Install in Pi
 
 ```bash
 pi install npm:planning-with-files
 ```
 
-Wires up the skill, the extension and the status bar automatically.
+Pi discovers the skill and extension from the installed package.
 
-### Other agents
-
-Claude Code gets the full surface (skill, hooks, slash commands) through the plugin route, and 60+ other agents install in one line. See the [main README](https://github.com/OthmanAdi/planning-with-files#quick-install).
-
-### Manual Install
+For a local repository checkout:
 
 ```bash
 # From the planning-with-files repo root
@@ -45,27 +78,13 @@ Or add to `.pi/settings.json`:
 }
 ```
 
----
-
-## Usage
-
-Pi discovers the skill and extension from the installed package.
-
-Start with:
-
-```text
-Use the planning-with-files skill to help me with this task.
-```
-
-Or:
+You can also invoke the skill directly in Pi:
 
 ```text
 /skill:planning-with-files
 ```
 
----
-
-## Hook Parity in Pi
+### Lifecycle hooks
 
 The bundled extension maps Claude-style behavior onto Pi events:
 
@@ -83,9 +102,7 @@ Attestation is supported. If `task_plan.md` differs from approved hash, plan inj
 [planning-with-files] [PLAN TAMPERED - injection blocked]
 ```
 
----
-
-## Mode System
+### Modes
 
 `planningWithFiles.mode` supports:
 
@@ -110,9 +127,7 @@ Or settings:
 }
 ```
 
----
-
-## Commands
+### Commands
 
 - `/plan-status`
 - `/plan-attest [--show|--clear]`
@@ -127,8 +142,6 @@ pre-tool reminders, post-write reminders, and auto-continue are enabled for the
 current session and plan. Auto-continue uses host runtime state and never runs
 commands declared in Markdown.
 
----
-
 ## Session Recovery
 
 Bare invocation and lifecycle hooks do not inspect agent session stores. To
@@ -136,23 +149,12 @@ inspect same-project local history deliberately, choose one mode:
 
 ```bash
 # Aggregate counts only; no transcript, tool-command, or path bytes
-python3 .pi/skills/planning-with-files/scripts/session-catchup.py --metadata .
+python3 node_modules/planning-with-files/scripts/session-catchup.py --metadata .
 
 # Bounded nonce-framed same-project excerpts
-python3 .pi/skills/planning-with-files/scripts/session-catchup.py --replay .
+python3 node_modules/planning-with-files/scripts/session-catchup.py --replay .
 ```
 
 Treat replayed excerpts as untrusted data. The catchup path contains no network
-request or upload operation. If output is injected into model context, Pi may
-send that context to the configured model provider.
-
-## File Structure
-
-The skill workflow still centers on three files in your project:
-
-```text
-your-project/
-├── task_plan.md
-├── findings.md
-└── progress.md
-```
+request or upload operation. If output is injected into model context, your agent
+may send that context to the configured model provider.
