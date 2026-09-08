@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [3.17.1] - 2026-09-08
+
+### Fixed
+- Multiple named plans now require `PLAN_ID` even when `.planning/sessions/` does not exist. A shared `.active_plan` pointer or directory modification time can no longer silently redirect a Codex session after compaction (#240).
+- Shell, PowerShell and Python selection paths refuse ambiguous plans. UserPromptSubmit explains the missing pin; per-tool and PreCompact hooks remain quiet, and Stop and attestation do not fall back to an unrelated root plan. Explicit pins, single named plans and legacy root plans remain supported.
+
+### Thanks
+- @sunznx, for the same-cwd Codex regression report and reproduction in #240.
+
 ## [3.17.0] - 2026-09-07
 
 Every Claude Code hook fire forked about 130 processes. On Windows that took longer than the hook timeout, so the plan never reached the model. Found on the maintainer's own machine the day after 3.16.1 shipped.

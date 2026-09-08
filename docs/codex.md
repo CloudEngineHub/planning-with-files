@@ -228,3 +228,9 @@ Use the workspace install (Method 1) on Windows: the `commandWindows` entries us
 - **GitHub Issues:** https://github.com/OthmanAdi/planning-with-files/issues
 - **OpenAI Codex Hooks Docs:** https://developers.openai.com/codex/hooks
 - **OpenAI Codex Skills Docs:** https://developers.openai.com/codex/skills
+
+### Multiple named plans in one project
+
+As of v3.17.1, a project with more than one live named plan requires `PLAN_ID` for each Codex session, whether or not `.planning/sessions/` exists. Set the pin in the environment that launches the host. Exporting it inside a tool subprocess cannot change an already-running host. A shared `.planning/.active_plan` pointer cannot select a plan for that session.
+
+When no pin is available, UserPromptSubmit explains the ambiguity and injects no plan. Per-tool and PreCompact hooks remain quiet, and Stop allows the session to end without evaluating a guessed plan. Explicit pins, single named plans and legacy root plans remain supported.
