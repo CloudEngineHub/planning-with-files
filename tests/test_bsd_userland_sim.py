@@ -365,11 +365,8 @@ class BsdUserlandSimTests(unittest.TestCase):
         self.assertIn("agent main: progress", result.stdout)
         self.assertIn("==================", result.stdout)
 
-    def test_newest_mtime_scan_without_active_plan(self) -> None:
-        # Without .active_plan the resolver falls to the newest-mtime scan,
-        # the code path that actually consumes stat: 'stat -c' must fail and
-        # 'stat -f %m' must answer, or no dir is ever newer than mtime 0 and
-        # resolution silently yields nothing.
+    def test_unpinned_discovery_refuses_ambiguity_and_uses_bsd_stat(self) -> None:
+        # A newer mtime cannot bind a session to one of two live plans.
         (self.project / ".planning" / ".active_plan").unlink()
         older = self.project / ".planning" / "2026-07-19-older-plan"
         older.mkdir()
@@ -379,10 +376,18 @@ class BsdUserlandSimTests(unittest.TestCase):
 
         result = self.run_script(RESOLVE_SH)
         self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("", result.stdout.strip())
+
+        # With just one live plan, discovery still consumes stat: 'stat -c'
+        # must fail and 'stat -f %m' must answer. Keep the planless directory
+        # to verify that it is ignored without weakening the BSD fallback.
+        (older / "task_plan.md").unlink()
+        result = self.run_script(RESOLVE_SH)
+        self.assertEqual(0, result.returncode, result.stderr)
         resolved = result.stdout.strip()
         self.assertTrue(
             resolved.endswith(SLUG),
-            "newest-mtime scan must pick %s via the BSD stat form, got %r (stderr=%r)"
+            "single-plan scan must find %s via the BSD stat form, got %r (stderr=%r)"
             % (SLUG, result.stdout, result.stderr),
         )
 
