@@ -1,14 +1,10 @@
-<p align="center">
-  <a href="https://trendshift.io/repositories/17191" title="Trendshift: #1 daily across all languages, January 6, 2026"><img src="https://trendshift.io/api/badge/trendshift/repositories/17191/daily" alt="Trendshift: #1 Repository of the Day across all languages" width="250" height="55"></a>
-  <a href="https://trendshift.io/repositories/17191" title="Trendshift: #2 weekly across all languages, Week 2, 2026"><img src="https://trendshift.io/api/badge/trendshift/repositories/17191/weekly" alt="Trendshift: #2 Repository of the Week across all languages" width="250" height="55"></a>
-  <a href="https://trendshift.io/repositories/17191" title="GitHub Trending: #4 repository of the day, April 21, 2026"><img src="https://trendshift.io/api/badge/repositories/17191" alt="GitHub Trending: #4 Repository of the Day" width="250" height="55"></a>
-</p>
-
 <div align="center">
 <img src="media/v3-banner-1400.jpg" alt="planning-with-files: task_plan.md, findings.md, and progress.md as three stone tablets" width="100%">
 </div>
 
-<h1 align="center">Planning with Files</h1>
+<h1 align="center">
+  Planning with Files&nbsp;&nbsp;&nbsp;<a href="https://trendshift.io/repositories/17191" title="Trendshift: #1 daily across all languages, January 6, 2026"><img src="https://trendshift.io/api/badge/trendshift/repositories/17191/daily" alt="Trendshift: #1 Repository of the Day across all languages" width="250" height="55" align="middle"></a>
+</h1>
 
 <p align="center">
   <strong>The planning skill your agent cannot ignore.</strong><br>
