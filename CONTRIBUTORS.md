@@ -106,8 +106,9 @@ These amazing people have contributed code, documentation, or significant improv
 
 ### Other Contributors
 
-- **[@sunznx](https://github.com/sunznx)**, [Issue #240](https://github.com/OthmanAdi/planning-with-files/issues/240)
+- **[@sunznx](https://github.com/sunznx)**, [Issue #240](https://github.com/OthmanAdi/planning-with-files/issues/240), [Issue #241](https://github.com/OthmanAdi/planning-with-files/issues/241)
   - Reported and reproduced named-plan crossover between Codex sessions sharing a working directory after compaction.
+  - Reported the 13 duplicate Codex command skills, traced the legacy command fallback, and proposed the native manifest setting that disables it.
 
 - **[@hzura](https://github.com/hzura)**, [Issue #50](https://github.com/OthmanAdi/planning-with-files/issues/50)
   - Raised the same-repository parallel-task workflow that led to explicit plan selection and shared-file ownership guidance.
@@ -426,4 +427,4 @@ If you've contributed and don't see your name here, please open an issue! We wan
 
 **Total Contributors:** 59+ and growing!
 
-*Last updated: 2026-09-08*
+*Last updated: 2026-09-09*

@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [3.17.2] - 2026-09-09
+
+### Fixed
+- The native Codex plugin explicitly disables legacy command migration with `"commands": []`. Codex no longer turns the 13 top-level Claude commands into redundant `source-command-*` skills when installing the plugin. The canonical planning skill and Codex hooks remain configured, and Claude retains its commands (#241).
+
+### Thanks
+- @sunznx, for reporting the duplicate skills, tracing the fallback, and proposing the scoped manifest fix in #241.
+
 ## [3.17.1] - 2026-09-08
 
 ### Fixed
