@@ -4,10 +4,6 @@
   <a href="https://trendshift.io/repositories/17191" title="GitHub Trending: #4 repository of the day, April 21, 2026"><img src="https://trendshift.io/api/badge/repositories/17191" alt="GitHub Trending: #4 Repository of the Day" width="250" height="55"></a>
 </p>
 
-<p align="center">
-  <sub>Historical rankings: Trendshift daily on January 6, 2026, weekly in Week 2, 2026, and GitHub Trending on April 21, 2026.</sub>
-</p>
-
 <div align="center">
 <img src="media/v3-banner-1400.jpg" alt="planning-with-files: task_plan.md, findings.md, and progress.md as three stone tablets" width="100%">
 </div>
