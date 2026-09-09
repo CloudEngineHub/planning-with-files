@@ -62,6 +62,9 @@ class CodexPluginOperationsTests(unittest.TestCase):
 
         self.assertEqual("planning-with-files", manifest["name"])
         self.assertEqual("./.agents/skills/", manifest["skills"])
+        # Omitting commands makes Codex migrate the top-level Claude commands
+        # into redundant source-command-* skills even with an explicit skills root.
+        self.assertEqual([], manifest.get("commands"), "Disable Codex's legacy command fallback")
         self.assertEqual("./hooks/codex-hooks.json", manifest["hooks"])
         self.assertNotIn("hooks/hooks.json", manifest.values())
 

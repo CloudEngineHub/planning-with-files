@@ -8,6 +8,7 @@
   },
   "repository": "https://github.com/OthmanAdi/planning-with-files",
   "license": "MIT",
+  "commands": [],
   "skills": "./.agents/skills/",
   "hooks": "./hooks/codex-hooks.json"
 }
