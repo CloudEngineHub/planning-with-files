@@ -29,7 +29,9 @@ jobs:
         # on ubuntu so GNU-only regressions fail there too.
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    # Windows runs the full suite through Git Bash and native PowerShell.
+    # Successful runs already approach 15 minutes; allow runner variance.
+    timeout-minutes: ${{ matrix.os == 'windows-latest' && 30 || 15 }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -45,7 +47,7 @@ jobs:
         # sh.exe on windows-latest).
         run: python -c "import shutil, sys; sys.exit(0 if shutil.which('sh') else 1)"
       - name: Run pytest
-        run: python -m pytest tests/ -q
+        run: python -m pytest tests/ -q --durations=20
 
   vitest:
     name: vitest (Pi extension)

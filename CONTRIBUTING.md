@@ -32,7 +32,15 @@ Before opening a pull request, run the test suite:
 python -m pytest tests/ -q
 ```
 
-Two pre-existing Windows exec-bit test failures may appear on Windows. If those are the only failures, note that in your pull request description.
+Investigate test failures and include any unresolved findings in your pull request description.
+
+## CI completion rule
+
+Maintainer delivery is complete only after all five `Tests` jobs succeed on the final commit pushed to `master`: pytest on Linux, Windows and macOS, plus the Pi extension and OpenCode plugin suites.
+
+After the final push, verify the remote `master` commit and wait for its workflow to finish. Queued, running, cancelled, timed-out, failed or missing checks mean verification is unfinished. Continue investigating, fixing and rerunning until every job is green. Preserve test coverage and security checks; change runtime limits only when measured runtime justifies a bounded adjustment.
+
+A passing candidate branch or an identical Git tree does not replace checks on the final pushed commit. Recheck remote `master` and its check results immediately before reporting completion. If the user explicitly stops the work or an external blocker prevents progress, record the unfinished checks and the blocker.
 
 ## Project layout
 
