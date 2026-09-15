@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [3.18.1] - 2026-09-15
+
+### Fixed
+- Accept a leading UTF-8 BOM in `.planning/.active_plan` when showing the current plan or listing saved plans. This restores the active marker for pointers written by Windows editors and PowerShell UTF-8 workflows. The fix ships across all canonical shell helper copies (#243).
+
+### Thanks
+- @kuei51307-hub, for the BOM compatibility fix and regression coverage in #243.
+
 ## [3.18.0] - 2026-09-13
 
 ### Added

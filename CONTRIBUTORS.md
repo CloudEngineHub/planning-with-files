@@ -106,6 +106,9 @@ These amazing people have contributed code, documentation, or significant improv
 
 ### Other Contributors
 
+- **[@kuei51307-hub](https://github.com/kuei51307-hub)**, [PR #243](https://github.com/OthmanAdi/planning-with-files/pull/243)
+  - Fixed active-plan display and listing for UTF-8 BOM-prefixed pointers, with regression coverage across the synchronized shell helpers.
+
 - **[@Dphoshoba](https://github.com/Dphoshoba)**, [PR #242](https://github.com/OthmanAdi/planning-with-files/pull/242)
   - Proposed and implemented named-plan listing with phase counts and a shared active-pointer marker.
 
@@ -428,6 +431,6 @@ If you've contributed and don't see your name here, please open an issue! We wan
 
 ---
 
-**Total Contributors:** 60+ and growing!
+**Total Contributors:** 61+ and growing!
 
-*Last updated: 2026-09-13*
+*Last updated: 2026-09-15*
