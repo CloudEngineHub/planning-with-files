@@ -174,16 +174,14 @@ class CodexPluginOperationsTests(unittest.TestCase):
         self.assertNotIn("decision", payload)
         self.assertIn("Task in progress", payload["systemMessage"])
 
-    def test_complete_gated_plan_allows_stop_with_advisory(self) -> None:
+    def test_complete_gated_plan_allows_stop_silently(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             self.write_plan(root, "complete", gated=True)
             result = self.run_stop(root, stop_hook_active=False)
 
         self.assertEqual(0, result.returncode, result.stderr)
-        payload = json.loads(result.stdout)
-        self.assertNotIn("decision", payload)
-        self.assertIn("ALL PHASES COMPLETE", payload["systemMessage"])
+        self.assertEqual("", result.stdout.strip())
 
     def test_stop_is_silent_without_plan(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

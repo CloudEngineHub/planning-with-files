@@ -23,8 +23,8 @@ fi
 # Codex supports a native Stop continuation decision. Delegate the decision to
 # the existing v3 gate oracle so Codex and skill-frontmatter installs share the
 # same opt-in mode, in_progress, recursion, cap, and stall guards. Outside a
-# gated block the oracle is advisory, and the legacy message below remains the
-# public output for backward compatibility.
+# gated block the oracle is advisory. Incomplete plans retain their notice;
+# completed plans need no followup message.
 CHECK_COMPLETE="${HOOK_DIR}/../skills/planning-with-files/scripts/check-complete.sh"
 if [ "${1:-}" != "--stop-hook-active" ] && [ -f "${CHECK_COMPLETE}" ]; then
     GATE_OUTPUT="$(sh "${CHECK_COMPLETE}" --gate "${PLAN_FILE}")"
@@ -59,7 +59,6 @@ if [ "$TOTAL" -eq 0 ]; then
 fi
 
 if [ "$COMPLETE" -eq "$TOTAL" ] && [ "$TOTAL" -gt 0 ]; then
-    echo "{\"followup_message\": \"[planning-with-files] ALL PHASES COMPLETE ($COMPLETE/$TOTAL). If the user has additional work, add new phases to task_plan.md before starting.\"}"
     exit 0
 fi
 
