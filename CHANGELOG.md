@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [3.18.3] - 2026-09-16
+
+### Fixed
+- Completed plans no longer emit routine completion notices through the shared Stop gate or Codex Stop hook. Claude Code plugin and standalone skill hooks inherit this behavior from the canonical shell checker.
+- Preserve completion reports from explicit checker commands without the gate flag. Incomplete-plan notices, gate decisions, recursion protection, block caps, stall diagnostics and plan selection safeguards are unchanged. Shell and PowerShell fixes are synchronized across maintained mirrors.
+
 ## [3.18.2] - 2026-09-16
 
 ### Fixed
