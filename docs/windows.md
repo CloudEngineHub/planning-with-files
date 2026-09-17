@@ -68,7 +68,20 @@ If you have Git for Windows installed, run scripts in Git Bash:
 wsl ./scripts/init-session.sh
 ```
 
-### Option 3: Manual alternative
+### Option 3: Native PowerShell
+
+`init-session.ps1` is the PowerShell twin of the shell initializer. Since v3.19.0 it supports the same named-plan flow for parallel sessions:
+
+```powershell
+.\scripts\init-session.ps1                       # legacy root mode: task_plan.md next to your code
+.\scripts\init-session.ps1 "Backend Refactor"    # named plan under .planning\<date>-backend-refactor\
+.\scripts\init-session.ps1 -PlanDir              # named plan with a generated untitled-<id> slug
+.\scripts\set-active-plan.ps1 -List              # list named plans and the shared pointer
+```
+
+A positional project name creates a named plan, matching `init-session.sh`. The Cursor native PowerShell hooks still read only the root `task_plan.md`, so use zero-argument root mode there if you rely on hook injection.
+
+### Option 4: Manual alternative
 
 Instead of running scripts, manually create the files:
 
