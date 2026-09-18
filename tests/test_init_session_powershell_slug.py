@@ -158,6 +158,36 @@ class InitSessionPowerShellSlugTests(unittest.TestCase):
             plan_dir = root / ".planning" / f"{date.today().isoformat()}-bound-root"
             self.assertTrue((plan_dir / ".attestation").is_file())
 
+    def test_root_autonomous_plan_attests_the_root_plan(self) -> None:
+        # Root mode attests the root task_plan.md through the attester's legacy
+        # fallback, which only runs when no selector is set; binding
+        # PWF_PLAN_ROOT here (as slug mode does) makes the attester refuse it.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            result = self.run_init(root, "-Autonomous")
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertFalse((root / ".planning").exists())
+            self.assertEqual("autonomous", (root / ".mode").read_text(encoding="utf-8").strip())
+            self.assertTrue((root / ".plan-attestation").is_file(), "root mode must attest task_plan.md")
+
+    def test_root_gated_plan_attests_the_root_plan_despite_inherited_pin_and_plan_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as other_tmp:
+            root = Path(tmp)
+            other = Path(other_tmp)
+            (other / "task_plan.md").write_text("# Other project\n", encoding="utf-8")
+            env = child_env()
+            env["PWF_PLAN_ROOT"] = str(other)
+            env["PLAN_ID"] = "2026-01-01-sibling"
+            result = subprocess.run(
+                [POWERSHELL, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(INIT_PS1), "-Gated"],
+                cwd=str(root), text=True, encoding="utf-8-sig", capture_output=True,
+                env=env, check=False,
+            )
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual("autonomous gate", (root / ".mode").read_text(encoding="utf-8").strip())
+            self.assertTrue((root / ".plan-attestation").is_file())
+            self.assertFalse((other / ".plan-attestation").exists())
+
     def test_named_autonomous_plan_attests_new_plan_despite_stale_plan_id(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

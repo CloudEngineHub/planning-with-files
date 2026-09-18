@@ -166,6 +166,48 @@ class AutonomousLegacyRootModeTests(InitModesTestBase):
             )
             self.assertEqual("0", (root / ".stop_blocks").read_text(encoding="utf-8").strip())
 
+    def test_autonomous_in_legacy_root_attests_the_root_plan(self) -> None:
+        # Root mode attests ./task_plan.md through the attester's legacy
+        # fallback, which only runs when no selector is set. Binding
+        # PWF_PLAN_ROOT for the attest call (as slug mode does) would make the
+        # attester refuse the root plan and leave the v3 markers unattested.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            result = self.run_init(root, "--autonomous")
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertTrue((root / ".plan-attestation").is_file(), "root mode must attest ./task_plan.md")
+            attest = (root / ".plan-attestation").read_text(encoding="utf-8").strip()
+            self.assertRegex(attest, r"^[0-9a-f]{64}$")
+
+    def test_gated_in_legacy_root_attests_the_root_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            result = self.run_init(root, "--gated")
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual("autonomous gate", (root / ".mode").read_text(encoding="utf-8").strip())
+            self.assertTrue((root / ".plan-attestation").is_file(), "gated root mode must attest ./task_plan.md")
+
+    def test_autonomous_in_legacy_root_ignores_inherited_pin_and_plan_id(self) -> None:
+        # An inherited PWF_PLAN_ROOT (another project) or PLAN_ID (a sibling
+        # slug plan) must neither redirect root-mode attestation elsewhere nor
+        # block it: the root plan just written is the one attested.
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as other_tmp:
+            root = Path(tmp)
+            other = Path(other_tmp)
+            (other / "task_plan.md").write_text("# Other project\n", encoding="utf-8")
+            env = os.environ.copy()
+            env["PWF_PLAN_ROOT"] = str(other)
+            env["PLAN_ID"] = "2026-01-01-sibling"
+            result = subprocess.run(
+                ["sh", str(INIT_SH), "--autonomous"],
+                cwd=str(root), text=True, encoding="utf-8", capture_output=True,
+                env=env, check=False,
+            )
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertTrue((root / ".plan-attestation").is_file())
+            self.assertFalse((other / ".plan-attestation").exists())
+            self.assertFalse((root / ".planning").exists())
+
 
 if __name__ == "__main__":
     unittest.main()
