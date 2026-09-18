@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [3.20.1] - 2026-09-18
+
+### Fixed
+- `init-session.sh`: a plan name containing a newline created `.planning/<date>-line-one<newline>line-two/`, then the selector rejected the id and init exited 1 with the directory left behind. `slugify` now maps CR and LF to `-` before the `sed` step, so the slug is a single line as in the PowerShell twin (#257).
+- Both initializers bound `PLAN_ID` for the attestation call but not `PWF_PLAN_ROOT`, so a pin inherited from another project redirected or silently blocked the attestation of the plan that was just created. `init-session.sh` and `init-session.ps1` now bind `PWF_PLAN_ROOT` and `PLAN_ID` to the plan just created around the attest call in slug mode and restore the inherited values afterwards. Root mode clears both selectors for that call instead, because the attester only falls back to the legacy `./task_plan.md` when no selector is set; this also stops an inherited `PLAN_ID` from redirecting the shell attester to a sibling slug plan, as the PowerShell twin already did. Root-mode attestation for `--autonomous` and `--gated` now has regression tests on both routes (#261).
+- `session-catchup.py`, OpenCode adapter: a part row whose `state` or `state.input` is not an object raised `AttributeError`, and a row whose `data` column is not valid JSON made SQLite raise `malformed JSON` for the whole session. Malformed shapes are treated as empty input and non-JSON rows are filtered with `json_valid(data)`; healthy rows in the same session are still reported. Applies to every copy that carries the adapter (#258).
+- Hermes plugin: with two or more named plans under `.planning/` and no `PLAN_ID`, the plugin resolved the shared pointer or the newest plan by modification time, so two Hermes sessions on two plans in one project could be injected with each other's plan. The plugin now applies the v3.17.1 rule: `pre_llm_call` emits the one-line `Multiple plans are available` notice once per turn and injects nothing, `post_tool_call` and `pre_verify` stay quiet, and `/pwf-status`, `planning_with_files_status` and `planning_with_files_check_complete` report the missing selector. One named plan, a root plan, a `PLAN_ID` pin and the nested-root safeguards behave as before; `PWF_PLAN_ROOT` pins the project root and does not select one of several same-root plans (#264).
+
+### Changed
+- `docs/hermes.md` describes the Hermes selection rule as shipped.
+
+### Thanks
+- @ShaunLinTW, for the malformed-row guards in the OpenCode catchup adapter and their regression tests in #263.
+- @TayfurYldz, for the single-line shell slug in #266 and the project-bound attestation with shell and PowerShell regressions in #265.
+- @kuei51307-hub, for porting the several-plans rule into the Hermes plugin in #267.
+
 ## [3.20.0] - 2026-09-17
 
 ### Added

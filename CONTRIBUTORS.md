@@ -106,16 +106,22 @@ These amazing people have contributed code, documentation, or significant improv
 
 ### Other Contributors
 
-- **[Shaun Lin](https://github.com/ShaunLinTW)**, [PR #245](https://github.com/OthmanAdi/planning-with-files/pull/245), [PR #247](https://github.com/OthmanAdi/planning-with-files/pull/247)
+- **[Shaun Lin](https://github.com/ShaunLinTW)**, [PR #245](https://github.com/OthmanAdi/planning-with-files/pull/245), [PR #247](https://github.com/OthmanAdi/planning-with-files/pull/247), [PR #263](https://github.com/OthmanAdi/planning-with-files/pull/263)
   - Isolated Python calls in the Codex, Gemini, and GitHub Copilot shell adapters and added regression coverage for project-local import shadowing.
   - Added named-plan slug mode to the PowerShell initializer with root-mode policy inheritance, host-aware attestation, and Windows PowerShell regression coverage.
+  - Made the OpenCode session catchup adapter skip malformed part rows instead of raising, with regression coverage for the string-state and invalid-JSON shapes.
 
-- **[@kuei51307-hub](https://github.com/kuei51307-hub)**, [PR #243](https://github.com/OthmanAdi/planning-with-files/pull/243), [PR #244](https://github.com/OthmanAdi/planning-with-files/pull/244), [PR #248](https://github.com/OthmanAdi/planning-with-files/pull/248), [PR #249](https://github.com/OthmanAdi/planning-with-files/pull/249), [PR #251](https://github.com/OthmanAdi/planning-with-files/pull/251)
+- **[@TayfurYldz](https://github.com/TayfurYldz)**, [PR #265](https://github.com/OthmanAdi/planning-with-files/pull/265), [PR #266](https://github.com/OthmanAdi/planning-with-files/pull/266)
+  - Bound `PWF_PLAN_ROOT` to the current project around the attestation call in both initializers so an inherited pin cannot redirect attestation, with shell and PowerShell regressions.
+  - Made the shell slugifier single-line so a plan name with an embedded newline no longer creates an unusable plan directory.
+
+- **[@kuei51307-hub](https://github.com/kuei51307-hub)**, [PR #243](https://github.com/OthmanAdi/planning-with-files/pull/243), [PR #244](https://github.com/OthmanAdi/planning-with-files/pull/244), [PR #248](https://github.com/OthmanAdi/planning-with-files/pull/248), [PR #249](https://github.com/OthmanAdi/planning-with-files/pull/249), [PR #251](https://github.com/OthmanAdi/planning-with-files/pull/251), [PR #267](https://github.com/OthmanAdi/planning-with-files/pull/267)
   - Fixed active-plan display and listing for UTF-8 BOM-prefixed pointers, with regression coverage across the synchronized shell helpers.
   - Made IDE sync verification report missing canonical sources, with subprocess tests for read-only verification and unchanged sync behavior.
   - Bounded session catchup to exact planning filenames across the canonical scanners and the Hermes, MastraCode, and OpenCode adapters, with lookalike regression coverage.
   - Replaced the shell initializer's active-pointer write with the selector's contained atomic update and added hardlink, symlink, and junction regressions.
   - Routed Cursor's native PowerShell hooks through the shared plan resolver so named plans are injected on Windows, and made the resolver's `PWF_PLAN_ROOT` check run on Windows PowerShell 5.1.
+  - Ported the several-plans rule into the Hermes plugin so two or more named plans without `PLAN_ID` get the selector notice instead of a pointer or timestamp guess.
 
 - **[@Dphoshoba](https://github.com/Dphoshoba)**, [PR #242](https://github.com/OthmanAdi/planning-with-files/pull/242)
   - Proposed and implemented named-plan listing with phase counts and a shared active-pointer marker.
@@ -440,6 +446,6 @@ If you've contributed and don't see your name here, please open an issue! We wan
 
 ---
 
-**Total Contributors:** 63+ and growing!
+**Total Contributors:** 64+ and growing!
 
-*Last updated: 2026-09-17*
+*Last updated: 2026-09-18*
