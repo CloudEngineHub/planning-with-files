@@ -291,8 +291,10 @@ def resolve_plan(
     .planning/<slug>/task_plan.md by modification time, then the legacy root
     task_plan.md. Slugs are validated and the chosen directory must stay
     inside .planning (no symlink or junction escape). A linked plan directory
-    never counts and never resolves; since v3.20.3 every route applies that
-    rule (#270), so this resolver and the shell family agree on it.
+    never counts and never resolves here; since v3.20.3 the shell family, the
+    Python twin, the Codex adapter and the OpenCode and DSH cores apply the
+    same rule (#270). This resolver refuses any reparse point, the others
+    symlinks and junctions only.
 
     A cwd guess (pointer, newest, or legacy root) is refused when a direct
     child of the root carries its own live plan (issue #212): the result is

@@ -183,6 +183,59 @@ class SetActivePlanTests(unittest.TestCase):
             active = (root / ".planning" / ".active_plan").read_text(encoding="utf-8").strip()
             self.assertEqual("task-b", active)
 
+    def test_linked_plan_directory_is_refused_and_not_listed(self) -> None:
+        # #270: no route selects a symlinked or junctioned plan directory, so the
+        # pointer tool must neither advertise one nor point the shared default at it.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            real = root / ".planning" / "2026-01-10-real"
+            real.mkdir(parents=True)
+            (real / "task_plan.md").write_text("# Real\n\n### Phase 1\n- **Status:** in_progress\n", encoding="utf-8")
+            target = root / "linked-target"
+            target.mkdir()
+            (target / "task_plan.md").write_text("# Linked\n\n### Phase 1\n- **Status:** complete\n", encoding="utf-8")
+            link = root / ".planning" / "2026-01-11-linked"
+            if os.name == "nt":
+                made = subprocess.run(["cmd", "/d", "/c", "mklink", "/J", str(link), str(target)],
+                                      capture_output=True, text=True, check=False)
+                if made.returncode != 0:
+                    self.skipTest("junction creation unavailable: " + made.stderr.strip())
+            else:
+                try:
+                    link.symlink_to(target, target_is_directory=True)
+                except OSError as exc:
+                    self.skipTest(f"symlink creation unavailable: {exc}")
+            listed = run_set_active(root, "--list")
+            self.assertEqual(0, listed.returncode, listed.stderr)
+            self.assertIn("2026-01-10-real", listed.stdout)
+            self.assertNotIn("2026-01-11-linked", listed.stdout)
+            refused = run_set_active(root, "2026-01-11-linked")
+            self.assertNotEqual(0, refused.returncode)
+            self.assertIn("symlink or junction", refused.stderr)
+            self.assertFalse((root / ".planning" / ".active_plan").exists())
+            accepted = run_set_active(root, "2026-01-10-real")
+            self.assertEqual(0, accepted.returncode, accepted.stderr)
+            if POWERSHELL:
+                def run_ps(*args: str) -> subprocess.CompletedProcess[str]:
+                    return subprocess.run(
+                        [POWERSHELL, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(SET_ACTIVE_PS1), *args],
+                        cwd=str(root), text=True, encoding="utf-8", capture_output=True, check=False,
+                    )
+                ps_listed = run_ps("--list")
+                self.assertEqual(0, ps_listed.returncode, ps_listed.stderr)
+                self.assertIn("2026-01-10-real", ps_listed.stdout)
+                self.assertNotIn("2026-01-11-linked", ps_listed.stdout)
+                ps_refused = run_ps("2026-01-11-linked")
+                self.assertNotEqual(0, ps_refused.returncode)
+                # Windows PowerShell 5.1 wraps stderr at the console width
+                flat = " ".join((ps_refused.stderr + ps_refused.stdout).split())
+                self.assertIn("symlink or junction", flat)
+                self.assertEqual(
+                    "2026-01-10-real",
+                    (root / ".planning" / ".active_plan").read_text(encoding="utf-8").strip(),
+                    "a refused selection must leave the pointer untouched",
+                )
+
     def test_errors_on_nonexistent_plan(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

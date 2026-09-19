@@ -139,6 +139,23 @@ function Test-WithinRoot {
     return $candNorm.StartsWith($rootNorm + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)
 }
 
+# A linked plan directory (symlink or junction) is never selectable: not by
+# PLAN_ID, not by the pointer, not by the newest scan, and it never counts
+# (#270). This is `[ -L ]` of resolve-plan-dir.sh and is_link of the Python
+# twin: LinkType names symlinks and junctions only. The ReparsePoint
+# attribute alone would also match OneDrive Files On-Demand placeholders,
+# which every synced directory carries and which are not links to sh.
+function Test-LinkedDirectory {
+    param($PathOrItem)
+    if ($PathOrItem -is [string]) {
+        $item = Get-Item -LiteralPath $PathOrItem -Force -ErrorAction SilentlyContinue
+    } else {
+        $item = $PathOrItem
+    }
+    if (-not $item) { return $false }
+    return ([string]$item.LinkType) -in @('SymbolicLink', 'Junction')
+}
+
 $activeFile = Join-Path $PlanRoot ".active_plan"
 
 # A set PLAN_ID is a BINDING, not a hint (issue #237). A selector that names
@@ -160,7 +177,7 @@ if (-not $env:PLAN_ID) {
         foreach ($entry in (Get-ChildItem -LiteralPath $PlanRoot -Directory -ErrorAction SilentlyContinue)) {
             # A linked plan directory (symlink, junction) is not selectable and
             # never counts, matching `[ -L ]` in resolve-plan-dir.sh (#270).
-            if (($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { continue }
+            if (Test-LinkedDirectory $entry) { continue }
             if ((Test-ValidSlug $entry.Name) -and
                 (Test-Path -LiteralPath (Join-Path $entry.FullName "task_plan.md") -PathType Leaf)) {
                 $planCount++
@@ -174,16 +191,6 @@ if ($CheckAmbiguity) {
     exit 0
 }
 if ($planCount -gt 1) { exit 0 }
-
-# A linked plan directory (symlink or junction) is never selectable: not by
-# PLAN_ID, not by the pointer, not by the newest scan, and it never counts
-# above (#270). Matches `[ -L ]` in resolve-plan-dir.sh on every branch.
-function Test-LinkedDirectory {
-    param([string]$Path)
-    $item = Get-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
-    if (-not $item) { return $false }
-    return (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)
-}
 
 if ($env:PLAN_ID) {
     if (Test-ValidSlug $env:PLAN_ID) {
@@ -224,7 +231,7 @@ if ($activeItem) {
 if (Test-Path -LiteralPath $PlanRoot -PathType Container) {
     $latest = Get-ChildItem -LiteralPath $PlanRoot -Directory |
         Where-Object { -not $_.Name.StartsWith('.') } |
-        Where-Object { ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -eq 0 } |
+        Where-Object { -not (Test-LinkedDirectory $_) } |
         Where-Object { Test-ValidSlug $_.Name } |
         Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName "task_plan.md") -PathType Leaf } |
         Where-Object { Test-WithinRoot $_.FullName } |

@@ -90,6 +90,27 @@ def _is_reparse_or_link(path: Path) -> bool:
     return bool(attrs & reparse)
 
 
+_LINK_REPARSE_TAGS = (0xA000000C, 0xA0000003)  # IO_REPARSE_TAG_SYMLINK, _MOUNT_POINT
+
+
+def _is_linked_directory(path: Path) -> bool:
+    """`[ -L ]` of the shell scripts: a symlink, or a junction on Windows.
+
+    Narrower than _is_reparse_or_link on purpose: OneDrive Files On-Demand
+    marks every synced directory as a reparse point, and those are plans.
+    """
+    try:
+        info = path.lstat()
+    except OSError:
+        return False
+    if stat.S_ISLNK(info.st_mode):
+        return True
+    reparse = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+    if getattr(info, "st_file_attributes", 0) & reparse:
+        return getattr(info, "st_reparse_tag", 0) in _LINK_REPARSE_TAGS
+    return False
+
+
 def _is_trusted_darwin_system_alias(path: Path) -> bool:
     """Admit only macOS's fixed root aliases after verifying their targets."""
     if sys.platform != "darwin":
@@ -244,8 +265,8 @@ def session_plan_requires_binding(root: Path) -> bool:
             if not _PLAN_SLUG.fullmatch(child.name) or not child.is_dir():
                 continue
             # A linked plan directory is not selectable and never counts,
-            # matching the shell counters and the Hermes plugin (#270).
-            if _is_reparse_or_link(child):
+            # matching `[ -L ]` in the shell counters (#270).
+            if _is_linked_directory(child):
                 continue
             if (child / "task_plan.md").is_file():
                 candidates += 1

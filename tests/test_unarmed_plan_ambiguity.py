@@ -144,6 +144,28 @@ class UnarmedPlanAmbiguityTests(unittest.TestCase):
                 self.assertEqual(0, result.returncode, result.stderr)
                 self.assertIn("NAMED-alpha", result.stdout)
                 self.assertNotIn(NOTICE, result.stdout)
+        # PLAN_ID naming the link fails closed on every route; the pointer naming
+        # it falls through to the real plan like a stale pointer does
+        for script, probe in (("resolve-plan-dir.sh", "--check-ambiguity"),
+                              ("resolve-plan-dir.ps1", "-CheckAmbiguity")):
+            with self.subTest(script=script, selector="PLAN_ID at link"):
+                self.assertEqual("", self.run_script(script, extra={"PLAN_ID": "beta"}).stdout.strip())
+        for script in ("inject-plan.sh", "inject-plan.py"):
+            with self.subTest(script=script, selector="PLAN_ID at link"):
+                result = self.run_script(script, "--context=userprompt", extra={"PLAN_ID": "beta"})
+                self.assertIn("PLAN_ID does not name a plan directory", result.stdout)
+                self.assertNotIn("NAMED-", result.stdout)
+        (self.root / ".planning" / ".active_plan").write_text("beta\n", encoding="utf-8")
+        for script, probe in (("resolve-plan-dir.sh", "--check-ambiguity"),
+                              ("resolve-plan-dir.ps1", "-CheckAmbiguity")):
+            with self.subTest(script=script, selector="pointer at link"):
+                self.assertTrue(self.run_script(script).stdout.strip().endswith("alpha"))
+        for script in ("inject-plan.sh", "inject-plan.py"):
+            with self.subTest(script=script, selector="pointer at link"):
+                result = self.run_script(script, "--context=userprompt")
+                self.assertIn("NAMED-alpha", result.stdout)
+                self.assertNotIn("NAMED-linked", result.stdout)
+        (self.root / ".planning" / ".active_plan").unlink()
         # a second real plan still requires the selector everywhere
         self.plan("gamma")
         for script, probe in (("resolve-plan-dir.sh", "--check-ambiguity"),
