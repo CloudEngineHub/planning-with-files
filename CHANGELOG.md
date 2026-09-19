@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [3.20.2] - 2026-09-19
+
+### Fixed
+- Hermes plugin: on Hermes 0.21.3 the host rewrites the process-global `TERMINAL_CWD` to the home directory during the first turn of a CLI session (`agent/relay_runtime.py` imports `gateway/run.py` lazily, and that module's import-time bridge applies the `Path.home()` fallback for an empty or placeholder `terminal.cwd`), so `resolve_agent_cwd()` named the home directory, the hooks found no plan there and injected nothing, with no signal that the plan in the launch directory had been skipped. The rewrite runs before the first plugin hook, so the plugin cannot recover the root on its own and does not guess: when the resolved directory holds no plan and the launch directory of a CLI session does, `pre_llm_call` now injects one line naming both directories and the `PWF_PLAN_ROOT` pin instead of returning nothing, `/pwf-status` prints the same line under `No planning files found.`, `/pwf` appends it when the plan it created went somewhere other than a launch directory that already holds one, and `/pwf` and `/pwf-status` honor `PWF_PLAN_ROOT` like the hooks and report a pin that does not resolve instead of creating or reading a plan in the directory Hermes named. The line stays silent outside the CLI, in `hermes -w` worktree sessions (`TERMINAL_CWD` at `<repo>/.worktrees/<name>` without a chdir is the intended split), for a launch directory without planning state, and for a launch directory whose session isolation refuses the session. Upstream: NousResearch/hermes-agent#86411 and #95577 (#272).
+
+### Changed
+- `docs/hermes.md` documents the Hermes 0.21.3 working-directory rewrite, what was reproduced with the 0.21.0 source, the pin for project-scoped CLI sessions, and the shell-hook route as the unaffected alternative.
+
+### Thanks
+- @ericshunhinglee-cloud, for the report with the setter stack trace, the on-the-wire token evidence and the upstream cross-references in #272.
+
 ## [3.20.1] - 2026-09-18
 
 ### Fixed

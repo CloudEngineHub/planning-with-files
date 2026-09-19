@@ -106,6 +106,9 @@ These amazing people have contributed code, documentation, or significant improv
 
 ### Other Contributors
 
+- **[@ericshunhinglee-cloud](https://github.com/ericshunhinglee-cloud)**, [Issue #272](https://github.com/OthmanAdi/planning-with-files/issues/272)
+  - Reported and traced the Hermes 0.21.3 first-turn `TERMINAL_CWD` rewrite that made the Hermes plugin resolve the home directory as the project root, with a setter stack trace, on-the-wire token evidence and the upstream cross-references.
+
 - **[Shaun Lin](https://github.com/ShaunLinTW)**, [PR #245](https://github.com/OthmanAdi/planning-with-files/pull/245), [PR #247](https://github.com/OthmanAdi/planning-with-files/pull/247), [PR #263](https://github.com/OthmanAdi/planning-with-files/pull/263)
   - Isolated Python calls in the Codex, Gemini, and GitHub Copilot shell adapters and added regression coverage for project-local import shadowing.
   - Added named-plan slug mode to the PowerShell initializer with root-mode policy inheritance, host-aware attestation, and Windows PowerShell regression coverage.
@@ -446,6 +449,6 @@ If you've contributed and don't see your name here, please open an issue! We wan
 
 ---
 
-**Total Contributors:** 64+ and growing!
+**Total Contributors:** 65+ and growing!
 
-*Last updated: 2026-09-18*
+*Last updated: 2026-09-19*
