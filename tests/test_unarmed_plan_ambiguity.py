@@ -108,6 +108,52 @@ class UnarmedPlanAmbiguityTests(unittest.TestCase):
             accepted = self.run_script(script, "--context=validate", extra={"PLAN_ID": "beta"})
             self.assertEqual("PWF_PLAN_ACCEPTED_V1", accepted.stdout.strip(), accepted.stderr)
 
+    def link_plan(self, name, target):
+        """Link .planning/<name> at *target* (junction on Windows, symlink elsewhere) or skip."""
+        link = self.root / ".planning" / name
+        if os.name == "nt":
+            made = subprocess.run(["cmd", "/d", "/c", "mklink", "/J", str(link), str(target)],
+                                  capture_output=True, text=True, check=False)
+            if made.returncode != 0:
+                self.skipTest("junction creation unavailable: " + made.stderr.strip())
+        else:
+            try:
+                link.symlink_to(target, target_is_directory=True)
+            except OSError as exc:
+                self.skipTest(f"symlink creation unavailable: {exc}")
+        return link
+
+    def test_linked_plan_directory_never_counts_on_any_route(self):
+        # #270: a symlinked or junctioned plan directory is not selectable, so no
+        # counter treats it as a second plan; the real plan resolves as before.
+        self.plan("alpha")
+        target = self.root / "linked-target"
+        target.mkdir()
+        (target / "task_plan.md").write_text("# NAMED-linked\n", encoding="utf-8")
+        self.link_plan("beta", target)
+        for script, probe in (("resolve-plan-dir.sh", "--check-ambiguity"),
+                              ("resolve-plan-dir.ps1", "-CheckAmbiguity")):
+            with self.subTest(script=script):
+                resolved = self.run_script(script)
+                self.assertEqual(0, resolved.returncode, resolved.stderr)
+                self.assertTrue(resolved.stdout.strip().endswith("alpha"), resolved.stdout)
+                self.assertEqual("", self.run_script(script, probe).stdout.strip())
+        for script in ("inject-plan.sh", "inject-plan.py"):
+            with self.subTest(script=script):
+                result = self.run_script(script, "--context=userprompt")
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertIn("NAMED-alpha", result.stdout)
+                self.assertNotIn(NOTICE, result.stdout)
+        # a second real plan still requires the selector everywhere
+        self.plan("gamma")
+        for script, probe in (("resolve-plan-dir.sh", "--check-ambiguity"),
+                              ("resolve-plan-dir.ps1", "-CheckAmbiguity")):
+            with self.subTest(script=script, plans="two real"):
+                self.assertEqual(TOKEN, self.run_script(script, probe).stdout.strip())
+        for script in ("inject-plan.sh", "inject-plan.py"):
+            with self.subTest(script=script, plans="two real"):
+                self.assertIn(NOTICE, self.run_script(script, "--context=userprompt").stdout)
+
     def test_single_named_plan_with_legacy_root_is_compatible_until_isolation_armed(self):
         self.plan("alpha")
         (self.root / "task_plan.md").write_text("# LEGACY-ROOT\n", encoding="utf-8")

@@ -158,6 +158,9 @@ if (-not $env:PLAN_ID) {
     }
     if (Test-Path -LiteralPath $PlanRoot -PathType Container) {
         foreach ($entry in (Get-ChildItem -LiteralPath $PlanRoot -Directory -ErrorAction SilentlyContinue)) {
+            # A linked plan directory (symlink, junction) is not selectable and
+            # never counts, matching `[ -L ]` in resolve-plan-dir.sh (#270).
+            if (($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { continue }
             if ((Test-ValidSlug $entry.Name) -and
                 (Test-Path -LiteralPath (Join-Path $entry.FullName "task_plan.md") -PathType Leaf)) {
                 $planCount++
@@ -172,10 +175,20 @@ if ($CheckAmbiguity) {
 }
 if ($planCount -gt 1) { exit 0 }
 
+# A linked plan directory (symlink or junction) is never selectable: not by
+# PLAN_ID, not by the pointer, not by the newest scan, and it never counts
+# above (#270). Matches `[ -L ]` in resolve-plan-dir.sh on every branch.
+function Test-LinkedDirectory {
+    param([string]$Path)
+    $item = Get-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+    if (-not $item) { return $false }
+    return (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)
+}
+
 if ($env:PLAN_ID) {
     if (Test-ValidSlug $env:PLAN_ID) {
         $candidate = Join-Path $PlanRoot $env:PLAN_ID
-        if ((Test-Path -LiteralPath $candidate -PathType Container) -and (Test-WithinRoot $candidate)) {
+        if ((Test-Path -LiteralPath $candidate -PathType Container) -and -not (Test-LinkedDirectory $candidate) -and (Test-WithinRoot $candidate)) {
             Write-Output $candidate
             exit 0
         }
@@ -198,7 +211,7 @@ if ($activeItem) {
     $planId = "$(Get-Content -LiteralPath $activeFile -Raw -ErrorAction SilentlyContinue)".Trim()
     if ($planId -and (Test-ValidSlug $planId)) {
         $candidate = Join-Path $PlanRoot $planId
-        if ((Test-Path -LiteralPath $candidate -PathType Container) -and (Test-WithinRoot $candidate)) {
+        if ((Test-Path -LiteralPath $candidate -PathType Container) -and -not (Test-LinkedDirectory $candidate) -and (Test-WithinRoot $candidate)) {
             Write-Output $candidate
             exit 0
         }
@@ -211,6 +224,7 @@ if ($activeItem) {
 if (Test-Path -LiteralPath $PlanRoot -PathType Container) {
     $latest = Get-ChildItem -LiteralPath $PlanRoot -Directory |
         Where-Object { -not $_.Name.StartsWith('.') } |
+        Where-Object { ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -eq 0 } |
         Where-Object { Test-ValidSlug $_.Name } |
         Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName "task_plan.md") -PathType Leaf } |
         Where-Object { Test-WithinRoot $_.FullName } |

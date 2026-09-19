@@ -352,6 +352,30 @@ class InjectorParityTests(ParityCase):
         self.assert_parity(extra={"PWF_SESSION_ID": "legacy-session", "PLAN_ID": "plan-b"},
                            expect={"userprompt": "Task Plan: plan-b"})
 
+    def test_linked_plan_directory_never_counts_as_a_second_plan(self):
+        # #270: a symlinked or junctioned plan directory is not selectable, so
+        # the several-plans counter skips it on both implementations.
+        self.slug("plan-a")
+        write(self.project / ".planning" / ".active_plan", "plan-a\n")
+        target = self.project / "linked-target"
+        write(target / "task_plan.md", PHASE_PLAN.replace("parity", "linked"))
+        link = self.project / ".planning" / "plan-b"
+        if os.name == "nt":
+            made = subprocess.run(["cmd", "/d", "/c", "mklink", "/J", str(link), str(target)],
+                                  capture_output=True, text=True, check=False)
+            if made.returncode != 0:
+                self.skipTest("junction creation unavailable: " + made.stderr.strip())
+        else:
+            try:
+                link.symlink_to(target, target_is_directory=True)
+            except OSError:
+                self.skipTest("symlinks unavailable")
+        self.assert_parity(expect={"userprompt": "Task Plan: plan-a"},
+                           forbid={"userprompt": "Multiple plans are available"})
+        # a real second plan still trips the counter on both sides
+        self.slug("plan-c")
+        self.assert_parity(expect={"userprompt": "Multiple plans are available"})
+
     def test_attestation_ok_padded_and_tampered(self):
         plan = self.legacy_root()
         attest(plan, self.project / ".plan-attestation")

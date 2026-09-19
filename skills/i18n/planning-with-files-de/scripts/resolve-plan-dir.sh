@@ -246,10 +246,16 @@ mtime_of() {
     printf "0\n"
 }
 
+# A linked plan directory (symlink or junction; `-L` sees both under Git
+# Bash) is never selectable: not by PLAN_ID, not by the pointer, not by the
+# newest-mtime scan, and it never counts below (#270). Containment alone let
+# a link that stays inside the root be selected while the counter skipped
+# it, so one real plan plus a newer linked one became an mtime guess again.
 resolve_from_env() {
     plan_id="${PLAN_ID:-}"
     slug_is_valid "${plan_id}" || return 1
     candidate="${PLAN_ROOT}/${plan_id}"
+    [ -L "${candidate}" ] && return 1
     if [ -d "${candidate}" ] && is_within_root "${candidate}"; then
         printf "%s\n" "${candidate}"
         return 0
@@ -268,6 +274,7 @@ resolve_from_active_file() {
     esac
     slug_is_valid "${plan_id}" || return 1
     candidate="${PLAN_ROOT}/${plan_id}"
+    [ -L "${candidate}" ] && return 1
     if [ -d "${candidate}" ] && is_within_root "${candidate}"; then
         printf "%s\n" "${candidate}"
         return 0
@@ -288,6 +295,7 @@ resolve_latest_dir() {
         case "${name}" in
             .*) continue ;;
         esac
+        [ -L "${clean}" ] && continue
         slug_is_valid "${name}" || continue
         [ -f "${clean}/task_plan.md" ] || continue
         is_within_root "${clean}" || continue
