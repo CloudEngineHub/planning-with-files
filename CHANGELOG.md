@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [3.20.4] - 2026-09-19
+
+### Fixed
+- PowerShell route on OneDrive: `resolve-plan-dir.ps1`, the Cursor hook `resolve-plan-context.ps1` and `set-active-plan.ps1` refused an `.active_plan` pointer that carried the `ReparsePoint` file attribute. OneDrive Files On-Demand sets that attribute on every synced file, so in a project under OneDrive the Cursor hooks stopped with the unsafe-pointer notice instead of injecting the pointed plan, the resolver printed nothing for `attest-plan.ps1` and `check-complete.ps1`, and `set-active-plan.ps1` refused to write, while every other route read the pointer normally. The three checks now refuse a container or a `LinkType` of `SymbolicLink` or `Junction`, the predicate v3.20.3 gave the directory checks and the `[ -L ]` of the shell scripts. `attest-plan.ps1` had the same class of check in its native helper and refused to hash, show or clear any reparse-point file, so attestation failed in every project under OneDrive while `init-session.ps1` still reported the plan as attested; it now refuses only name-surrogate reparse points (symlinks, junctions and unknown surrogate tags), which is the set Windows path parsing follows (#275).
+- `tests/test_session_catchup_copies_exact_basename.py` walked the whole checkout and loaded any untracked `session-catchup.py`, so a stale clone kept under the gitignored `.planning/` on a maintainer machine failed the two tests with 120 subtests while CI stayed green. The copies now come from `git ls-files`; the filtered walk is kept only for a checkout without git (#274).
+
 ## [3.20.3] - 2026-09-19
 
 ### Fixed
