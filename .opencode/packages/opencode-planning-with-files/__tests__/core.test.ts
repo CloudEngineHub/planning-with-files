@@ -188,8 +188,14 @@ describe("resolver", () => {
     fs.writeFileSync(path.join(planning, ".active_plan"), "2026-09-02-evil\n")
     expect(resolvePlan(root, {}, env).planDir).toBeNull()
     expect(resolvePlan(root, {}, { ...env, PLAN_ID: "2026-09-02-evil" }).planDir).toBeNull()
+    // a linked plan directory never counts toward the several-plans rule (#270)
+    expect(countSelectablePlans(root)).toBe(0)
     const real = path.join(planning, "2026-09-02-real")
     fs.mkdirSync(real)
+    fs.writeFileSync(path.join(real, "task_plan.md"), "# REAL\n")
+    expect(countSelectablePlans(root)).toBe(1)
+    expect(resolvePlan(root, {}, env).planDir).toBe(real)
+    fs.rmSync(path.join(real, "task_plan.md"))
     try {
       fs.symlinkSync(path.join(outside, "task_plan.md"), path.join(real, "task_plan.md"), "file")
     } catch {

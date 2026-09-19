@@ -205,6 +205,9 @@ export function countSelectablePlans(root: string): number {
   }
   for (const entry of entries) {
     if (!slugIsValid(entry)) continue
+    // A linked plan directory is not selectable and never counts (#270),
+    // matching the shell counters, the Hermes plugin and resolvePlan below.
+    if (!isRealDir(path.join(planningRoot, entry))) continue
     if (!isRegularFile(path.join(planningRoot, entry, "task_plan.md"))) continue
     count += 1
     if (count > 1) break

@@ -314,6 +314,40 @@ class CodexSessionIsolationTests(unittest.TestCase):
             self.assertIn("ACTIVE PLAN", ra.stdout)
             self.assertNotIn("ACTIVE PLAN", rb.stdout)
 
+    def test_linked_plan_directory_never_counts_toward_binding(self) -> None:
+        # #270: a symlinked or junctioned plan directory is not selectable, so
+        # the Codex counter skips it like the shell counters and Hermes do.
+        sys.path.insert(0, str(HOOKS_DIR))
+        try:
+            import codex_hook_adapter as adapter
+            with tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                real = root / ".planning" / "2026-09-19-real"
+                real.mkdir(parents=True)
+                (real / "task_plan.md").write_text("# REAL\n", encoding="utf-8")
+                target = root / "linked-target"
+                target.mkdir()
+                (target / "task_plan.md").write_text("# LINKED\n", encoding="utf-8")
+                link = root / ".planning" / "2026-09-19-linked"
+                if os.name == "nt":
+                    made = subprocess.run(["cmd", "/d", "/c", "mklink", "/J", str(link), str(target)],
+                                          capture_output=True, text=True, check=False)
+                    if made.returncode != 0:
+                        self.skipTest("junction creation unavailable: " + made.stderr.strip())
+                else:
+                    try:
+                        link.symlink_to(target, target_is_directory=True)
+                    except OSError as exc:
+                        self.skipTest(f"symlink creation unavailable: {exc}")
+                self.assertTrue((link / "task_plan.md").is_file(), "the link must resolve for the test to mean anything")
+                self.assertFalse(adapter.session_plan_requires_binding(root))
+                other = root / ".planning" / "2026-09-19-other"
+                other.mkdir()
+                (other / "task_plan.md").write_text("# OTHER\n", encoding="utf-8")
+                self.assertTrue(adapter.session_plan_requires_binding(root))
+        finally:
+            sys.path.pop(0)
+
     def test_hostile_native_session_ids_are_opaque_fixed_width_keys(self) -> None:
         sys.path.insert(0, str(HOOKS_DIR))
         try:

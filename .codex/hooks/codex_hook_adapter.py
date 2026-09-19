@@ -243,6 +243,10 @@ def session_plan_requires_binding(root: Path) -> bool:
         for child in planning_dir.iterdir():
             if not _PLAN_SLUG.fullmatch(child.name) or not child.is_dir():
                 continue
+            # A linked plan directory is not selectable and never counts,
+            # matching the shell counters and the Hermes plugin (#270).
+            if _is_reparse_or_link(child):
+                continue
             if (child / "task_plan.md").is_file():
                 candidates += 1
                 if candidates > 1:
