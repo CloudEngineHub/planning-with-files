@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -20,8 +21,10 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # .kiro ships a different program that reads .kiro/plan/*.md and never scans
-# transcripts, so it has no planning-path boundary to check.
-EXCLUDED_PARTS = {".kiro", "clawhub-upload", "node_modules", "__pycache__"}
+# transcripts, so it has no planning-path boundary to check. The rest only
+# matters on the git-less fallback walk: staging, dependencies, caches and
+# whatever a maintainer keeps under the gitignored .planning/ are not shipped.
+EXCLUDED_PARTS = {".kiro", "clawhub-upload", "node_modules", "__pycache__", ".planning", ".git"}
 
 LOOKALIKES = (
     "draft_task_plan.md",
@@ -38,13 +41,30 @@ EXACT = (
 
 
 def shipped_copies() -> list[Path]:
+    """Every tracked copy, via git; a filtered walk only for a checkout without git.
+
+    Shipped means tracked. A walk of the whole checkout also loads untracked
+    copies, and a stale clone kept under the gitignored .planning/ made the
+    two tests here fail on a maintainer machine while CI stayed green (#274).
+    """
     copies = []
-    for path in sorted(REPO_ROOT.rglob("session-catchup.py")):
+    try:
+        proc = subprocess.run(
+            ["git", "-c", "core.quotepath=off", "ls-files", "--", "*session-catchup.py"],
+            cwd=str(REPO_ROOT), text=True, encoding="utf-8", capture_output=True, check=False,
+        )
+        if proc.returncode == 0 and proc.stdout.strip():
+            candidates = [REPO_ROOT / line for line in proc.stdout.splitlines() if line]
+        else:
+            candidates = sorted(REPO_ROOT.rglob("session-catchup.py"))
+    except OSError:
+        candidates = sorted(REPO_ROOT.rglob("session-catchup.py"))
+    for path in candidates:
         relative = path.relative_to(REPO_ROOT)
-        if EXCLUDED_PARTS.intersection(relative.parts):
+        if EXCLUDED_PARTS.intersection(relative.parts) or not path.is_file():
             continue
         copies.append(path)
-    return copies
+    return sorted(copies)
 
 
 def load_copy(path: Path):
