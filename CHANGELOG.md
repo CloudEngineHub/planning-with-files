@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [3.20.3] - 2026-09-19
+
+### Fixed
+- A symlinked or junctioned directory under `.planning/` is never a plan, on every route that resolves plans. `inject-plan.sh` and `resolve-plan-dir.sh --check-ambiguity` counted a linked plan directory toward the several-plans rule while the Hermes plugin did not, so the shell route refused a tree that Hermes injected (#270). The counters now skip linked directories (PR #271). Skipping the link in the counter alone left the selection paths following it through containment: one real plan plus a newer linked one counted as one plan and the newest-mtime scan then selected the linked directory, the mtime guess the #240 rule exists to prevent. The shell family (`resolve-plan-dir.sh`, `inject-plan.sh`, `resolve-plan-dir.ps1`, the Python twin `inject-plan.py`) therefore refuses a linked plan directory in the `PLAN_ID`, `.active_plan` and newest-mtime branches as well; a `PLAN_ID` that names one fails closed with the existing "does not name a plan directory" notice, and a pointer that names one falls through like a stale pointer. The Codex adapter and the OpenCode and DeepSeek Harness plugin cores skip linked directories in their counters, which their selection already did. `set-active-plan.sh` and `set-active-plan.ps1` refuse to point the shared default at a linked directory and leave it out of `--list`. The link test is symlink or junction only (`[ -L ]`, `is_link`, `LinkType`), never the bare ReparsePoint attribute: OneDrive Files On-Demand marks every synced directory as a reparse point, and those stay plans. Untouched on purpose: the Pi extension keeps its armed-only containment rule, and the nested-root probes still count a linked nested plan as a conflict, which only ever refuses. Every shipped copy is synced; the sh/py parity suite, the cross-route ambiguity suite and the pointer tool suite carry the linked-directory fixture (junction on Windows, symlink elsewhere).
+
+### Thanks
+- @ShaunLinTW, for the shell counter change with the Hermes differential regression in #271.
+
 ## [3.20.2] - 2026-09-19
 
 ### Fixed

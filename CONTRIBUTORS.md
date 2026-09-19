@@ -109,10 +109,11 @@ These amazing people have contributed code, documentation, or significant improv
 - **[@ericshunhinglee-cloud](https://github.com/ericshunhinglee-cloud)**, [Issue #272](https://github.com/OthmanAdi/planning-with-files/issues/272)
   - Reported and traced the Hermes 0.21.3 first-turn `TERMINAL_CWD` rewrite that made the Hermes plugin resolve the home directory as the project root, with a setter stack trace, on-the-wire token evidence and the upstream cross-references.
 
-- **[Shaun Lin](https://github.com/ShaunLinTW)**, [PR #245](https://github.com/OthmanAdi/planning-with-files/pull/245), [PR #247](https://github.com/OthmanAdi/planning-with-files/pull/247), [PR #263](https://github.com/OthmanAdi/planning-with-files/pull/263)
+- **[Shaun Lin](https://github.com/ShaunLinTW)**, [PR #245](https://github.com/OthmanAdi/planning-with-files/pull/245), [PR #247](https://github.com/OthmanAdi/planning-with-files/pull/247), [PR #263](https://github.com/OthmanAdi/planning-with-files/pull/263), [PR #271](https://github.com/OthmanAdi/planning-with-files/pull/271)
   - Isolated Python calls in the Codex, Gemini, and GitHub Copilot shell adapters and added regression coverage for project-local import shadowing.
   - Added named-plan slug mode to the PowerShell initializer with root-mode policy inheritance, host-aware attestation, and Windows PowerShell regression coverage.
   - Made the OpenCode session catchup adapter skip malformed part rows instead of raising, with regression coverage for the string-state and invalid-JSON shapes.
+  - Made the shell several-plans counters skip symlinked and junctioned plan directories so they match the Hermes plugin, with a differential regression including the ambiguity probe.
 
 - **[@TayfurYldz](https://github.com/TayfurYldz)**, [PR #265](https://github.com/OthmanAdi/planning-with-files/pull/265), [PR #266](https://github.com/OthmanAdi/planning-with-files/pull/266)
   - Bound `PWF_PLAN_ROOT` to the current project around the attestation call in both initializers so an inherited pin cannot redirect attestation, with shell and PowerShell regressions.
