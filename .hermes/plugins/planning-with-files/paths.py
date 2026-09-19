@@ -293,8 +293,7 @@ def resolve_plan(
     inside .planning (no symlink or junction escape). A linked plan directory
     never counts and never resolves here; since v3.20.3 the shell family, the
     Python twin, the Codex adapter and the OpenCode and DSH cores apply the
-    same rule (#270). This resolver refuses any reparse point, the others
-    symlinks and junctions only.
+    same rule (#270).
 
     A cwd guess (pointer, newest, or legacy root) is refused when a direct
     child of the root carries its own live plan (issue #212): the result is
