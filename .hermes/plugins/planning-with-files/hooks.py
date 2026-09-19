@@ -54,6 +54,66 @@ def _runtime_project_dir(kwargs: dict[str, Any]) -> Path | None:
     return effective_project_root(project)
 
 
+WORKTREES_DIR_NAME = ".worktrees"  # hermes -w and /worktree new place trees at <repo>/.worktrees/<name>
+
+
+def launch_dir_has_planning_state(launch: Path) -> bool:
+    """True when the process launch directory holds a plan, or several plans.
+
+    A plan with a nested-root conflict still counts (``explicit=True`` skips
+    only that check), because the question here is whether the directory the
+    session was started in carries planning state at all.
+    """
+    return (
+        resolve_plan(launch, explicit=True)[0] is not None
+        or multiple_plans_require_selector(launch)
+    )
+
+
+def launch_dir_notice(project_dir: Path, launch: Path) -> str:
+    """The once-per-turn line for issue #272; the resolved root and the launch directory differ."""
+    return (
+        f"[planning-with-files] Hermes resolved {project_dir} as the working directory, "
+        f"but the launch directory {launch} holds a plan. Nothing injected. "
+        f"Pin the thread with PWF_PLAN_ROOT={launch}."
+    )
+
+
+def _launch_dir_notice(project_dir: Path, kwargs: dict[str, Any]) -> str | None:
+    """Issue #272: the resolved root holds no plan while the launch directory does.
+
+    Hermes 0.21.3 rewrites the process-global TERMINAL_CWD during the first
+    turn of a CLI session (``agent/relay_runtime.py`` imports ``gateway/run.py``
+    lazily; its import-time bridge applies the ``Path.home()`` fallback), so
+    ``resolve_agent_cwd`` names the home directory while ``os.getcwd()`` still
+    names the directory the session was started in (upstream hermes-agent
+    #86411 and #95577). The rewrite runs before the first hook, so the adapter
+    cannot recover the root on its own and never switches to the launch
+    directory: it says why nothing was injected and names the pin.
+
+    Silent by design: platforms other than the CLI (their process cwd is not a
+    launch directory), Hermes worktree sessions (``hermes -w`` points
+    TERMINAL_CWD at ``<repo>/.worktrees/<name>`` without a chdir, which is the
+    intended split), a launch directory without planning state, and a launch
+    directory whose session isolation refuses this session anyway.
+    """
+    if str(kwargs.get("platform", "")).strip().lower() != "cli":
+        return None
+    if WORKTREES_DIR_NAME in project_dir.parts:
+        return None
+    try:
+        launch = normalize_cwd(os.getcwd())
+        if not launch.is_dir() or launch == project_dir:
+            return None
+        if _session_attachment(launch, _session_id(kwargs)) == ATTACH_DETACHED:
+            return None
+        if not launch_dir_has_planning_state(launch):
+            return None
+    except (OSError, RuntimeError, ValueError):
+        return None
+    return launch_dir_notice(project_dir, launch)
+
+
 def _session_attachment(project_dir: Path, session_id: str) -> str:
     """Opt-in isolation state once a project creates its sessions directory."""
     sessions_dir = project_dir / ".planning" / "sessions"
@@ -174,6 +234,10 @@ def pre_llm_call(**kwargs: Any) -> dict[str, str] | None:
             return {"context": MULTIPLE_PLANS_NOTICE}
         if conflicts:
             return {"context": ambiguity_notice(conflicts)}
+        if not plan_root_is_pinned():
+            notice = _launch_dir_notice(project_dir, kwargs)
+            if notice:
+                return {"context": notice}
         return None
     user_message = str(kwargs.get("user_message", ""))
     reminder_messages = pop_reminders(project_dir, session_id)

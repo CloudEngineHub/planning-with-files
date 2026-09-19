@@ -583,6 +583,154 @@ class HermesFirstClassTests(unittest.TestCase):
             hooks_module.post_tool_call(tool_name="write_file", session_id="s1", args={"path": "a", "content": "b"})
             self.assertEqual([], hook_state_module.pop_reminders(root, "s1"))
 
+    # -- issue #272: the host re-homes the process-global cwd ------------------
+
+    def _hermes_reports(self, directory: Path) -> None:
+        """Point the stubbed resolve_agent_cwd at *directory* (what TERMINAL_CWD would say)."""
+        sys.modules["agent.runtime_cwd"].resolve_agent_cwd = lambda: directory  # type: ignore[attr-defined]
+
+    def _first_turn(self, session: str, platform: str = "cli"):
+        return hooks_module.pre_llm_call(user_message="hi", is_first_turn=True, session_id=session, platform=platform)
+
+    def test_rehomed_cli_session_gets_the_pin_notice_instead_of_silence(self) -> None:
+        with self._workspace() as tmp:
+            root = tmp / "project"
+            home = tmp / "home"
+            root.mkdir()
+            home.mkdir()
+            self._slug_plan(root, "2026-09-19-run", pointer=True)
+            os.chdir(root)
+            # Hermes 0.21.3: the first turn already reports the home directory
+            self._hermes_reports(home)
+            payload = self._first_turn("s1")
+            assert payload is not None
+            notice = payload["context"]
+            self.assertTrue(notice.startswith("[planning-with-files] Hermes resolved "), notice)
+            self.assertIn(str(home), notice)
+            self.assertIn(f"launch directory {root} holds a plan", notice)
+            self.assertIn("Nothing injected", notice)
+            self.assertIn(f"PWF_PLAN_ROOT={root}", notice)
+            self.assertNotIn("Build the adapter", notice)
+            # the notice is turn-scoped: the other hooks stay quiet, like the ambiguity notice
+            hooks_module.post_tool_call(tool_name="write_file", session_id="s1", args={"path": "a", "content": "b"})
+            self.assertEqual([], hook_state_module.pop_reminders(root, "s1"))
+            self.assertEqual([], hook_state_module.pop_reminders(home, "s1"))
+            self.assertIsNone(self._pre_verify("s1"))
+            # following the notice restores the plan; the pin also silences the notice
+            os.environ["PWF_PLAN_ROOT"] = str(root)
+            pinned = self._first_turn("s1")
+            assert pinned is not None
+            self.assertIn("Build the adapter", pinned["context"])
+            self.assertNotIn("Hermes resolved", pinned["context"])
+            os.environ.pop("PWF_PLAN_ROOT")
+            # a host that reports the launch directory is unchanged: plan, no notice
+            self._hermes_reports(root)
+            healthy = self._first_turn("s2")
+            assert healthy is not None
+            self.assertIn("Build the adapter", healthy["context"])
+            self.assertNotIn("Hermes resolved", healthy["context"])
+            # two selectable plans at the launch directory still count as "holds a plan"
+            self._hermes_reports(home)
+            self._slug_plan(root, "2026-09-19-other")
+            several = self._first_turn("s3")
+            assert several is not None
+            self.assertIn("holds a plan", several["context"])
+
+    def test_pin_notice_stays_silent_where_it_would_mislead(self) -> None:
+        with self._workspace() as tmp:
+            root = tmp / "project"
+            home = tmp / "home"
+            root.mkdir()
+            home.mkdir()
+            self._slug_plan(root, "2026-09-19-run", pointer=True)
+            os.chdir(root)
+            self._hermes_reports(home)
+            # only the CLI has a launch directory: gateway, TUI and Desktop sessions stay silent
+            for platform in ("telegram", "tui", "desktop", ""):
+                self.assertIsNone(self._first_turn("s9", platform), platform)
+            # PLANNING_DISABLED still silences everything
+            os.environ["PLANNING_DISABLED"] = "1"
+            self.assertIsNone(self._first_turn("s1"))
+            os.environ.pop("PLANNING_DISABLED")
+            # a launch directory without planning state: silent, as before
+            os.chdir(home)
+            self.assertIsNone(self._first_turn("s4"))
+            os.chdir(root)
+            # hermes -w: TERMINAL_CWD names <repo>/.worktrees/<name> without a chdir, by design
+            worktree = root / ".worktrees" / "hermes-abc123"
+            worktree.mkdir(parents=True)
+            self._hermes_reports(worktree)
+            self.assertIsNone(self._first_turn("s5"))
+            # a launch directory whose session isolation refuses this session: the pin would not help
+            self._hermes_reports(home)
+            (root / ".planning" / "sessions").mkdir()
+            self.assertIsNone(self._first_turn("s6"))
+            key = hook_state_module.state_key(root, "s6")
+            (root / ".planning" / "sessions" / f"{key}.attached").write_text("attached\n", encoding="ascii")
+            attached = self._first_turn("s6")
+            assert attached is not None
+            self.assertIn("holds a plan", attached["context"])
+
+    def test_slash_commands_honor_the_plan_root_pin(self) -> None:
+        with self._workspace() as tmp:
+            home = tmp / "home"
+            project = tmp / "project"
+            home.mkdir()
+            project.mkdir()
+            self._slug_plan(project, "2026-09-19-run", mode="autonomous gate", attest=True, pointer=True)
+            os.chdir(home)
+            self._hermes_reports(home)
+            self.assertEqual("No planning files found. Run planning_with_files_init first.", plugin.status_command(""))
+            os.environ["PWF_PLAN_ROOT"] = str(project)
+            self.assertIn("2026-09-19-run", plugin.status_command(""))
+            created = plugin.pwf_command("--gated Second Run")
+            self.assertIn("gated mode", created)
+            self.assertEqual(1, len(list((project / ".planning").glob("*-second-run"))))
+            self.assertFalse((home / ".planning").exists())
+            os.environ["PWF_PLAN_ROOT"] = str(tmp / "missing")
+            self.assertEqual(plugin.BROKEN_PIN_MESSAGE, plugin.status_command(""))
+            self.assertEqual(plugin.BROKEN_PIN_MESSAGE, plugin.pwf_command("--gated Third Run"))
+            self.assertFalse((home / ".planning").exists())
+            self.assertFalse((home / "task_plan.md").exists())
+
+    def test_status_command_names_the_launch_directory_plan(self) -> None:
+        with self._workspace() as tmp:
+            home = tmp / "home"
+            project = tmp / "project"
+            home.mkdir()
+            project.mkdir()
+            self._slug_plan(project, "2026-09-19-run", pointer=True)
+            os.chdir(project)
+            self._hermes_reports(home)
+            report = plugin.status_command("")
+            self.assertTrue(report.startswith("No planning files found."), report)
+            self.assertIn(f"launch directory {project} holds a plan", report)
+            self.assertIn(f"PWF_PLAN_ROOT={project}", report)
+            # the hint is diagnostic only: a plan found where Hermes points needs none
+            self._hermes_reports(project)
+            self.assertNotIn("Hermes resolved", plugin.status_command(""))
+            # worktree sessions are exempt, and the pin replaces the hint
+            worktree = project / ".worktrees" / "hermes-abc123"
+            worktree.mkdir(parents=True)
+            self._hermes_reports(worktree)
+            self.assertEqual("No planning files found. Run planning_with_files_init first.", plugin.status_command(""))
+            self._hermes_reports(home)
+            # a TUI or Desktop context pins its cwd per session: the process cwd is no launch directory
+            runtime = sys.modules["agent.runtime_cwd"]
+            runtime._SESSION_CWD = types.SimpleNamespace(get=lambda: str(home))  # type: ignore[attr-defined]
+            self.assertEqual("No planning files found. Run planning_with_files_init first.", plugin.status_command(""))
+            runtime._SESSION_CWD = types.SimpleNamespace(get=lambda: "")  # type: ignore[attr-defined]
+            self.assertIn("holds a plan", plugin.status_command(""))
+            del runtime._SESSION_CWD
+            # /pwf follows the Hermes directory and says where the plan went and what was skipped
+            created = plugin.pwf_command("Second Run")
+            self.assertIn(f"directory: {home / '.planning'}", created)
+            self.assertIn(f"launch directory {project} holds a plan", created)
+            self.assertEqual(1, len(list((home / ".planning").glob("*-second-run"))))
+            os.environ["PWF_PLAN_ROOT"] = str(project)
+            self.assertIn("2026-09-19-run", plugin.status_command(""))
+            self.assertNotIn("Hermes resolved", plugin.pwf_command("Third Run"))
+
     # -- injection ------------------------------------------------------------
 
     def test_slug_plan_injection_names_plan_and_reads_slug_attestation(self) -> None:
