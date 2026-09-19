@@ -61,7 +61,10 @@ def shipped_copies() -> list[Path]:
         candidates = sorted(REPO_ROOT.rglob("session-catchup.py"))
     for path in candidates:
         relative = path.relative_to(REPO_ROOT)
-        if EXCLUDED_PARTS.intersection(relative.parts) or not path.is_file():
+        # the git pathspec is a suffix match; keep the exact basename the walk had
+        if path.name != "session-catchup.py" or not path.is_file():
+            continue
+        if EXCLUDED_PARTS.intersection(relative.parts):
             continue
         copies.append(path)
     return sorted(copies)
