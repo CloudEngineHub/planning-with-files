@@ -1,6 +1,6 @@
 # Hermes Agent Setup
 
-planning-with-files treats [Hermes Agent](https://github.com/NousResearch/hermes-agent) by Nous Research as a first-class host: the Hermes CLI, the Hermes TUI and gateway sessions, and the Hermes Desktop app all run the same adapter. Everything on this page was verified against the Hermes v0.19.1 source and a live Hermes install on Windows; the POSIX paths follow Hermes' own defaults.
+planning-with-files treats [Hermes Agent](https://github.com/NousResearch/hermes-agent) by Nous Research as a first-class host: the Hermes CLI, the Hermes TUI and gateway sessions, and the Hermes Desktop app all run the same adapter. Everything on this page was verified against the Hermes v0.19.1 source and a live Hermes install on Windows; the Hermes 0.21.3 working-directory rewrite described below was reproduced with the 0.21.0 source. The POSIX paths follow Hermes' own defaults.
 
 The adapter has two parts:
 
@@ -76,6 +76,20 @@ Hermes Desktop runs the same backend (`hermes serve`) and therefore the same plu
 - The hub does not deliver the PowerShell scripts; nothing in the adapter needs them.
 - Short-name paths (`C:\Users\OASRVA~1\...`) in `HERMES_HOME` make `hermes skills install` fail its subpath check. Use the long form.
 
+## Hermes 0.21.3: the working directory can move to the home directory on the first turn
+
+Reported on Hermes 0.21.3 ([#272](https://github.com/OthmanAdi/planning-with-files/issues/272)): during the first turn of a CLI session, `agent/relay_runtime.py` imports `gateway/run.py` lazily, and that module's import-time bridge sets the process-global `TERMINAL_CWD` to the home directory when the variable is empty or a placeholder (`terminal.cwd: "."`). `agent.runtime_cwd.resolve_agent_cwd()`, the documented single source of truth the plugin reads, then names the home directory instead of the one the session was started in, while `os.getcwd()` still names the launch directory. The rewrite runs before the first plugin hook of the session, so no hook ever sees the launch directory. Hermes' own project-context discovery and its terminal tool follow the same rewritten value. Upstream reports: [hermes-agent#86411](https://github.com/NousResearch/hermes-agent/issues/86411) (an explicit `terminal.cwd` re-asserted mid-turn) and [hermes-agent#95577](https://github.com/NousResearch/hermes-agent/issues/95577) (one-shot sessions anchored at the home directory).
+
+What was reproduced here: the bridge in the Hermes 0.21.0 source, driven with the real `resolve_agent_cwd()` and an empty `TERMINAL_CWD`, the state the report shows at the first turn on 0.21.3. What empties the variable on that install is not established: the upstream `cli.py` at the reported commit still exports `TERMINAL_CWD=os.getcwd()` for the local backend when `cli` is imported, and skips that export only when `_HERMES_GATEWAY=1` is inherited from the environment. With the variable exported, only an explicit `terminal.cwd` in `config.yaml` triggers the rewrite (#86411). The plugin keys off the observed condition, not off a version.
+
+What the plugin does since v3.20.2:
+
+- The failure is no longer silent. When the resolved directory holds no plan and the launch directory of a CLI session does, `pre_llm_call` injects one line instead of nothing: `[planning-with-files] Hermes resolved <dir> as the working directory, but the launch directory <project> holds a plan. Nothing injected. Pin the thread with PWF_PLAN_ROOT=<project>.` The plugin never switches to the launch directory on its own: Hermes' terminal and file tools follow the rewritten directory too, so which root the session should use is the operator's call. The line is CLI-only (other surfaces have no launch directory), and it stays silent for `hermes -w` worktree sessions (Hermes points `TERMINAL_CWD` at `<repo>/.worktrees/<name>` without a chdir, by design), for a launch directory without planning state, and for a launch directory whose session isolation refuses this session anyway.
+- `/pwf-status` prints the same line under `No planning files found.` when the launch directory holds a plan, so the diagnostic command tells you what the hooks see, and `/pwf` appends it when the plan it just created went somewhere other than a launch directory that already holds one. Both stay silent for worktree sessions and for contexts whose working directory Hermes has pinned per session at command time; the TUI and Desktop dispatch plugin commands outside that context, where `/pwf-status` has always reported the backend's directory rather than the session's.
+- `/pwf` and `/pwf-status` honor `PWF_PLAN_ROOT` exactly like the hooks. A pin that does not resolve is reported instead of creating or reading a plan in whatever directory Hermes named. Without a pin the slash commands follow the Hermes working directory (a command handler receives only its arguments, no platform), so on an affected host an unpinned `/pwf name` creates the plan under the home directory and prints that path; the `planning_with_files_init` tool uses the process working directory instead.
+
+On an affected host, start project-scoped CLI sessions with the pin until the upstream fix lands: `PWF_PLAN_ROOT=/abs/path/to/project hermes chat` (PowerShell: `$env:PWF_PLAN_ROOT = "C:\path\to\project"`). The pin fails closed when the path does not resolve. The shell-hook route below reads the process working directory and is not affected. The pin restores the plan injection only; the agent's terminal and file tools keep following the rewritten directory (`hermes chat --in <project>` does not change that on an affected build), so ask the model to work with absolute paths. Keep planning files out of your home directory: on an affected host a `~/.planning/` or `~/task_plan.md` would be resolved by every session started anywhere.
+
 ## Usage
 
 - `/pwf` creates `task_plan.md`, `findings.md` and `progress.md` in the project root. `/pwf Night run` creates an isolated `.planning/YYYY-MM-DD-night-run/` plan and points `.planning/.active_plan` at it. `/pwf --gated Night run` also writes `.mode`, `.nonce`, resets the gate counter and attests the plan, mirroring `init-session.sh --gated`.
@@ -125,7 +139,7 @@ Hermes asks for consent on first use (`hermes hooks list` shows the allowlist st
 python -m pytest tests/test_hermes_adapter.py tests/test_hermes_first_class.py -q
 ```
 
-`tests/test_hermes_first_class.py` covers slug resolution, the `PWF_PLAN_ROOT` pin, the ambiguity rule, `PLANNING_DISABLED`, slug attestation, the `pre_verify` gate (block, counter, stall, cap), `/pwf` and `/pwf-status`, bundled-skill registration, the Python completion fallback and the shell-hook bridge.
+`tests/test_hermes_first_class.py` covers slug resolution, the `PWF_PLAN_ROOT` pin, the ambiguity rule, `PLANNING_DISABLED`, slug attestation, the `pre_verify` gate (block, counter, stall, cap), `/pwf` and `/pwf-status`, bundled-skill registration, the Python completion fallback, the shell-hook bridge, and the Hermes 0.21.3 working-directory cases of #272 (the launch-directory notice and where it stays silent, the `/pwf-status` hint, the pinned slash commands).
 
 ## Integration Notes
 
