@@ -263,6 +263,29 @@ class CursorPowerShellNamedPlanTests(unittest.TestCase):
         self.assertIn("nothing injected", results["user-prompt-submit"].stdout)
         self.assertIn('"decision": "allow"', results["pre-tool-use"].stdout)
 
+    def test_symlinked_pointer_fails_closed_and_a_plain_pointer_resolves(self) -> None:
+        # #275: the pointer check is LinkType (symlink, junction), not the
+        # ReparsePoint attribute that every OneDrive Files On-Demand file carries.
+        self.write_named_plan("plan-a", "ACTIVE-PLAN-MARKER", active=True)
+        pointer = self.workspace / ".planning" / ".active_plan"
+        outside = self.workspace / "elsewhere.txt"
+        outside.write_text("plan-a\n", encoding="utf-8")
+        plain = self.run_hook("user-prompt-submit", env=self.clean_env())
+        self.assertEqual(0, plain.returncode, plain.stderr)
+        self.assertIn("ACTIVE-PLAN-MARKER", plain.stdout)
+        pointer.unlink()
+        try:
+            pointer.symlink_to(outside)
+        except OSError as exc:
+            self.skipTest(f"file symlinks are unavailable: {exc}")
+        try:
+            linked = self.run_hook("user-prompt-submit", env=self.clean_env())
+        finally:
+            pointer.unlink()
+        self.assertEqual(0, linked.returncode, linked.stderr)
+        self.assertIn("(unsafe-pointer)", linked.stdout)
+        self.assertNotIn("ACTIVE-PLAN-MARKER", linked.stdout)
+
     def test_invalid_plan_id_notice_names_the_id(self) -> None:
         self.write_named_plan("plan-a", "ACTIVE-PLAN-MARKER", active=True)
 

@@ -144,7 +144,8 @@ function Test-WithinRoot {
 # (#270). This is `[ -L ]` of resolve-plan-dir.sh and is_link of the Python
 # twin: LinkType names symlinks and junctions only. The ReparsePoint
 # attribute alone would also match OneDrive Files On-Demand placeholders,
-# which every synced directory carries and which are not links to sh.
+# which every synced directory and file carries and which are not links to
+# sh. The same predicate guards the pointer file below (#275).
 function Test-LinkedDirectory {
     param($PathOrItem)
     if ($PathOrItem -is [string]) {
@@ -205,12 +206,14 @@ if ($env:PLAN_ID) {
 
 # Get-Item observes the link object even when its target is missing, unlike
 # Test-Path which follows the target. An active pointer that is a directory or
-# reparse point is an unsafe/ambiguous selector and must terminate resolution;
+# a symlink is an unsafe/ambiguous selector and must terminate resolution;
 # falling through would silently select and expose the newest unrelated plan.
+# LinkType, not the ReparsePoint attribute: OneDrive Files On-Demand marks
+# every synced file as a reparse point, and such a pointer is a plain file
+# to every other route (#275).
 $activeItem = Get-Item -LiteralPath $activeFile -Force -ErrorAction SilentlyContinue
 if ($activeItem) {
-    if ($activeItem.PSIsContainer -or
-        (($activeItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) {
+    if ($activeItem.PSIsContainer -or (Test-LinkedDirectory $activeItem)) {
         exit 0
     }
     # Get-Content -Raw returns $null for a zero-byte pointer; an empty pointer

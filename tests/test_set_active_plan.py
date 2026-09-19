@@ -236,6 +236,47 @@ class SetActivePlanTests(unittest.TestCase):
                     "a refused selection must leave the pointer untouched",
                 )
 
+    @unittest.skipUnless(POWERSHELL, "requires PowerShell")
+    def test_powershell_pointer_safety_is_linktype_not_reparse_attribute(self) -> None:
+        # #275: a symlinked pointer is refused by the resolver and by the writer;
+        # a plain pointer resolves and can be rewritten. The ReparsePoint
+        # attribute, which OneDrive Files On-Demand sets on every synced file,
+        # is no longer what decides.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            # one named plan: two would trip the several-plans rule (#240) before the pointer matters
+            (root / ".planning" / "2026-01-10-alpha").mkdir(parents=True)
+            (root / ".planning" / "2026-01-10-alpha" / "task_plan.md").write_text("# alpha\n", encoding="utf-8")
+            pointer = root / ".planning" / ".active_plan"
+
+            def run_ps(script: Path, *args: str) -> subprocess.CompletedProcess[str]:
+                return subprocess.run(
+                    [POWERSHELL, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script), *args],
+                    cwd=str(root), text=True, encoding="utf-8", capture_output=True, check=False,
+                )
+
+            written = run_ps(SET_ACTIVE_PS1, "2026-01-10-alpha")
+            self.assertEqual(0, written.returncode, written.stderr)
+            resolved = run_ps(REPO_ROOT / "scripts" / "resolve-plan-dir.ps1")
+            self.assertTrue(resolved.stdout.strip().endswith("2026-01-10-alpha"), resolved.stdout)
+            outside = root / "elsewhere.txt"
+            outside.write_text("2026-01-11-beta\n", encoding="utf-8")
+            pointer.unlink()
+            try:
+                pointer.symlink_to(outside)
+            except OSError as exc:
+                self.skipTest(f"file symlinks are unavailable: {exc}")
+            try:
+                linked = run_ps(REPO_ROOT / "scripts" / "resolve-plan-dir.ps1")
+                self.assertEqual(0, linked.returncode, linked.stderr)
+                self.assertEqual("", linked.stdout.strip(), "a symlinked pointer must stop resolution")
+                refused = run_ps(SET_ACTIVE_PS1, "2026-01-10-alpha")
+                self.assertNotEqual(0, refused.returncode)
+                self.assertTrue(pointer.is_symlink(), "a refused write must leave the symlink alone")
+                self.assertEqual("2026-01-11-beta\n", outside.read_text(encoding="utf-8"))
+            finally:
+                pointer.unlink()
+
     def test_errors_on_nonexistent_plan(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -121,9 +121,13 @@ function Test-SafeActiveFile {
     param([switch]$AllowLink)
     $item = Get-Item -LiteralPath $ActiveFile -Force -ErrorAction SilentlyContinue
     if (-not $item) { return $false }
-    # Reading may follow a verified in-project link; writing must not.
+    # Reading may follow a verified in-project link; writing must not. A link
+    # is a symlink or junction by LinkType, never the bare ReparsePoint
+    # attribute: OneDrive Files On-Demand marks every synced file as a
+    # reparse point, and the pointer must stay writable there (#275).
+    $linked = ([string]$item.LinkType) -in @('SymbolicLink', 'Junction')
     return -not $item.PSIsContainer -and
-        ($AllowLink -or (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -eq 0)) -and
+        ($AllowLink -or -not $linked) -and
         (Test-WithinRoot $ActiveFile)
 }
 
