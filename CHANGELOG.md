@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [3.20.5] - 2026-09-21
+
+### Fixed
+- OpenCode session replay skips null or array part rows, non-string tool names, and non-string text instead of aborting the session. Healthy rows remain available, and the defensive checks are synchronized across the copies that carry this formatter (#269, PR #273).
+- Shell and PowerShell initialization now report failed attestation as `NOT attested`, with a reason and recovery command, instead of claiming success. Attestation failure remains non-aborting, and inherited plan selectors are restored after the attempt (#276, PR #277).
+- The analytics task-plan template includes a non-empty `## Next Step` section across its shipped copies. Structural and initializer regressions keep generated analytics plans compatible with lifecycles that require that section (#278, PR #279).
+- PowerShell planning-file writes fail with a non-zero exit status and an error when access is denied. Named plans become active only after all three planning files are ready, so a failed initialization preserves the previous active pointer. The separately maintained host and translated initializers also stop on write errors (#255, PR #280).
+
+### Thanks
+- @TayfurYldz, for the malformed OpenCode replay guards and regression coverage in #273.
+- @kuei51307-hub, for attestation failure reporting in #277 and the analytics Next Step fix in #279.
+- @ShaunLinTW, for denied-write handling, safe activation ordering, and Windows regression coverage in #280.
+- @mfehlhaber, for reporting the missing analytics Next Step section in #278.
+
 ## [3.20.4] - 2026-09-19
 
 ### Fixed
