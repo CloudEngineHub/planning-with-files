@@ -792,3 +792,7 @@ MIT License — feel free to use, modify, and distribute.
 ## Star History
 
 <a href="https://repostars.dev/?repos=OthmanAdi%2Fplanning-with-files&amp;theme=aurora"><img src="https://wsrv.nl/?url=https%3A%2F%2Frepostars.dev%2Fapi%2Fog%3Frepos%3DOthmanAdi%252Fplanning-with-files%26theme%3Daurora&amp;cy=228&amp;ch=334&amp;maxage=1d" width="100%" alt="Star History Chart" /></a>
+
+## ClawHub Downloads
+
+<a href="https://skill-history.com/othmanadi/planning-with-files"><img src="https://skill-history.com/chart/othmanadi/planning-with-files.svg" width="100%" alt="ClawHub Download History Chart" /></a>
