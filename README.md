@@ -367,7 +367,7 @@ Full list of everyone who made this project better: [CONTRIBUTORS.md](./CONTRIBU
 
 
 <details id="full-reference">
-<summary><strong>📚 Commands, Multi-agent runs, Benchmarks &amp; more</strong> <code>[16 sections]</code></summary>
+<summary><strong>📚 Commands, Multi-agent runs, Benchmarks &amp; more</strong> <code>[15 sections]</code></summary>
 
 ### Long-run safeguards
 
@@ -787,8 +787,8 @@ MIT License — feel free to use, modify, and distribute.
 
 **Author:** [Ahmad Othman Ammar Adi](https://github.com/OthmanAdi)
 
+</details>
+
 ## Star History
 
-<a href="https://repostars.dev/?repos=OthmanAdi%2Fplanning-with-files&theme=copper"><img src="https://repostars.dev/api/embed?repo=OthmanAdi%2Fplanning-with-files&theme=copper" width="100%" alt="Star History Chart" /></a>
-
-</details>
+<a href="https://repostars.dev/?repos=OthmanAdi%2Fplanning-with-files&amp;theme=aurora"><img src="https://repostars.dev/api/og?repos=OthmanAdi%2Fplanning-with-files&amp;theme=aurora" width="100%" alt="Star History Chart" /></a>
