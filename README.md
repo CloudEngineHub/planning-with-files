@@ -22,6 +22,7 @@ Persistent file-based planning for AI coding agents and long-running agent tasks
 <p align="center">
   <a href="https://github.com/OthmanAdi/planning-with-files/stargazers"><img src="https://img.shields.io/github/stars/OthmanAdi/planning-with-files?style=flat&color=yellow" alt="Stars"></a>
   <a href="https://github.com/OthmanAdi/planning-with-files/releases"><img src="https://img.shields.io/github/v/release/OthmanAdi/planning-with-files?style=flat&label=release" alt="Latest release"></a>
+  <a href="https://skills.sh/othmanadi/planning-with-files"><img src="https://skills.sh/b/othmanadi/planning-with-files" alt="skills.sh installs"></a>
   <a href="https://skillsplayground.com/skills/othmanadi-planning-with-files-planning-with-files/"><img src="https://skillsplayground.com/badges/installs/othmanadi-planning-with-files-planning-with-files.svg" alt="Skills Playground installs"></a>
   <a href="https://skill-history.com/othmanadi/planning-with-files"><img src="https://skill-history.com/badge/othmanadi/planning-with-files.svg" alt="Downloads"></a>
   <a href="https://github.com/OthmanAdi/planning-with-files/issues?q=is%3Aissue+is%3Aclosed"><img src="https://img.shields.io/github/issues-closed/OthmanAdi/planning-with-files?color=success" alt="Closed issues"></a>
