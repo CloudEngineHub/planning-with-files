@@ -791,4 +791,4 @@ MIT License — feel free to use, modify, and distribute.
 
 ## Star History
 
-<a href="https://repostars.dev/?repos=OthmanAdi%2Fplanning-with-files&amp;theme=aurora"><img src="https://repostars.dev/api/og?repos=OthmanAdi%2Fplanning-with-files&amp;theme=aurora" width="100%" alt="Star History Chart" /></a>
+<a href="https://repostars.dev/?repos=OthmanAdi%2Fplanning-with-files&amp;theme=aurora"><img src="https://wsrv.nl/?url=https%3A%2F%2Frepostars.dev%2Fapi%2Fog%3Frepos%3DOthmanAdi%252Fplanning-with-files%26theme%3Daurora&amp;cy=228&amp;ch=334&amp;maxage=1d" width="100%" alt="Star History Chart" /></a>
