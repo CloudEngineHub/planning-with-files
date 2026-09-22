@@ -63,8 +63,7 @@ All install methods: [docs/installation.md](docs/installation.md).
 Every coding agent loses its working memory when the context window resets. The plan does not have to die with it.
 
 <p align="center">
-  <a href="media/pwf-context-story-v1.mp4"><img src="media/pwf-context-story-v1.gif" alt="Illustrated workflow: planning files preserve the task state through a context reset" width="760"></a><br>
-  <sub>Illustrated workflow · 28-second loop · <a href="media/pwf-context-story-v1.mp4">Watch the video</a></sub>
+  <a href="media/pwf-context-story-v1.mp4"><img src="media/pwf-context-story-v1.gif" alt="Illustrated workflow: planning files preserve the task state through a context reset" width="760"></a>
 </p>
 
 ## Built for long-running agent tasks
