@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [3.20.6] - 2026-09-23
+
+### Added
+- The README ends with a linked portrait grid of credited contributors, excluding the maintainer.
+
+### Fixed
+- Phase-status locking now grants ownership through exclusive `.owner` creation instead of relying on `mkdir` exit status. This prevents a lost update when a Windows-native `mkdir` reports success to two writers (#281, PR #282).
+- Hermes rejects linked active-plan pointers and replaces the pointer through an exclusive temporary file, preserving hard-linked sibling content (#259, PR #284).
+- OpenCode and the DSH core reject linked active-plan pointers and replace the pointer without truncating a hard-linked sibling. A linked `.planning` directory is rejected while a project root reached through a junction remains usable (#260, PR #283).
+- PowerShell named-plan initialization rejects a read-only active pointer before creating the new plan directory (#253, PR #285).
+- PowerShell initialization recovers a project working directory containing `[` or `]` under Windows PowerShell 5.1 (#256, PR #286).
+- PowerShell active-pointer replacement retries transient concurrent I/O and pointer-inspection races while rechecking root and pointer safety. Cleanup of a `ReplaceFile` artifact after final failure remains open in #254 (PR #287).
+
+### Changed
+- The `planning-with-files` npm package ships the canonical skill and displays the full official repository README. Repository-relative images and document links resolve to the v3.20.6 release while the Pi integration remains bundled.
+
+### Thanks
+- @kuei51307-hub, for the exclusive phase-status lock claim and regression in #282.
+- @TayfurYldz, for the OpenCode, DSH, Hermes and PowerShell pointer fixes in #283, #284, #285, #286 and #287.
+
 ## [3.20.5] - 2026-09-21
 
 ### Fixed

@@ -116,12 +116,13 @@ These amazing people have contributed code, documentation, or significant improv
   - Made the shell several-plans counters skip symlinked and junctioned plan directories so they match the Hermes plugin, with a differential regression including the ambiguity probe.
   - Made denied PowerShell planning-file writes fail explicitly and deferred named-plan activation until all three files are ready, with real Windows ACL regression coverage.
 
-- **[@TayfurYldz](https://github.com/TayfurYldz)**, [PR #265](https://github.com/OthmanAdi/planning-with-files/pull/265), [PR #266](https://github.com/OthmanAdi/planning-with-files/pull/266), [PR #273](https://github.com/OthmanAdi/planning-with-files/pull/273)
+- **[@TayfurYldz](https://github.com/TayfurYldz)**, [PR #265](https://github.com/OthmanAdi/planning-with-files/pull/265), [PR #266](https://github.com/OthmanAdi/planning-with-files/pull/266), [PR #273](https://github.com/OthmanAdi/planning-with-files/pull/273), [PR #283](https://github.com/OthmanAdi/planning-with-files/pull/283), [PR #284](https://github.com/OthmanAdi/planning-with-files/pull/284), [PR #285](https://github.com/OthmanAdi/planning-with-files/pull/285), [PR #286](https://github.com/OthmanAdi/planning-with-files/pull/286), [PR #287](https://github.com/OthmanAdi/planning-with-files/pull/287)
   - Bound `PWF_PLAN_ROOT` to the current project around the attestation call in both initializers so an inherited pin cannot redirect attestation, with shell and PowerShell regressions.
   - Made the shell slugifier single-line so a plan name with an embedded newline no longer creates an unusable plan directory.
   - Guarded OpenCode replay against null and array rows, non-string tool names, and object-valued text while retaining healthy session rows.
+  - Replaced OpenCode, DSH and Hermes active pointers without following hard links, rejected read-only PowerShell pointers before plan creation, recovered bracketed Windows PowerShell working directories, and bounded concurrent pointer replacement retries. The `ReplaceFile` artifact case remains open in #254.
 
-- **[@kuei51307-hub](https://github.com/kuei51307-hub)**, [PR #243](https://github.com/OthmanAdi/planning-with-files/pull/243), [PR #244](https://github.com/OthmanAdi/planning-with-files/pull/244), [PR #248](https://github.com/OthmanAdi/planning-with-files/pull/248), [PR #249](https://github.com/OthmanAdi/planning-with-files/pull/249), [PR #251](https://github.com/OthmanAdi/planning-with-files/pull/251), [PR #267](https://github.com/OthmanAdi/planning-with-files/pull/267), [PR #277](https://github.com/OthmanAdi/planning-with-files/pull/277), [PR #279](https://github.com/OthmanAdi/planning-with-files/pull/279)
+- **[@kuei51307-hub](https://github.com/kuei51307-hub)**, [PR #243](https://github.com/OthmanAdi/planning-with-files/pull/243), [PR #244](https://github.com/OthmanAdi/planning-with-files/pull/244), [PR #248](https://github.com/OthmanAdi/planning-with-files/pull/248), [PR #249](https://github.com/OthmanAdi/planning-with-files/pull/249), [PR #251](https://github.com/OthmanAdi/planning-with-files/pull/251), [PR #267](https://github.com/OthmanAdi/planning-with-files/pull/267), [PR #277](https://github.com/OthmanAdi/planning-with-files/pull/277), [PR #279](https://github.com/OthmanAdi/planning-with-files/pull/279), [PR #282](https://github.com/OthmanAdi/planning-with-files/pull/282)
   - Fixed active-plan display and listing for UTF-8 BOM-prefixed pointers, with regression coverage across the synchronized shell helpers.
   - Made IDE sync verification report missing canonical sources, with subprocess tests for read-only verification and unchanged sync behavior.
   - Bounded session catchup to exact planning filenames across the canonical scanners and the Hermes, MastraCode, and OpenCode adapters, with lookalike regression coverage.
@@ -129,6 +130,7 @@ These amazing people have contributed code, documentation, or significant improv
   - Routed Cursor's native PowerShell hooks through the shared plan resolver so named plans are injected on Windows, and made the resolver's `PWF_PLAN_ROOT` check run on Windows PowerShell 5.1.
   - Ported the several-plans rule into the Hermes plugin so two or more named plans without `PLAN_ID` get the selector notice instead of a pointer or timestamp guess.
   - Made shell and PowerShell initialization report attestation failures with a recovery command, and added the missing analytics Next Step section across template copies with regression coverage.
+  - Made phase-status lock ownership exclusive even when a Windows-native `mkdir` reports simultaneous success to two writers.
 
 - **[@Dphoshoba](https://github.com/Dphoshoba)**, [PR #242](https://github.com/OthmanAdi/planning-with-files/pull/242)
   - Proposed and implemented named-plan listing with phase counts and a shared active-pointer marker.
@@ -453,6 +455,6 @@ If you've contributed and don't see your name here, please open an issue! We wan
 
 ---
 
-**Total Contributors:** 65+ and growing!
+**Total Contributors:** 77 (76 community contributors plus the maintainer)
 
-*Last updated: 2026-09-21*
+*Last updated: 2026-09-23*

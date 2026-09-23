@@ -3,13 +3,13 @@
 Background: the repo ships 14 SKILL.md variants plus plugin.json, marketplace.json
 and CITATION.cff. Past releases (v2.34.1, v2.36.0, v2.36.2, v2.36.3) repeatedly
 shipped with one or more variants stuck on the old version because the bump was
-done by hand across 19 files. This test fails the build the moment that drifts.
+done by hand across the parity set. This test fails the build the moment that drifts.
 
 Source of truth = canonical English SKILL.md. Every file in PARITY_FILES below
 must report the same `metadata.version` (or `version` for JSON/CFF). Lagging
-SKILL.md variants (.continue, .gemini, .pi, .kiro) are intentionally on
-different schemes and excluded from the lock; the Pi channel's npm package.json
-IS locked (see PARITY_JSON_LIKE).
+SKILL.md variants (.continue, .gemini, .kiro) are intentionally on
+different schemes and excluded from the lock. The official npm SKILL.md and
+package.json are both locked to the canonical version.
 
 Use `python scripts/bump-version.py X.Y.Z` to bump the entire parity set in one
 shot, which is what the release protocol expects.
@@ -24,6 +24,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CANONICAL_SKILL = REPO_ROOT / "skills" / "planning-with-files" / "SKILL.md"
+NPM_SKILL = REPO_ROOT / ".pi" / "skills" / "planning-with-files" / "SKILL.md"
 
 
 PARITY_SKILL_MD = [
@@ -41,6 +42,7 @@ PARITY_SKILL_MD = [
     ".mastracode/skills/planning-with-files/SKILL.md",
     ".opencode/skills/planning-with-files/SKILL.md",
     ".agents/skills/planning-with-files/SKILL.md",
+    ".pi/skills/planning-with-files/SKILL.md",
     "clawhub-upload/SKILL.md",
 ]
 
@@ -49,7 +51,7 @@ PARITY_JSON_LIKE = [
     ".claude-plugin/plugin.json",
     ".claude-plugin/marketplace.json",
     ".codex-plugin/plugin.json",
-    # npm package for the Pi channel (issue #213: stayed at a third-party
+    # npm package for the official skill and Pi extension (issue #213: stayed at a third-party
     # 1.1.0 for 15 releases because no test locked it to the release version)
     ".pi/skills/planning-with-files/package.json",
 ]
@@ -97,6 +99,9 @@ class SkillMdVersionParityTests(unittest.TestCase):
         self.assertTrue(CANONICAL_SKILL.is_file(), CANONICAL_SKILL)
         version = read_skill_version(CANONICAL_SKILL)
         self.assertRegex(version, r"^\d+\.\d+\.\d+")
+
+    def test_npm_skill_is_exact_canonical_copy(self) -> None:
+        self.assertEqual(CANONICAL_SKILL.read_bytes(), NPM_SKILL.read_bytes())
 
     def test_all_parity_skill_md_share_canonical_version(self) -> None:
         canonical = read_skill_version(CANONICAL_SKILL)

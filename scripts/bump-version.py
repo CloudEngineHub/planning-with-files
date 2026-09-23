@@ -11,11 +11,12 @@ Run before tagging a release:
     python scripts/bump-version.py 2.37.0
     python scripts/bump-version.py 2.37.0 --dry-run
 
-Maintained targets (20 entries: 19 tracked files plus optional local staging):
+Maintained targets (21 entries: 20 tracked files plus optional local staging):
     skills/planning-with-files/SKILL.md            (canonical)
     skills/i18n/planning-with-files-{ar,de,es,zh,zht}/SKILL.md
     .{codebuddy,codex,cursor,factory,hermes,mastracode,opencode}/skills/planning-with-files/SKILL.md
     .agents/skills/planning-with-files/SKILL.md    (Agent Skills standard layout)
+    .pi/skills/planning-with-files/SKILL.md        (canonical npm skill)
     clawhub-upload/SKILL.md                        (gitignored; bumped when present)
     .claude-plugin/plugin.json
     .claude-plugin/marketplace.json
@@ -25,7 +26,6 @@ Maintained targets (20 entries: 19 tracked files plus optional local staging):
 
 Files intentionally left behind (see LAGGING_FILES; do not bump automatically):
     .continue and .gemini (intentionally behind),
-    .pi SKILL.md (no version field; the Pi version lives in its package.json above),
     .kiro (-kiro-suffixed scheme)
 """
 from __future__ import annotations
@@ -56,12 +56,13 @@ PARITY_FILES = [
     (".mastracode/skills/planning-with-files/SKILL.md", "skill_md"),
     (".opencode/skills/planning-with-files/SKILL.md", "skill_md"),
     (".agents/skills/planning-with-files/SKILL.md", "skill_md"),
+    (".pi/skills/planning-with-files/SKILL.md", "skill_md"),
     ("clawhub-upload/SKILL.md", "skill_md"),
     (".claude-plugin/plugin.json", "plugin_json"),
     (".claude-plugin/marketplace.json", "marketplace_json"),
     (".codex-plugin/plugin.json", "plugin_json"),
     ("CITATION.cff", "citation_cff"),
-    # npm package for the Pi channel (issue #213: it sat at a third-party 1.1.0
+    # npm package for the official skill and Pi extension (issue #213: it sat at a third-party 1.1.0
     # for 15 releases because nothing bumped it). Same single-"version" JSON
     # shape as plugin.json, so the handler is shared. Remember: bumping only
     # changes the file; `npm publish` from .pi/skills/planning-with-files/ is a
@@ -72,7 +73,7 @@ PARITY_FILES = [
 # Publish staging that remains parity-locked whenever it exists, but is
 # intentionally absent from clean clones because the directory is gitignored.
 # Keep these paths in PARITY_FILES so maintainer worktrees still bump and
-# validate them as part of the canonical 20-entry release set.
+# validate them as part of the canonical 21-entry release set.
 OPTIONAL_PARITY_FILES = {
     "clawhub-upload/SKILL.md": "optional gitignored ClawHub publish staging",
 }
@@ -81,7 +82,6 @@ OPTIONAL_PARITY_FILES = {
 LAGGING_FILES = [
     ".continue/skills/planning-with-files/SKILL.md",
     ".gemini/skills/planning-with-files/SKILL.md",
-    ".pi/skills/planning-with-files/SKILL.md",       # no version field; npm version lives in its package.json (parity set)
     ".kiro/skills/planning-with-files/SKILL.md",     # kiro scheme (2.32.0-kiro)
 ]
 
