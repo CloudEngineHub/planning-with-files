@@ -238,6 +238,7 @@ One hook fire measures 289ms wall-clock since the v3.6.0 optimization, down from
 
 | Version | Highlights |
 |---------|------------|
+| **v3.20.7** | Fixes npm capability disclosure metadata and three unavailable contributor portrait endpoints. The npm package continues to ship the canonical skill and full repository README. |
 | **v3.20.6** | Phase-status writers claim one lock owner even with Windows-native `mkdir` (#282). OpenCode, DSH and Hermes safely replace linked active pointers (#283, #284). PowerShell named plans reject read-only pointers before creation (#285), work under bracketed paths (#286), and retry transient concurrent pointer writes and inspection races (#287). The remaining `ReplaceFile` artifact case stays open in #254. |
 | **v3.20.5** | OpenCode replay tolerates malformed parts (#273). Initialization reports attestation failures accurately (#277), analytics plans include Next Step (#279), and PowerShell denied writes fail without activating an incomplete named plan (#280). |
 | **v3.20.4** | PowerShell route on OneDrive: an `.active_plan` pointer carrying the OneDrive Files On-Demand reparse attribute no longer counts as unsafe, so the Cursor hooks, the resolver and `set-active-plan.ps1` work in projects under OneDrive (#275). The session-catchup copy guard checks tracked copies only (#274). |
@@ -801,7 +802,7 @@ MIT License — feel free to use, modify, and distribute.
 
 ## Contributors
 
-Code, documentation, and issue contributors. Select a portrait to open a GitHub profile. [Full credits](CONTRIBUTORS.md).
+Code, documentation, and issue contributors. Select a portrait to open a GitHub profile or archived credit. [Full credits](CONTRIBUTORS.md).
 
 <!-- contributor-portraits:start -->
 <p align="center">
@@ -842,12 +843,12 @@ Code, documentation, and issue contributors. Select a portrait to open a GitHub 
   <a href="https://github.com/Dikshj" title="@Dikshj"><img src="https://github.com/Dikshj.png?size=56" width="48" height="48" alt="@Dikshj"></a>
   <a href="https://github.com/2023Anita" title="@2023Anita"><img src="https://github.com/2023Anita.png?size=56" width="48" height="48" alt="@2023Anita"></a>
   <a href="https://github.com/GongYuanCaiJi" title="@GongYuanCaiJi"><img src="https://github.com/GongYuanCaiJi.png?size=56" width="48" height="48" alt="@GongYuanCaiJi"></a>
-  <a href="https://github.com/Fat-Jan" title="@Fat-Jan"><img src="https://github.com/Fat-Jan.png?size=56" width="48" height="48" alt="@Fat-Jan"></a>
+  <a href="https://github.com/Alonso-li" title="@Fat-Jan, now @Alonso-li"><img src="https://github.com/Alonso-li.png?size=56" width="48" height="48" alt="@Fat-Jan"></a>
   <a href="https://github.com/shunfeng8421" title="@shunfeng8421"><img src="https://github.com/shunfeng8421.png?size=56" width="48" height="48" alt="@shunfeng8421"></a>
   <a href="https://github.com/Skulli485" title="@Skulli485"><img src="https://github.com/Skulli485.png?size=56" width="48" height="48" alt="@Skulli485"></a>
   <a href="https://github.com/carterusedulm2-maker" title="@carterusedulm2-maker"><img src="https://github.com/carterusedulm2-maker.png?size=56" width="48" height="48" alt="@carterusedulm2-maker"></a>
   <a href="https://github.com/gauravvojha" title="@gauravvojha"><img src="https://github.com/gauravvojha.png?size=56" width="48" height="48" alt="@gauravvojha"></a>
-  <a href="https://github.com/CleanDev-Fix" title="@CleanDev-Fix"><img src="https://github.com/CleanDev-Fix.png?size=56" width="48" height="48" alt="@CleanDev-Fix"></a>
+  <a href="CONTRIBUTORS.md" title="@CleanDev-Fix, archived credit"><img src="https://github.com/identicons/CleanDev-Fix.png" width="48" height="48" alt="@CleanDev-Fix"></a>
   <a href="https://github.com/bmyury" title="@bmyury"><img src="https://github.com/bmyury.png?size=56" width="48" height="48" alt="@bmyury"></a>
   <a href="https://github.com/oaabahussain" title="@oaabahussain"><img src="https://github.com/oaabahussain.png?size=56" width="48" height="48" alt="@oaabahussain"></a>
   <a href="https://github.com/gavinlinasd" title="@gavinlinasd"><img src="https://github.com/gavinlinasd.png?size=56" width="48" height="48" alt="@gavinlinasd"></a>
@@ -880,6 +881,6 @@ Code, documentation, and issue contributors. Select a portrait to open a GitHub 
   <a href="https://github.com/Yigtwxx" title="@Yigtwxx"><img src="https://github.com/Yigtwxx.png?size=56" width="48" height="48" alt="@Yigtwxx"></a>
   <a href="https://github.com/RioTheGreat-ai" title="@RioTheGreat-ai"><img src="https://github.com/RioTheGreat-ai.png?size=56" width="48" height="48" alt="@RioTheGreat-ai"></a>
   <a href="https://github.com/kmichels" title="@kmichels"><img src="https://github.com/kmichels.png?size=56" width="48" height="48" alt="@kmichels"></a>
-  <a href="https://github.com/voidborne-d" title="@voidborne-d"><img src="https://github.com/voidborne-d.png?size=56" width="48" height="48" alt="@voidborne-d"></a>
+  <a href="CONTRIBUTORS.md" title="@voidborne-d, archived credit"><img src="https://github.com/identicons/voidborne-d.png" width="48" height="48" alt="@voidborne-d"></a>
 </p>
 <!-- contributor-portraits:end -->

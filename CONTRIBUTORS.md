@@ -215,7 +215,7 @@ These amazing people have contributed code, documentation, or significant improv
   - Added `.codex/hooks/pre-compact.sh` (POSIX sh, reuses `resolve-plan-dir.sh`, emits the same flush reminder and `Plan-SHA256` line as the canonical hook), wired it into `.codex/hooks.json`, corrected the `docs/codex.md` hook table, and added two targeted tests
   - **Impact:** Codex users on the native `hooks.json` route now get the pre-compaction progress-flush reminder. The hook stays dormant on runtimes that never fire a PreCompact event, with `|| true` wiring that cannot break a session
 
-- **[@Fat-Jan](https://github.com/Fat-Jan)** (Alonso) - [PR #184](https://github.com/OthmanAdi/planning-with-files/pull/184)
+- **[@Fat-Jan](https://github.com/Alonso-li)** (Alonso, now @Alonso-li) - [PR #184](https://github.com/OthmanAdi/planning-with-files/pull/184)
   - Updated the `docs/codex.md` verification block to grep `^(hooks|codex_hooks)\s` instead of the bare `^codex_hooks\s`, and aligned the follow-up troubleshooting sentence with the `hooks = true` guidance stated earlier in the same document
   - The bare pattern stopped matching once Codex moved its canonical feature key from `codex_hooks` to `hooks` in 0.129.0 (openai/codex#20522); the alias still resolves in `config.toml`, but `codex features list` prints only the canonical `hooks`, so the verify step was telling correctly configured users to upgrade
   - **Impact:** the documented verification command matches on current Codex versions again, and `docs/codex.md` is internally consistent across the six places that reference the feature flag

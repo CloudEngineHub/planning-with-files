@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [3.20.7] - 2026-09-23
+
+### Fixed
+- The npm package description now discloses selected project planning context and the absence of a network upload path. This restores the public-capability metadata check that failed in v3.20.6 CI.
+- The contributor portrait grid uses the current profile for @Fat-Jan and stable identicons linked to archived credits for two unavailable accounts.
+- The full npm README points to the v3.20.7 repository files and includes the corrected contributor portraits.
+
 ## [3.20.6] - 2026-09-23
 
 ### Added
