@@ -347,6 +347,130 @@ class InitSessionPowerShellSlugTests(unittest.TestCase):
             self.assertTrue((planning / ".active_plan").is_file())
             self.assertEqual([], list(planning.glob(".active_plan~RF*.TMP")))
 
+    def test_transient_pointer_inspection_retries_after_root_verification(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            root = base / "project"
+            root.mkdir()
+            scripts = base / "skill" / "scripts"
+            scripts.mkdir(parents=True)
+            shutil.copy2(INIT_PS1, scripts / "init-session.ps1")
+            shutil.copy2(REPO_ROOT / "scripts" / "set-active-plan.ps1",
+                         scripts / "set-active-plan-real.ps1")
+            (scripts / "set-active-plan.ps1").write_text(
+                r"""
+param([string]$PlanId = "", [switch]$VerifyRoot)
+$real = Join-Path $PSScriptRoot 'set-active-plan-real.ps1'
+if ($VerifyRoot) { & $real -VerifyRoot *> $null; exit $LASTEXITCODE }
+$marker = Join-Path (Get-Location).Path 'attempts.txt'
+if (-not (Test-Path -LiteralPath $marker)) {
+    [IO.File]::WriteAllText($marker, '1')
+    Write-Error 'Error: could not set the active plan pointer: the active plan pointer became unsafe during replacement'
+    exit 1
+}
+[IO.File]::AppendAllText($marker, '2')
+& $real $PlanId *> $null
+exit $LASTEXITCODE
+""",
+                encoding="ascii",
+            )
+
+            result = subprocess.run(
+                [POWERSHELL, "-NoProfile", "-ExecutionPolicy", "Bypass",
+                 "-File", str(scripts / "init-session.ps1"), "Retry Case"],
+                cwd=root, text=True, encoding="utf-8-sig",
+                capture_output=True, check=False, env=child_env(),
+            )
+
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertEqual("12", (root / "attempts.txt").read_text(encoding="ascii"))
+            expected = f"{date.today().isoformat()}-retry-case"
+            self.assertEqual(expected, (root / ".planning" / ".active_plan").read_text())
+
+    def test_pointer_retry_stops_when_pointer_becomes_readonly(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            root = base / "project"
+            root.mkdir()
+            scripts = base / "skill" / "scripts"
+            scripts.mkdir(parents=True)
+            shutil.copy2(INIT_PS1, scripts / "init-session.ps1")
+            shutil.copy2(REPO_ROOT / "scripts" / "set-active-plan.ps1",
+                         scripts / "set-active-plan-real.ps1")
+            (scripts / "set-active-plan.ps1").write_text(
+                r"""
+param([string]$PlanId = "", [switch]$VerifyRoot)
+$real = Join-Path $PSScriptRoot 'set-active-plan-real.ps1'
+if ($VerifyRoot) { & $real -VerifyRoot *> $null; exit $LASTEXITCODE }
+$marker = Join-Path (Get-Location).Path 'attempts.txt'
+if (-not (Test-Path -LiteralPath $marker)) {
+    [IO.File]::WriteAllText($marker, '1')
+    $pointer = Join-Path (Join-Path (Get-Location).Path '.planning') '.active_plan'
+    [IO.File]::WriteAllText($pointer, 'KEEP')
+    (Get-Item -LiteralPath $pointer).IsReadOnly = $true
+    Write-Error 'Error: could not set the active plan pointer: the active plan pointer became unsafe during replacement'
+    exit 1
+}
+[IO.File]::AppendAllText($marker, '2')
+& $real $PlanId *> $null
+exit $LASTEXITCODE
+""",
+                encoding="ascii",
+            )
+            pointer = root / ".planning" / ".active_plan"
+            try:
+                result = subprocess.run(
+                    [POWERSHELL, "-NoProfile", "-ExecutionPolicy", "Bypass",
+                     "-File", str(scripts / "init-session.ps1"), "Readonly Race"],
+                    cwd=root, text=True, encoding="utf-8-sig",
+                    capture_output=True, check=False, env=child_env(),
+                )
+                self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
+                self.assertEqual("1", (root / "attempts.txt").read_text(encoding="ascii"))
+                self.assertEqual(b"KEEP", pointer.read_bytes())
+            finally:
+                if pointer.exists():
+                    pointer.chmod(0o666)
+
+    def test_pointer_retry_does_not_repeat_other_selector_failures(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            root = base / "project"
+            root.mkdir()
+            scripts = base / "skill" / "scripts"
+            scripts.mkdir(parents=True)
+            shutil.copy2(INIT_PS1, scripts / "init-session.ps1")
+            shutil.copy2(REPO_ROOT / "scripts" / "set-active-plan.ps1",
+                         scripts / "set-active-plan-real.ps1")
+            (scripts / "set-active-plan.ps1").write_text(
+                r"""
+param([string]$PlanId = "", [switch]$VerifyRoot)
+$real = Join-Path $PSScriptRoot 'set-active-plan-real.ps1'
+if ($VerifyRoot) { & $real -VerifyRoot *> $null; exit $LASTEXITCODE }
+$marker = Join-Path (Get-Location).Path 'attempts.txt'
+if (-not (Test-Path -LiteralPath $marker)) {
+    [IO.File]::WriteAllText($marker, '1')
+    Write-Error 'Error: another selector failure'
+    exit 1
+}
+[IO.File]::AppendAllText($marker, '2')
+& $real $PlanId *> $null
+exit $LASTEXITCODE
+""",
+                encoding="ascii",
+            )
+
+            result = subprocess.run(
+                [POWERSHELL, "-NoProfile", "-ExecutionPolicy", "Bypass",
+                 "-File", str(scripts / "init-session.ps1"), "No Retry Case"],
+                cwd=root, text=True, encoding="utf-8-sig",
+                capture_output=True, check=False, env=child_env(),
+            )
+
+            self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertEqual("1", (root / "attempts.txt").read_text(encoding="ascii"))
+            self.assertFalse((root / ".planning" / ".active_plan").exists())
+
     def test_slug_from_non_ascii_letters_stays_ascii(self) -> None:
         # A dotted capital I survives a case-insensitive -replace; the plan id
         # must still be one the resolvers and the selector accept.

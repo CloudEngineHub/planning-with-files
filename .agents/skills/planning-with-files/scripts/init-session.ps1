@@ -352,13 +352,37 @@ if ($UsePlanDir) {
     # Activate the named plan only after all three planning files are ready.
     # This matches init-session.sh and prevents a failed initialization from
     # leaving .active_plan pointed at a partial plan directory.
-    $global:LASTEXITCODE = 0
-    try {
-        & $PlanSelector $PlanId *> $null
-    } catch {
-        $global:LASTEXITCODE = 1
+    $pointerSet = $false
+    for ($attempt = 1; $attempt -le 5; $attempt++) {
+        $global:LASTEXITCODE = 0
+        try {
+            $selectorResult = & $PlanSelector $PlanId 2>&1
+        } catch {
+            $selectorResult = $_
+            $global:LASTEXITCODE = 1
+        }
+        if ($LASTEXITCODE -eq 0) {
+            $pointerSet = $true
+            break
+        }
+        # Another writer can replace the pointer between the selector's
+        # Get-Item and final-path check. Retry only that transient result.
+        $transientPointerRace = $selectorResult -is [System.Management.Automation.ErrorRecord] -and
+            $selectorResult.Exception.Message -ceq
+                'Error: could not set the active plan pointer: the active plan pointer became unsafe during replacement'
+        if ($attempt -eq 5 -or -not $transientPointerRace) {
+            break
+        }
+        Start-Sleep -Milliseconds 50
+        $global:LASTEXITCODE = 0
+        try {
+            & $PlanSelector -VerifyRoot *> $null
+        } catch {
+            $global:LASTEXITCODE = 1
+        }
+        if ($LASTEXITCODE -ne 0) { break }
     }
-    if ($LASTEXITCODE -ne 0) {
+    if (-not $pointerSet) {
         Write-Error "Error: could not safely update the active plan pointer at $(Join-Path $PlanningRoot '.active_plan')."
         exit 1
     }
