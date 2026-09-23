@@ -1,7 +1,7 @@
 {
   "name": "planning-with-files",
   "version": "3.20.6",
-  "description": "Official Planning with Files skill for AI coding agents. Ships the canonical skill, scripts, templates, and a Pi Coding Agent extension.",
+  "description": "Official Planning with Files skill for AI coding agents. Keeps persistent project planning files and injects selected plan context. Automatic recovery reads project files only; explicit local session catchup has no network upload path. Includes scripts, templates, and a Pi Coding Agent extension.",
   "keywords": [
     "planning-with-files",
     "planning",
