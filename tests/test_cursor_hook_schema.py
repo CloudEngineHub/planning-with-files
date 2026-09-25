@@ -169,5 +169,75 @@ class CursorHookSchemaTests(unittest.TestCase):
             )
 
 
+COMPLETE_PLAN = (
+    "# Plan\n### Phase 1: Build\n**Status:** complete\n"
+    "### Phase 2: Verify\n**Status:** complete\n"
+)
+INCOMPLETE_PLAN = (
+    "# Plan\n### Phase 1: Build\n**Status:** complete\n"
+    "### Phase 2: Verify\n**Status:** in_progress\n"
+)
+
+
+class CursorStopHookTests(unittest.TestCase):
+    """Cursor submits a stop hook's followup_message as the next user message.
+
+    A finished plan must therefore produce no output at all, or every stop in a
+    project with a completed plan triggers automatic follow-up turns (up to the
+    manifest's loop_limit). An incomplete plan still asks Cursor to continue.
+    """
+
+    def stop_commands(self) -> list[tuple[str, list[str]]]:
+        commands = []
+        if shutil.which("sh"):
+            commands.append(("sh", ["sh", str(HOOKS / "stop.sh")]))
+        for name in ("powershell.exe", "pwsh"):
+            executable = shutil.which(name)
+            if executable:
+                commands.append((name, [
+                    executable, "-NoProfile", "-ExecutionPolicy", "Bypass",
+                    "-File", str(HOOKS / "stop.ps1"),
+                ]))
+        if not commands:
+            self.skipTest("neither POSIX sh nor PowerShell is available")
+        return commands
+
+    def run_stop(self, command: list[str], plan: str) -> subprocess.CompletedProcess[str]:
+        with tempfile.TemporaryDirectory(prefix="pwf-cursor-stop-") as tmp:
+            root = Path(tmp)
+            (root / "task_plan.md").write_text(plan, encoding="utf-8")
+            env = os.environ.copy()
+            for name in ("PLANNING_DISABLED", "PLAN_ID", "PWF_PLAN_ROOT"):
+                env.pop(name, None)
+            return subprocess.run(
+                command,
+                cwd=root,
+                env=env,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                capture_output=True,
+                timeout=60,
+                check=False,
+            )
+
+    def test_stop_is_silent_when_every_phase_is_complete(self) -> None:
+        for name, command in self.stop_commands():
+            with self.subTest(shell=name):
+                result = self.run_stop(command, COMPLETE_PLAN)
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual("", result.stdout.strip().lstrip("﻿"))
+
+    def test_stop_still_continues_an_incomplete_plan(self) -> None:
+        for name, command in self.stop_commands():
+            with self.subTest(shell=name):
+                result = self.run_stop(command, INCOMPLETE_PLAN)
+                self.assertEqual(0, result.returncode, result.stderr)
+                payload = json.loads(result.stdout.strip().lstrip("﻿"))
+                self.assertIn(
+                    "Task incomplete (1/2 phases done)", payload["followup_message"]
+                )
+
+
 if __name__ == "__main__":
     unittest.main()
