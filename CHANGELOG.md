@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [3.20.8] - 2026-09-25
+
+### Fixed
+- The automatic Stop check is silent when no plan exists. In every Claude Code session without a `task_plan.md`, each reply ended with "No task_plan.md found" because the no-plan branch of `check-complete --gate` printed its notice and the hook surfaced it as a system message. The gate path now exits quietly there, and the explicit report (`check-complete` without `--gate`) keeps the notice (#288, PR #289).
+- PowerShell active-pointer replacement names its own backup file for `ReplaceFile`. When the final replacement fails after the old pointer was moved aside, the selector moves it back, or deletes only its own backup when another selector has already written a safe pointer. It no longer leaves an unowned `.active_plan~RF*.TMP` behind and never deletes one it did not create. After a successful switch the backup only holds the superseded value, so it is deleted without being moved back, and a backup that cannot be removed produces a warning instead of a failed exit for a pointer that was already written (#254, PR #290).
+- Cursor hooks follow Cursor's current hook schema. Cursor has no `userPromptSubmit` event, so the plan was never injected; plan context now arrives through `sessionStart` `additional_context`. `preToolUse` answers `{"permission":"allow"}`, the progress reminder is returned as `postToolUse` `additional_context`, failure paths print valid JSON, and the Windows manifest starts PowerShell with `-NoProfile`. The shell session-start hook runs Python in isolated mode and falls back from `python3` to `python`. Cursor Cloud Agents do not run `sessionStart` (#262, PR #291).
+- Gemini CLI hooks use the output fields Gemini reads. Plan context moves from `BeforeTool`, whose `systemMessage` is shown only to the user, and `BeforeModel`, whose top-level `additionalContext` is ignored, to `BeforeAgent` `hookSpecificOutput.additionalContext`; the `AfterTool` reminder moves into `hookSpecificOutput` as well. The skill metadata lists the registered events (#292, PR #293).
+- The Cursor and Gemini hook scripts are executable. Gemini runs each hook as `bash -c <path>` and Cursor requires executable script hooks, but the four Gemini hooks and the Cursor `pre-tool-use`, `post-tool-use` and `stop` hooks were committed as 100644, so they could not run from a macOS or Linux clone. A test now checks the git mode of every script the two manifests run by path. On macOS and Linux this also turns on the documented Cursor stop hook: while the root plan has incomplete phases it asks Cursor to continue, at most three times per stop (`loop_limit`), without a `.mode` opt-in, as the Windows route already did.
+- The Cursor stop hook is silent when every phase is complete. Cursor submits a stop hook's `followup_message` as the next user message, and the hook returned an "ALL PHASES COMPLETE" message for a finished plan, so each stop in such a project triggered up to three automatic follow-up turns on the Windows route. An incomplete plan still asks Cursor to continue.
+
+### Changed
+- Projects that copied the Cursor or Gemini adapters need the new manifest together with the new scripts: `.cursor/hooks.json` and `.cursor/hooks.windows.json` register `sessionStart` with `session-start.sh` or `session-start.ps1`, and `.gemini/settings.json` registers `BeforeAgent` with `before-agent.sh`, which replaces `before-tool.sh` and `before-model.sh`.
+
+### Thanks
+- @mmychu, for tracing the per-reply Stop notice to the no-plan branch of `check-complete --gate` and fixing every copy (#288, PR #289).
+- @kuei51307-hub, for the caller-owned `ReplaceFile` backup with pointer recovery and its failure-path regression (#254, PR #290).
+- @SomSamantray, for moving the Cursor hooks to the current schema (#262, PR #291).
+- @ShaunLinTW, for reporting and fixing the Gemini hook output schema (#292, PR #293).
+
 ## [3.20.7] - 2026-09-23
 
 ### Fixed
