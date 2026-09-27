@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [3.21.0] - 2026-09-27
+
+### Added
+- `attest-plan.sh --target root` attests the project roadmap while a named plan remains active. `--target <plan-id>` selects a named plan through the existing resolver, honors `PWF_PLAN_ROOT`, and rejects invalid or linked targets without falling back. Attestation writes print the resolved plan and hash-file paths first (#296, PR #297).
+
+### Fixed
+- PowerShell named-plan initialization retries the transient active-pointer pre-check failure that can occur during a concurrent replacement. Every retry retains the root and pointer safety checks, and attempts remain bounded (#294, PR #295).
+- Explicit attestation targets reject empty values and unsupported trailing arguments. Named targets preserve containment checks and normalize validated Windows paths before hashing (#296, PR #297).
+
+### Thanks
+- @tayfuryldz, for the PowerShell pre-check retry and explicit attestation target, with regression coverage (#294, #296, PRs #295 and #297).
+
 ## [3.20.8] - 2026-09-25
 
 ### Fixed
