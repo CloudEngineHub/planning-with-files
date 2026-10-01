@@ -43,7 +43,8 @@
     "url": "https://github.com/OthmanAdi/planning-with-files/issues"
   },
   "dependencies": {
-    "@opencode-ai/plugin": "^1.18.16"
+    "@opencode-ai/plugin": "^1.18.16",
+    "@opencode/plugin": "2.0.21"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",

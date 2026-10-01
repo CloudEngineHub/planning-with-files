@@ -5,7 +5,7 @@ planning-with-files treats [OpenCode](https://opencode.ai) as a first-class host
 - **The skill.** OpenCode reads `SKILL.md` natively from its own discovery paths, so the workflow instructions load through the `skill` tool like any other skill.
 - **The native plugin** `opencode-planning-with-files`. It hooks OpenCode's plugin API to inject the plan on every turn, remind after writes, keep the plan in the compaction summary, hold a gated session open until the plan reports complete, and expose `pwf_init`, `pwf_status` and `pwf_check` as tools. Source: `.opencode/packages/opencode-planning-with-files/` in this repository.
 
-Everything on this page was verified against OpenCode 1.18.21: the plugin loaded from a project config directory, the three tools appeared in the tool list, `/pwf` and `/pwf-status` in the command list, and a real session message received the framed plan as a synthetic part.
+Plugin version 1.2.0 supports OpenCode 1.18.21 and OpenCode 2.0.21. The default export provides the v1 `server` entry and the v2 `setup` entry. OpenCode 2 uses different hook registrations and config keys; use the installation block for your version below.
 
 ## Install
 
@@ -33,12 +33,20 @@ ls .agents/skills/planning-with-files/SKILL.md        # project install
 
 ### 2. The plugin
 
-Add the package to `opencode.json` (project) or `~/.config/opencode/opencode.json` (global):
+For OpenCode 2, add the package to `opencode.json` (project) or `~/.config/opencode/opencode.json` (global):
+
+```json
+{
+  "plugins": ["opencode-planning-with-files@1.2.0"]
+}
+```
+
+OpenCode 1 uses the singular `plugin` key:
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-planning-with-files"]
+  "plugin": ["opencode-planning-with-files@1.2.0"]
 }
 ```
 
@@ -57,9 +65,13 @@ curl -fsSL https://raw.githubusercontent.com/OthmanAdi/planning-with-files/maste
 
 ### 4. Verify
 
-Start OpenCode in a project and ask: "Call pwf_status." With no plan it answers that none exists; run `/pwf Night run` and the next message carries the injected plan block. `opencode serve` users can check `GET /experimental/tool/ids` for `pwf_init`, `pwf_status`, `pwf_check` and `GET /command` for `pwf`.
+Start OpenCode in a project and ask: "Call pwf_status." With no plan it answers that none exists. Ask it to call `pwf_init` with a name, then send another message to use the plan. On v1, `opencode serve` users can also check `GET /experimental/tool/ids` for `pwf_init`, `pwf_status`, `pwf_check` and `GET /command` for `pwf`.
 
 ## What the plugin does
+
+OpenCode 2 registers `session.hook("context")` to add framed planning context to each model request without changing the user's message. `tool.hook("execute.after")` adds write reminders while preserving structured output and attachments. `session.hook("compaction")` carries the plan pointer and hash into the summary request. The completion gate listens for `session.status` events whose status is `idle`, and the three planning tools are registered through `tool.transform`. Registrations and the event subscription are disposed when the plugin unloads.
+
+The v1 entry retains these hooks:
 
 | Hook | Behavior |
 |---|---|
@@ -71,11 +83,11 @@ Start OpenCode in a project and ask: "Call pwf_status." With no plan it answers 
 
 Attestation: autonomous and gated plans inject only when `.attestation` (slug) or `.plan-attestation` (root) matches the SHA-256 of `task_plan.md`; a tampered or unattested v3 plan is refused with a `context blocked` line. `PLANNING_DISABLED=1` silences every hook. `PWF_PLAN_ROOT=<absolute path>` pins the project root and fails closed when it does not resolve. When a direct child project carries its own live plan, a cwd guess is ambiguous and the plugin injects a one-line notice instead of a plan; pin with `PWF_PLAN_ROOT` or `PLAN_ID`.
 
-Each session is resolved from its own directory (OpenCode's session `directory`), so two sessions in two projects inject two different plans, and child sessions (subagents) are never re-prompted by the gate.
+Each session is resolved from its own directory (`directory` on v1, `location.directory` plus `subpath` on v2), so two sessions in two projects inject two different plans, and child sessions (subagents) are never re-prompted by the gate.
 
 ## The completion gate on OpenCode
 
-OpenCode has no Stop hook that can refuse to end a turn. It does emit `session.idle` when a session finishes, and a plugin can send a new user message through the SDK. The gate uses that: when a gated plan still has an `in_progress` phase, the plugin re-prompts the session with the same reason the Claude Code Stop gate prints, and the agent continues. Decision table, shared with `check-complete.sh --gate`:
+The plugin's completion gate sends a follow-up message after an idle event (`session.idle` on v1, `session.status` with an `idle` status on v2). When a gated plan still has an `in_progress` phase, it re-prompts the session with the same reason the Claude Code Stop gate prints. Decision table, shared with `check-complete.sh --gate`:
 
 1. `<plan-dir>/.mode` contains the `gate` token (`/pwf --gated`, `pwf_init` with `mode: gated`, or `init-session.sh --gated`).
 2. An `in_progress` phase exists, counted as the per-field maximum of `**Status:** in_progress` lines and inline `[in_progress]` markers.
@@ -98,7 +110,9 @@ cd planning-with-files/.opencode/packages/opencode-planning-with-files
 npm ci && npm run build && npm test
 ```
 
-Opening the repository itself in OpenCode loads the plugin from source through `.opencode/plugins/planning-with-files.ts`, which re-exports the package (`.opencode/package.json` carries the `@opencode-ai/plugin` dependency OpenCode installs at startup). To load a built copy elsewhere, drop a one-line plugin file into `~/.config/opencode/plugins/` that re-exports the build: a relative import (`export { PlanningWithFiles } from "../pwf/dist/index.js"`) or a file URL (`from "file:///C:/path/to/dist/index.js"`, verified on Windows). A bare Windows path such as `C:/path/...` is not a valid import specifier and the loader skips the file silently.
+Opening the repository itself in OpenCode loads the plugin from source through `.opencode/plugins/planning-with-files.ts`, which re-exports the default definition and named v1 factory. Run `npm ci` in the package directory before using this contributor setup.
+
+For a built copy, OpenCode 2's `plugins` config accepts the absolute path to the package directory. Configured local plugin paths must be directories. An auto-discovered `.opencode/plugins/planning-with-files.ts` file can instead re-export the build: `export { default } from "../pwf/dist/index.js"`. A Windows file URL such as `file:///C:/path/to/dist/index.js` also works as an import specifier; a bare `C:/path/...` does not. Existing local wrappers that export only `PlanningWithFiles` must add the default export for v2.
 
 ## Usage with Superpowers Plugin
 

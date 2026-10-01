@@ -1,9 +1,9 @@
 /**
  * OpenCode plugin entry for planning-with-files.
  *
- * Only the plugin function is exported from this module: OpenCode treats every
- * exported function of a plugin module as a plugin, so the helpers live in
- * ./core.js. Hooks (all fail open: a planning error never breaks a turn):
+ * The default definition exposes server() for OpenCode 1.x and setup() for
+ * OpenCode 2.x. The named factory remains available for existing local entries.
+ * Hooks (all fail open: a planning error never breaks a turn):
  *
  * - chat.message: append the framed active plan to the outgoing user message
  *   (or a once-per-turn ambiguity notice), plus the queued write reminder
@@ -15,6 +15,8 @@
  * - tools pwf_init, pwf_status, pwf_check for the model
  */
 import { tool, type Plugin } from "@opencode-ai/plugin"
+import type { Plugin as V2Plugin } from "@opencode/plugin"
+import { setupV2 } from "./v2.js"
 import * as crypto from "node:crypto"
 import {
   ambiguityNotice,
@@ -35,8 +37,10 @@ import {
 
 type Located = { root: string | null; planDir: string | null; conflicts: string[]; multiple?: true }
 
-export const PlanningWithFiles: Plugin = async ({ client, directory }) => {
+export const PlanningWithFiles: Plugin = async ({ client, directory }, options) => {
   const env = process.env
+  // OpenCode 2 can move an existing session to another location or subpath.
+  const cacheSessionInfo = options?.cacheSessionInfo !== false
   const MAX_SESSIONS = 512
   const sessionDirs = new Map<string, string>()
   const sessionIsChild = new Map<string, boolean>()
@@ -60,7 +64,7 @@ export const PlanningWithFiles: Plugin = async ({ client, directory }) => {
    * `known: false`, which the gate treats as "do not re-prompt".
    */
   async function sessionInfo(sessionID: string): Promise<SessionInfo> {
-    const cachedDir = sessionDirs.get(sessionID)
+    const cachedDir = cacheSessionInfo ? sessionDirs.get(sessionID) : undefined
     if (cachedDir !== undefined) return { dir: cachedDir, child: sessionIsChild.get(sessionID) ?? false, known: true }
     try {
       const result = await client.session.get({ path: { id: sessionID } })
@@ -68,8 +72,10 @@ export const PlanningWithFiles: Plugin = async ({ client, directory }) => {
       if (!session) return { dir: directory, child: false, known: false }
       const dir = session.directory || directory
       const child = Boolean(session.parentID)
-      remember(sessionDirs, sessionID, dir)
-      remember(sessionIsChild, sessionID, child)
+      if (cacheSessionInfo) {
+        remember(sessionDirs, sessionID, dir)
+        remember(sessionIsChild, sessionID, child)
+      }
       return { dir, child, known: true }
     } catch {
       return { dir: directory, child: false, known: false }
@@ -203,3 +209,9 @@ export const PlanningWithFiles: Plugin = async ({ client, directory }) => {
     },
   }
 }
+
+export default {
+  id: "opencode-planning-with-files",
+  server: PlanningWithFiles,
+  setup: (context) => setupV2(context, PlanningWithFiles),
+} satisfies V2Plugin.Plugin & { server: Plugin }

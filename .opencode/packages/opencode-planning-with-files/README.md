@@ -4,12 +4,20 @@ Native [OpenCode](https://opencode.ai) plugin for [planning-with-files](https://
 
 ## Install
 
-Add the plugin to `opencode.json` (project) or `~/.config/opencode/opencode.json` (global):
+Version 1.2.0 supports OpenCode 1.18.21 and OpenCode 2.0.21. For OpenCode 2, add the plugin to `opencode.json` (project) or `~/.config/opencode/opencode.json` (global):
+
+```json
+{
+  "plugins": ["opencode-planning-with-files@1.2.0"]
+}
+```
+
+OpenCode 1 uses the singular `plugin` key:
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-planning-with-files"]
+  "plugin": ["opencode-planning-with-files@1.2.0"]
 }
 ```
 
@@ -23,13 +31,19 @@ That command lands in `~/.agents/skills/planning-with-files/`, one of the paths 
 
 ## What the plugin does
 
-| Hook | Behavior |
-|---|---|
-| `chat.message` | Appends the active plan to every user message: the framed head of `task_plan.md`, the normalized tail of `progress.md`, a pointer to `findings.md`. Resolves `PLAN_ID`, then `.planning/.active_plan`, then the newest `.planning/<slug>/task_plan.md`, then the legacy root file |
-| `tool.execute.after` | Appends a progress reminder to the output of `write`, `edit`, `patch` and `multiedit` while a plan exists |
-| `experimental.session.compacting` | Keeps the plan pointer and its attestation hash in the compaction summary |
-| `event` (`session.idle`) | Completion gate in gated mode: while an `in_progress` phase remains, the plugin re-prompts the session with the gate reason. Block cap `PWF_GATE_CAP` (default 20) and ledger stall detection release the session; child sessions are never re-prompted |
-| tools | `pwf_init` (root or `.planning/<date>-<slug>/`, `mode: autonomous` or `gated` with attestation), `pwf_status`, `pwf_check` |
+| Behavior | OpenCode 2 | OpenCode 1 |
+|---|---|---|
+| Inject framed planning context | `session.hook("context")`, added to the model request | `chat.message`, added as a synthetic message part |
+| Remind after writes | `tool.hook("execute.after")`, preserving output and attachments | `tool.execute.after` |
+| Preserve the plan pointer and hash during compaction | `session.hook("compaction")` | `experimental.session.compacting` |
+| Continue an unfinished gated plan | `session.status` with an `idle` status | `session.idle` |
+| Planning tools | `tool.transform` | `tool` definitions |
+
+The tools are `pwf_init` (root or `.planning/<date>-<slug>/`, `mode: autonomous` or `gated` with attestation), `pwf_status` and `pwf_check`. Write reminders apply to `write`, `edit`, `patch`, `multiedit` and `apply_patch`.
+
+Plan selection honors `PLAN_ID`. Without it, multiple named plans produce an ambiguity notice; a single named plan or the legacy root plan can be selected. The completion gate uses `PWF_GATE_CAP` (default 20) and ledger stall detection to release the session. Child sessions are never re-prompted.
+
+Local v2 wrappers must re-export the default definition: `export { default } from "./path/to/dist/index.js"`. The default definition also carries the v1 `server` entry, and the named `PlanningWithFiles` factory remains available.
 
 Autonomous and gated plans inject only when `.attestation` (slug) or `.plan-attestation` (root) matches the SHA-256 of `task_plan.md`. `PLANNING_DISABLED=1` silences every hook; `PWF_PLAN_ROOT=<absolute path>` pins the project root and fails closed when it does not resolve. A live plan in a direct child project makes a cwd guess ambiguous and nothing is injected, with a one-line notice.
 
