@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [3.22.0] - 2026-10-01
+
+### Added
+- OpenCode 2 support in `opencode-planning-with-files` 1.2.0. A default plugin definition registers native context injection, write reminders, compaction context, planning tools and the idle completion gate. The same package retains the OpenCode 1 server entry and named factory (#298).
+
+### Fixed
+- OpenCode 2 sessions that move to another project or subdirectory resolve their new planning files on every hook, keeping context and planning tools in agreement. Plugin unload and failed setup dispose registrations and stop the event subscription.
+- OpenCode installation instructions distinguish the v2 `plugins` key from the v1 `plugin` key and explain the default export required by local v2 wrappers.
+
+### Thanks
+- @luyanfeng, for reporting the OpenCode 2 plugin loading failure (#298).
+
 ## [3.21.0] - 2026-09-27
 
 ### Added
